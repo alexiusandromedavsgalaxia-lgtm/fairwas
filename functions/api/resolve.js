@@ -65,7 +65,9 @@ async function publishedDocument(parsed,env){
  if(!file&&!requested.includes("."))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0];
- return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered:type==="text/html"?await renderSiteHtml(site.site_id,file.content,env):null};
+ const rendered=type==="text/html"?await renderSiteHtml(site.site_id,file.content,env):null;
+ const redirect=rendered?resolveHtmlRedirect(extractHtmlRedirect(rendered),parsed.href):null;
+ return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered,redirect};
 }
 export async function onRequestGet({request,env}){
  const req=new URL(request.url),target=req.searchParams.get("url")||"";let parsed;try{parsed=new URL(target)}catch{return Response.json({ok:false,error:"invalid_url"},{status:400})}
@@ -74,6 +76,7 @@ export async function onRequestGet({request,env}){
  const assetPathRaw=req.searchParams.get("asset");const assetPath=assetPathRaw?("/"+assetPathRaw.replace(/^\/+/, "").replace(/\\/g,"/")):null;
  if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});return new Response(asset.content,{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});
  }
+ if(document.redirect){return Response.redirect(document.redirect,302);}
  let persisted=false;try{if(env.pages){await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,"httc",new Date().toISOString()).run();persisted=true}}catch{}
  return Response.json({ok:true,url:target,protocol:"httc",host:parsed.hostname,path:parsed.pathname+(parsed.search||""),persisted,document});
 }
