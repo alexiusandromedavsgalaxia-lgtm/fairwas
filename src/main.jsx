@@ -38,9 +38,12 @@ function App(){
 
  function newTab(){setTabs(t=>[...t,makeTab()]);setActive(tabs.length)}
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>Math.min(a,tabs.length-2))}
- function navigate(raw=address){
+ async function navigate(raw=address){
   const url=toFairwas(raw);
-  setTabs(t=>t.map((x,i)=>i===active?{...x,url,title:url===home?"Fairwas":hostOf(url),back:[...x.back,x.url],forward:[]}:x));
+  setTabs(t=>t.map((x,i)=>{
+   if(i!==active||url===x.url)return x;
+   return {...x,url,title:url===home?"Fairwas":hostOf(url),back:[...x.back,x.url],forward:[]};
+  }));
   if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100));
   setPanel(null);
  }
@@ -99,7 +102,7 @@ function Home({navigate,protocols,history,bookmarks}){
  </section>
 }
 
-function ProtocolPage({tab,scheme}){
+function ProtocolPage({tab,scheme,navigate}){
  return <section className="protocol-page">
   <div className="page-icon">{scheme?.label?.[0]||"F"}</div>
   <span className="eyebrow">{scheme?.label||"PROTOCOLO"}</span>
