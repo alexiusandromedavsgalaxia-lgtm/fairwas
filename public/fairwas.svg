@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+<title>Fairwas</title><desc>Fairwas browser symbol</desc>
+<defs>
+ <linearGradient id="g" x1="18" y1="18" x2="110" y2="110" gradientUnits="userSpaceOnUse">
+  <stop stop-color="#8b7cff"/>
+  <stop offset=".52" stop-color="#5d9cff"/>
+  <stop offset="1" stop-color="#35d6d0"/>
+ </linearGradient>
+</defs>
+<rect x="8" y="8" width="112" height="112" rx="32" fill="#10131a"/>
+<path d="M82 36H56c-13 0-23 10-23 23s10 23 23 23h17c12 0 22-9 22-21 0-11-9-20-20-20H57" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round"/>
+<path d="M43 82c0 11 9 20 20 20h12c13 0 23-10 23-23" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round"/>
+<circle cx="91" cy="36" r="6" fill="#35d6d0"/>
+</svg>
