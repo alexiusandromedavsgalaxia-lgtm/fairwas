@@ -7,3 +7,9 @@ binding="pages"
 database_name="workers-pages"
 database_id="9826cce7-68c1-41f5-a5db-4e9db9caf992"
 preview_database_id="pages"
+
+[[d1_databases]]
+binding="server"
+database_name="server"
+database_id="9bfa7efc-5ff4-4bf7-989c-171546b1c121"
+preview_database_id="server"
