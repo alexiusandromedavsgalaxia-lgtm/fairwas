@@ -48,7 +48,8 @@ function App(){
 
  useEffect(()=>{
   const onFairwasNavigate=e=>navigate(e.detail);
-  addEventListener("message",onMessage);\n  addEventListener("fairwas:navigate",onFairwasNavigate);
+  addEventListener("message",onMessage);
+  addEventListener("fairwas:navigate",onFairwasNavigate);
   const key=e=>{
    if((e.ctrlKey||e.metaKey)&&e.key==="l"){e.preventDefault();document.querySelector("#address")?.select()}
    if((e.ctrlKey||e.metaKey)&&e.key==="t"){e.preventDefault();newTab()}
