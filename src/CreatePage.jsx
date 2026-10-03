@@ -9,14 +9,16 @@ function parseFairwasUrl(value){
 
 function navigate(path){window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://createpage.fair"+path}))}
 
-const routes=[
+const publicRoutes=[
  ["/","Inicio"],
+ ["/registry","Registro"],
+ ["/landscape","Landscape"]
+];
+const privateRoutes=[
  ["/my/sites","Mis sitios"],
  ["/my/profile","Mi perfil"],
  ["/my/databases","Mis bases de datos"],
  ["/my/servers","Mis servidores"],
- ["/registry","Registro"],
- ["/landscape","Landscape"],
  ["/init","Crear sitio"],
  ["/editor","Editor"],
  ["/workers","Workers"]
@@ -37,13 +39,14 @@ export default function CreatePage({url}){
  return <Workspace path={path}/>;
 }
 
-function Layout({path,children}){
+function Layout({path,children,hasAccount}){
  const go=p=>{window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://createpage.fair"+p}))};
+ const routes=hasAccount?[...publicRoutes,...privateRoutes]:publicRoutes;
  return <section className="cp-shell">
   <aside className="cp-side">
    <div className="cp-brand"><span>CP</span><div><b>CreatePage</b><small>HTTC workspace</small></div></div>
    <nav>{routes.map(([p,label])=><button key={p} className={path===p?"active":""} onClick={()=>go(p)}>{label}</button>)}</nav>
-   <div className="cp-side-foot">Connected<br/><b>Pages · Database · Server</b></div>
+   <div className="cp-side-foot">{hasAccount?"Cuenta de desarrollador registrada":"Sin cuenta de desarrollador"}<br/><b>HTTC · Pages · Server · Database</b></div>
   </aside>
   <div className="cp-content">{children}</div>
  </section>
@@ -52,15 +55,38 @@ function Layout({path,children}){
 function Workspace({path}){
  const[sites,setSites]=useState([]),[dbs,setDbs]=useState([]),[servers,setServers]=useState([]),[registry,setRegistry]=useState(null),[workers,setWorkers]=useState([]);
  const[error,setError]=useState("");
+ const[loading,setLoading]=useState(true);
+ const hasAccount=Boolean(registry?.developer?.developer_id);
  const reload=async()=>{
+  setLoading(true);
   try{
-   const [s,d,v,r,w]=await Promise.all([api("sites"),api("databases"),api("servers"),api("registry"),api("workers")]);
-   setSites(s.items);setDbs(d.items);setServers(v.items);setRegistry(r);setWorkers(w.items);setError("");
+   const r=await api("registry");
+   setRegistry(r);
+   if(r.developer){
+    const [s,d,v,w]=await Promise.all([api("sites"),api("databases"),api("servers"),api("workers")]);
+    setSites(s.items||[]);setDbs(d.items||[]);setServers(v.items||[]);setWorkers(w.items||[]);
+   }else{
+    setSites([]);setDbs([]);setServers([]);setWorkers([]);
+   }
+   setError("");
   }catch(e){setError(e.message)}
+  finally{setLoading(false)}
  };
  useEffect(()=>{reload();const handler=()=>reload();window.addEventListener("fairwas:createpage-reload",handler);return()=>window.removeEventListener("fairwas:createpage-reload",handler)},[]);
- const page=path==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers}/>:path==="/init"?<Init onDone={reload}/>:path==="/my/sites"?<Sites sites={sites}/>:path==="/my/databases"?<Databases dbs={dbs}/>:path==="/my/servers"?<Servers servers={servers}/>:path==="/registry"?<Registry data={registry}/>:path==="/landscape"?<Landscape data={registry}/>:path==="/workers"?<Workers workers={workers}/>:path==="/editor"?<Editor/>:path==="/my/profile"?<Profile/>:<NotFound/>;
- return <Layout path={path}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
+ const privatePath=privateRoutes.some(([p])=>p===path);
+ const effectivePath=privatePath&&!hasAccount?"/registry":path;
+ const page=loading?<div className="cp-card cp-empty">Comprobando tu cuenta de desarrollador…</div>:
+  effectivePath==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers}/>:
+  effectivePath==="/init"?<Init onDone={reload}/>:
+  effectivePath==="/my/sites"?<Sites sites={sites}/>:
+  effectivePath==="/my/databases"?<Databases dbs={dbs}/>:
+  effectivePath==="/my/servers"?<Servers servers={servers}/>:
+  effectivePath==="/registry"?<Registry data={registry}/>:
+  effectivePath==="/landscape"?<Landscape data={registry}/>:
+  effectivePath==="/workers"?<Workers workers={workers}/>:
+  effectivePath==="/editor"?<Editor/>:
+  effectivePath==="/my/profile"?<Profile/>:<NotFound/>;
+ return <Layout path={effectivePath} hasAccount={hasAccount}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
 }
 
 function Head({eyebrow,title,text}){return <header className="cp-head"><div><small>{eyebrow}</small><h1>{title}</h1>{text&&<p>{text}</p>}</div></header>}
