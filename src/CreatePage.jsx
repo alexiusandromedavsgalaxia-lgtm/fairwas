@@ -94,7 +94,7 @@ function Editor(){
  const importFiles=event=>{
   const list=Array.from(event.target.files||[]);
   if(!list.length)return;
-  Promise.all(list.map(file=>file.text().then(content=>({path:"/"+(file.webkitRelativePath||file.name).replace(/^\\/+/, ""),content})))).then(items=>{
+  Promise.all(list.map(file=>file.text().then(content=>({path:"/"+(file.webkitRelativePath||file.name).replace(/^\/+/, ""),content})))).then(items=>{
    setFiles(current=>{const map=new Map(currentFiles().map(file=>[file.path,file]));items.forEach(file=>map.set(file.path,file));return[...map.values()]});
    setStatus(items.length+" archivo"+(items.length===1?"":"s")+" importado"+(items.length===1?"":"s")+".");
   }).catch(error=>setStatus(error instanceof Error?error.message:"No se pudieron importar los archivos."));
