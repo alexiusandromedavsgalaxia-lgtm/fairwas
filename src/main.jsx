@@ -8,13 +8,15 @@ import CreatePage from"./CreatePage";
 const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
 const makeTab=(url=home)=>makeNav({id:crypto.randomUUID(),url,title:url===home?"Inicio":hostOf(url)});
+const displayAddress=(url,mobile=false)=>{const host=hostOf(url);if(!host||host==="home")return url;return mobile?host:"httc://web."+host+"/#/#"};
+const normalizeAddress=(raw)=>{const value=String(raw||"").trim();const match=value.match(/^httc:\/\/web\.([^/?#]+)\/#\/#(?:.*)?$/i);return match?"httc://"+match[1]:value;};
 const hostOf=(url)=>{const value=String(url||"").trim();try{return new URL(value).hostname||value.split("/")[2]||value}catch{const match=value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i);return match?.[1]||value}};
 const initial=load();
 
 function App(){
  const[tabs,setTabs]=useState([makeTab(initial.settings.home||home)]);
  const[active,setActive]=useState(0);
- const[address,setAddress]=useState(initial.settings.home||home);
+ const[address,setAddress]=useState(initial.settings.home||home);\n const[mobile,setMobile]=useState(()=>typeof window!=="undefined"&&window.matchMedia("(max-width: 720px)").matches);
  const[dark,setDark]=useState(initial.settings.dark!==false);
  const[history,setHistory]=useState(initial.history||[]);
  const[bookmarks,setBookmarks]=useState(initial.bookmarks||[]);
@@ -26,7 +28,8 @@ function App(){
  const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home}}),[history,bookmarks,dark]);
- useEffect(()=>setAddress(tab.url),[tab.id,tab.url]);
+ useEffect(()=>setAddress(displayAddress(tab.url,mobile)),[tab.id,tab.url,mobile]);
+ useEffect(()=>{const mq=window.matchMedia("(max-width: 720px)");const onChange=()=>setMobile(mq.matches);onChange();mq.addEventListener?.("change",onChange);return()=>mq.removeEventListener?.("change",onChange)},[]);
  useEffect(()=>{
   let cancelled=false;
   setResolved(null);setResolveError(null);
@@ -55,7 +58,7 @@ function App(){
  function newTab(){const next=makeTab();setTabs(t=>[...t,next]);setActive(tabs.length)}
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>Math.min(a,tabs.length-2))}
  function navigate(raw=address){
-  const url=toFairwas(raw);
+  const url=toFairwas(normalizeAddress(raw));
   setTabs(t=>t.map((x,i)=>i!==active||url===x.url?x:{...x,url,title:url===home?"Inicio":hostOf(url),back:[...x.back,x.url],forward:[]}));
   if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100));
   setPanel(null);
