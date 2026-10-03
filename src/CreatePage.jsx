@@ -7,7 +7,7 @@ function parseFairwasUrl(value){
  return{protocol:match[1].toLowerCase(),hostname:match[2].toLowerCase(),pathname:match[3]||"/",search:match[4]||"",hash:match[5]||""};
 }
 
-function navigate(path){window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://web.createpage.fair"+path}))}
+function navigate(path){window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://createpage.fair"+path}))}
 
 const routes=[
  ["/","Inicio"],
@@ -31,14 +31,14 @@ async function api(action,options){
 
 export default function CreatePage({url}){
  let parsed;try{parsed=new URL(url)}catch{parsed=null}
- const host=parsed?.hostname||"web.createpage.fair";
+ const host=parsed?.hostname||"createpage.fair";
  const path=parsed?.pathname||"/";
  if(host==="docs.createpage.fair")return <DocsPage path={path}/>;
  return <Workspace path={path}/>;
 }
 
 function Layout({path,children}){
- const go=p=>{window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://web.createpage.fair"+p}))};
+ const go=p=>{window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://createpage.fair"+p}))};
  return <section className="cp-shell">
   <aside className="cp-side">
    <div className="cp-brand"><span>CP</span><div><b>CreatePage</b><small>HTTC workspace</small></div></div>
