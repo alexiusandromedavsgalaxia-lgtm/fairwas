@@ -55,7 +55,15 @@ export async function onRequest({request,env}){
   if(action==="profile"){
    if(method==="POST"){
     const b=await request.json();
-    await env.database.prepare("INSERT INTO cp_profiles(id,display_name,updated_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at").bind(b.display_name||"Fairwas user",now()).run();
+    const displayName=String(b.display_name||"").trim();
+    if(!displayName)return json({ok:false,error:"display_name_required"},400);
+    const stamp=now();
+    await env.database.prepare("INSERT INTO cp_profiles(id,display_name,updated_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at").bind(displayName,stamp).run();
+    const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+    if(developer){
+     await env.database.prepare("UPDATE cp_developers SET display_name=?,updated_at=? WHERE id=1").bind(displayName,stamp).run();
+     await env.users.prepare("UPDATE users SET display_name=?,updated_at=? WHERE developer_id=?").bind(displayName,stamp,developer.developer_id).run();
+    }
    }
    const r=await env.database.prepare("SELECT * FROM cp_profiles WHERE id=1").first();
    return json({ok:true,profile:r||{id:1,display_name:"Fairwas user"}});
