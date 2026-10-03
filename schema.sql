@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS site_files (
  path TEXT NOT NULL,
  content_type TEXT NOT NULL,
  content TEXT NOT NULL,
+ encoding TEXT,
  updated_at TEXT NOT NULL,
  UNIQUE(site_id,path)
 );
