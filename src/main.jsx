@@ -47,6 +47,7 @@ function App(){
  },[tab.id,tab.url]);
 
  useEffect(()=>{
+  const onMessage=e=>{const data=e.data;if(data&&data.type==="fairwas:navigate"&&typeof data.url==="string"&&data.url.startsWith("httc://"))navigate(data.url)};
   const onFairwasNavigate=e=>navigate(e.detail);
   addEventListener("message",onMessage);
   addEventListener("fairwas:navigate",onFairwasNavigate);
