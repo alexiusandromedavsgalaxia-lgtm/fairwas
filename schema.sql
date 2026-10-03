@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS cp_projects (
  title TEXT NOT NULL,
  developer_id TEXT,
  status TEXT NOT NULL DEFAULT 'draft',
+ build_root TEXT NOT NULL DEFAULT '/',
+ build_output TEXT NOT NULL DEFAULT '/dist',
+ build_command TEXT NOT NULL DEFAULT 'npm run build',
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
 );
