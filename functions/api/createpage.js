@@ -168,6 +168,49 @@ export async function onRequest({request,env}){
    return json({ok:true,title,hostname:repoName.toLowerCase().replace(/[^a-z0-9-]/g,"-")+".fair",files,source_files:!hasDist&&!hasBuild,prebuilt:Boolean(hasDist||hasBuild)});
   }
 
+  if(action==="site"){
+   const siteId=String(u.searchParams.get("site_id")||"").trim();
+   const hostname=String(u.searchParams.get("hostname")||"").trim().toLowerCase();
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   if(!developer)return json({ok:false,error:"developer_not_registered"},403);
+   const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const site=await env.pages.prepare("SELECT * FROM sites WHERE site_id=? LIMIT 1").bind(project.site_id).first();
+   const files=await env.pages.prepare("SELECT path,content_type,content FROM site_files WHERE site_id=? ORDER BY path").bind(project.site_id).all();
+   return json({ok:true,site:site||project,project,files:files.results||[]});
+  }
+
+  if(action==="update"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const b=await request.json();
+   const siteId=String(b.site_id||"").trim();
+   const hostname=String(b.hostname||"").trim().toLowerCase();
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   if(!developer)return json({ok:false,error:"developer_not_registered"},403);
+   const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const resolvedId=project.site_id;
+   const nextHostname=String(b.hostname||project.hostname).trim().toLowerCase();
+   const nextTitle=String(b.title||project.title).trim()||project.title;
+   if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(nextHostname))return json({ok:false,error:"invalid_hostname"},400);
+   const duplicate=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' AND site_id<>? LIMIT 1").bind(nextHostname,resolvedId).first();
+   if(duplicate)return json({ok:false,error:"hostname_already_registered"},409);
+   const incoming=Array.isArray(b.files)&&b.files.length?b.files:[{path:"/index.html",content:String(b.html||"")}];
+   const stamp=now(),version="v"+Date.now();
+   const normalized=incoming.map(f=>({...f,path:String(f.path||"/index.html").replace(/\\/g,"/").replace(/^\/+/, "/"),content_type:f.content_type||contentType(f.path)}));
+   await env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(resolvedId).run();
+   await env.pages.batch(normalized.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,updated_at) VALUES(?,?,?,?,?)").bind(resolvedId,f.path,f.content_type,String(f.content||""),stamp)));
+   await env.pages.prepare("UPDATE sites SET hostname=?,title=?,status='published',updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,stamp,resolvedId).run();
+   await env.server.prepare("UPDATE servers SET hostname=?,origin=?,status='active',updated_at=? WHERE site_id=?").bind(nextHostname,"pages://"+nextHostname,stamp,resolvedId).run();
+   await env.database.batch([
+    env.database.prepare("UPDATE cp_projects SET hostname=?,title=?,status='published',build_root=?,build_output=?,build_command=?,updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,String(b.build_root||project.build_root||"/"),String(b.build_output||project.build_output||"/dist"),String(b.build_command||project.build_command||"npm run build"),stamp,resolvedId),
+    env.database.prepare("INSERT INTO cp_deployments(site_id,version,status,created_at) VALUES(?,?,?,?)").bind(resolvedId,version,"published",stamp)
+   ]);
+   return json({ok:true,site_id:resolvedId,hostname:nextHostname,url:"httc://"+nextHostname,version,status:"published"});
+  }
+
   if(action==="create"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const b=await request.json();
