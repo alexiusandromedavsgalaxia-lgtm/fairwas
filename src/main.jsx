@@ -25,7 +25,7 @@ function App(){
  const[compactChrome,setCompactChrome]=useState(initial.settings.compactChrome===true);
  const[history,setHistory]=useState(initial.history||[]);
  const[bookmarks,setBookmarks]=useState(initial.bookmarks||[]);
- const[panel,setPanel]=useState(null);
+ const[panel,setPanel]=useState(null);const[addressFocused,setAddressFocused]=useState(false);
  const[resolved,setResolved]=useState(null);
  const[resolveError,setResolveError]=useState(null);
  const tab=tabs[active]||tabs[0];
@@ -60,7 +60,7 @@ function App(){
   addEventListener("keydown",key);return()=>{removeEventListener("keydown",key);removeEventListener("fairwas:navigate",onFairwasNavigate)}
  },[active,tabs,tab]);
 
- function newTab(){const next=makeTab();setTabs(t=>[...t,next]);setActive(tabs.length)}
+ function newTab(){const next=makeTab();setTabs(t=>{setActive(t.length);return[...t,next]})}
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>{if(i<a)return a-1;if(i===a)return Math.min(a,tabs.length-2);return a})}
  function navigate(raw=address){
   const url=toFairwas(normalizeAddress(raw));
@@ -91,7 +91,7 @@ function App(){
     </div>
     <form className="addressbar" onSubmit={e=>{e.preventDefault();navigate()}}>
       <span className="site-control">⌄</span>
-      <input id="address" value={compactChrome&&!document.activeElement?.matches("#address")?displayDomain(tab.url):address} onFocus={e=>setAddress(tab.url)} onChange={e=>setAddress(e.target.value)} aria-label="Dirección o búsqueda" spellCheck="false"/>
+      <input id="address" value={compactChrome&&!addressFocused?displayDomain(tab.url):address} onFocus={e=>{setAddressFocused(true);setAddress(tab.url)}} onBlur={()=>setAddressFocused(false)} onChange={e=>setAddress(e.target.value)} aria-label="Dirección o búsqueda" spellCheck="false"/>
       {tab.url!==home&&<button type="button" className="address-action" onClick={bookmark} aria-label="Añadir a favoritos">☆</button>}
     </form>
     <div className="toolgroup">
