@@ -1,6 +1,12 @@
 function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store"}})}
 const now=()=>new Date().toISOString();
 const id=()=>crypto.randomUUID();
+async function ensureServerSchema(env){
+ if(!env.server)throw new Error("server_binding_missing");
+ await env.server.prepare("CREATE TABLE IF NOT EXISTS servers (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,hostname TEXT NOT NULL UNIQUE,protocol TEXT NOT NULL DEFAULT 'httc',origin TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+ await env.server.prepare("CREATE INDEX IF NOT EXISTS idx_servers_protocol_hostname ON servers(protocol,hostname)").run();
+}
+
 
 export async function onRequest({request,env}){
  const u=new URL(request.url);
@@ -9,6 +15,7 @@ export async function onRequest({request,env}){
  if(!env.database||!env.pages||!env.server||!env.users)return json({ok:false,error:"d1_binding_missing",detail:"CreatePage requiere pages, server, database y users."},500);
 
  try{
+  await ensureServerSchema(env);
   await Promise.all([
    env.database.batch([
     env.database.prepare("CREATE TABLE IF NOT EXISTS cp_developers (id INTEGER PRIMARY KEY CHECK(id=1),developer_id TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
