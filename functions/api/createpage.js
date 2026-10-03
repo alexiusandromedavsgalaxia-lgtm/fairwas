@@ -139,7 +139,8 @@ export async function onRequest({request,env}){
    const origin="pages://"+hostname;
    try{
     const incoming=Array.isArray(b.build_files)&&b.build_files.length?b.build_files:(Array.isArray(b.files)&&b.files.length?b.files:[{path:"/index.html",content:html}]);
-    const normalizedIncoming=incoming.map(f=>({...f,path:String(f.path||"/index.html").replace(/\\/g,"/").replace(/^\/+/,"/")}));\n    const fileStatements=normalizedIncoming.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,updated_at) VALUES(?,?,?,?,?)").bind(site_id,String(f.path||"/index.html"),String(f.path||"").endsWith(".css")?"text/css":String(f.path||"").endsWith(".js")?"text/javascript":"text/html",String(f.content||""),stamp));
+    const normalizedIncoming=incoming.map(f=>({...f,path:String(f.path||"/index.html").replace(/\\/g,"/").replace(/^\/+/,"/")}));\
+    const fileStatements=normalizedIncoming.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,updated_at) VALUES(?,?,?,?,?)").bind(site_id,String(f.path||"/index.html"),String(f.path||"").endsWith(".css")?"text/css":String(f.path||"").endsWith(".js")?"text/javascript":"text/html",String(f.content||""),stamp));
     await env.pages.batch([
      env.pages.prepare("INSERT INTO sites(site_id,hostname,protocol,title,description,logo_url,framework,language,backend,runtime,database_type,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(site_id,hostname,"httc",title,b.description||"",b.logo_url||"",b.framework||"Custom",b.language||"HTML",b.backend||"None",b.runtime||"Cloudflare Pages",b.database_type||"None","publishing",stamp,stamp),
      ...fileStatements
