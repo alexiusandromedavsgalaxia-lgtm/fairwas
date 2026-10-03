@@ -8,6 +8,7 @@ import CreatePage from"./CreatePage";
 const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
 const makeTab=(url=home,tab={})=>makeNav({id:tab.id||crypto.randomUUID(),url,title:tab.title|| (url===home?"Inicio":hostOf(url)),back:Array.isArray(tab.back)?tab.back:[],forward:Array.isArray(tab.forward)?tab.forward:[]});
+const displayDomain=(url)=>{const value=String(url||"").trim();try{const parsed=new URL(value);return parsed.protocol==="httc:"&&parsed.hostname&&parsed.hostname!=="home"?parsed.hostname:value}catch{return value}};
 const displayAddress=(url,mobile=false)=>{const value=String(url||"").trim();if(!value)return"";try{const parsed=new URL(value);if(parsed.protocol!=="httc:")return value;const host=parsed.hostname||"";if(!host||host==="home")return value;const path=(parsed.pathname&&parsed.pathname!=="/"?parsed.pathname:"")+(parsed.search||"")+(parsed.hash||"");return mobile?host+path:"httc://web."+host+path;}catch{return value}};
 const normalizeAddress=(raw)=>{const value=String(raw||"").trim();const match=value.match(/^httc:\/\/web\.([^/?#]+)(\/[^?#]*)?(?:\?([^#]*))?(?:#(.*))?$/i);if(match)return"httc://"+match[1]+(match[2]||"/")+(match[3]?"?"+match[3]:"")+(match[4]?"#"+match[4]:"");return value;};
 const hostOf=(url)=>{const value=String(url||"").trim();try{return new URL(value).hostname||value.split("/")[2]||value}catch{const match=value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i);return match?.[1]||value}};
@@ -21,6 +22,7 @@ function App(){
  const[address,setAddress]=useState(initial.settings.home||home);
  const[mobile,setMobile]=useState(()=>typeof window!=="undefined"&&window.matchMedia("(max-width: 720px)").matches);
  const[dark,setDark]=useState(initial.settings.dark!==false);
+ const[compactChrome,setCompactChrome]=useState(initial.settings.compactChrome===true);
  const[history,setHistory]=useState(initial.history||[]);
  const[bookmarks,setBookmarks]=useState(initial.bookmarks||[]);
  const[panel,setPanel]=useState(null);
@@ -30,7 +32,7 @@ function App(){
  const scheme=protocolFor(tab.url);
  const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
 
- useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,tabs,active,tab?.url]);
+ useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home,compactChrome},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,compactChrome,tabs,active,tab?.url]);
  useEffect(()=>setAddress(displayAddress(tab.url,mobile)),[tab.id,tab.url,mobile]);
  useEffect(()=>{const mq=window.matchMedia("(max-width: 720px)");const onChange=()=>setMobile(mq.matches);onChange();mq.addEventListener?.("change",onChange);return()=>mq.removeEventListener?.("change",onChange)},[]);
  useEffect(()=>{
@@ -73,7 +75,7 @@ function App(){
  function clearHistory(){setHistory([])}
 
 
- return <div className={"app "+(dark?"dark":"light")}>
+ return <div className={"app "+(dark?"dark":"light")+" "+(compactChrome?"compact-chrome":"")}>
   <header className="chrome">
    <div className="topbar">
     <div className="traffic-space"><img className="fairwas-logo" src="/fairwas.svg" alt="Fairwas"/></div>
@@ -89,13 +91,14 @@ function App(){
     </div>
     <form className="addressbar" onSubmit={e=>{e.preventDefault();navigate()}}>
       <span className="site-control">⌄</span>
-      <input id="address" value={address} onChange={e=>setAddress(e.target.value)} aria-label="Dirección o búsqueda" spellCheck="false"/>
+      <input id="address" value={compactChrome&&!document.activeElement?.matches("#address")?displayDomain(tab.url):address} onFocus={e=>setAddress(tab.url)} onChange={e=>setAddress(e.target.value)} aria-label="Dirección o búsqueda" spellCheck="false"/>
       {tab.url!==home&&<button type="button" className="address-action" onClick={bookmark} aria-label="Añadir a favoritos">☆</button>}
     </form>
     <div className="toolgroup">
      <button onClick={()=>setPanel(panel==="bookmarks"?null:"bookmarks")} aria-label="Barra lateral">☰</button>
      <button onClick={()=>setPanel(panel==="history"?null:"history")} aria-label="Historial">◷</button>
      <button onClick={()=>setPanel(panel==="settings"?null:"settings")} aria-label="Más opciones">•••</button>
+     <button onClick={()=>setCompactChrome(v=>!v)} aria-label={compactChrome?"Mostrar pestañas y barra completa":"Reducir barra superior"}>{compactChrome?"↕":"⌄"}</button>
     </div>
    </div>
   </header>
@@ -103,7 +106,7 @@ function App(){
   {panel&&<aside className="panel">
    {panel==="history"&&<><div className="paneltitle"><b>Historial</b><button onClick={clearHistory}>Borrar historial</button></div>{history.length?<div className="list">{history.map((x,i)=><button className="listitem" key={x.url+i} onClick={()=>openItem(x.url)}><b>{x.title}</b><small>{x.url}</small></button>)}</div>:<p className="empty">No hay historial.</p>}</>}
    {panel==="bookmarks"&&<><div className="paneltitle"><b>Favoritos</b></div>{bookmarks.length?<div className="list">{bookmarks.map(x=><button className="listitem" key={x.url} onClick={()=>openItem(x.url)}><b>{x.title}</b><small>{x.url}</small></button>)}</div>:<p className="empty">No hay favoritos.</p>}</>}
-   {panel==="settings"&&<><div className="paneltitle"><b>Ajustes</b></div><label className="setting"><span>Modo oscuro</span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><div className="settingblock"><b>Protocolo</b><div className="protocolrow"><span>HTTC</span><small>httc:// · Global</small></div></div></>}
+   {panel==="settings"&&<><div className="paneltitle"><b>Ajustes</b></div><label className="setting"><span>Modo oscuro</span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><label className="setting"><span>Barra compacta</span><input type="checkbox" checked={compactChrome} onChange={e=>setCompactChrome(e.target.checked)}/></label><div className="settingblock"><b>Protocolo</b><div className="protocolrow"><span>HTTC</span><small>httc:// · Global</small></div></div></>}
   </aside>}
 
   <main className="viewport">
