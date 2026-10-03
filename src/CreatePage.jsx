@@ -41,7 +41,7 @@ export default function CreatePage({url}){
 
 function Layout({path,children,hasAccount}){
  const go=p=>{window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://createpage.fair"+p}))};
- const routes=hasAccount?[...publicRoutes,...privateRoutes]:publicRoutes;
+ const routes=hasAccount?privateRoutes:publicRoutes;
  return <section className="cp-shell">
   <aside className="cp-side">
    <div className="cp-brand"><span>CP</span><div><b>CreatePage</b><small>HTTC workspace</small></div></div>
@@ -85,7 +85,7 @@ function Workspace({path}){
   effectivePath==="/landscape"?<Landscape data={registry}/>:
   effectivePath==="/workers"?<Workers workers={workers}/>:
   effectivePath==="/editor"?<Editor/>:
-  effectivePath==="/my/profile"?<Profile/>:<NotFound/>;
+  effectivePath==="/my/profile"?<Profile data={registry}/>:<NotFound/>;
  return <Layout path={effectivePath} hasAccount={hasAccount}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
 }
 
@@ -99,7 +99,7 @@ function Registry({data}){const[displayName,setDisplayName]=useState(data?.devel
 function Landscape({data}){return <><Head eyebrow="LANDSCAPE" title="Infraestructura" text="El recorrido real de un sitio publicado."/><div className="cp-landscape"><Node t="CreatePage" s="Control"/><i>↓</i><Node t="Pages" s="Sitio + archivos"/><i>↔</i><Node t="Server" s="Dominio + origen"/><i>↓</i><Node t="HTTC" s={data?.sites?.length?data.sites.length+" sitios publicados":"Sin sitios publicados"}/></div></>}
 function Node({t,s}){return <div className="cp-node"><b>{t}</b><span>{s}</span></div>}
 function Workers({workers}){return <><Head eyebrow="WORKERS" title="Workers" text="Workers asociados al ecosistema CreatePage."/><div className="cp-list">{workers.map(w=><div className="cp-card cp-row" key={w.id}><div><b>{w.name}</b><small>{w.status}</small></div></div>)}{!workers.length&&<Empty text="No hay Workers todavía."/>}</div></>}
-function Profile(){const[name,setName]=useState("Fairwas user");const[ok,setOk]=useState(false);useEffect(()=>{api("profile").then(x=>setName(x.profile.display_name)).catch(()=>{})},[]);return <><Head eyebrow="MY / PROFILE" title="Mi perfil"/><div className="cp-card cp-form"><label>Nombre<input value={name} onChange={e=>setName(e.target.value)}/></label><button onClick={async()=>{await api("profile",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({display_name:name})});setOk(true)}}>Guardar perfil</button>{ok&&<small>Guardado en Database.</small>}</div></>}
+function Profile({data}){const account=data?.developer;const[name,setName]=useState(account?.display_name||"Fairwas user");const[ok,setOk]=useState(false);useEffect(()=>setName(account?.display_name||"Fairwas user"),[account?.display_name]);return <><Head eyebrow="MY / PROFILE" title="Mi perfil" text="Identidad de tu cuenta de desarrollador."/><div className="cp-grid two"><div className="cp-card cp-form"><label>Nombre<input value={name} onChange={e=>setName(e.target.value)}/></label><button onClick={async()=>{await api("profile",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({display_name:name})});setOk(true);window.dispatchEvent(new CustomEvent("fairwas:createpage-reload"))}}>Guardar perfil</button>{ok&&<small>Guardado en Database.</small>}</div><div className="cp-card"><h3>Cuenta</h3><p className="cp-line"><b>User ID</b><span>{account?.user_id||"—"}</span></p><p className="cp-line"><b>Developer ID</b><span>{account?.developer_id||"—"}</span></p><p className="cp-line"><b>Email</b><span>{account?.email||"—"}</span></p><p className="cp-line"><b>Estado</b><span>{account?.status||"—"}</span></p></div></div></>}
 function Editor(){
  const[files,setFiles]=useState([{path:"/index.html",content:"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Mi sitio</title></head>\n<body><h1>Hola desde CreatePage</h1></body>\n</html>"}]);
  const[selected,setSelected]=useState("/index.html");
