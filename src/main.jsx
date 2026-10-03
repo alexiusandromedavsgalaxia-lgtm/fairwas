@@ -3,6 +3,7 @@ import{createRoot}from"react-dom/client";
 import"./styles.css";
 import{protocolFor,toFairwas}from"./protocols";
 import{load,save}from"./storage";
+import CreatePage from"./CreatePage";
 
 const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
@@ -22,6 +23,7 @@ function App(){
  const[resolveError,setResolveError]=useState(null);
  const tab=tabs[active]||tabs[0];
  const scheme=protocolFor(tab.url);
+ const isCreatePage=(()=>{try{const u=new URL(tab.url);return u.hostname==="web.createpage.fair"||u.hostname==="docs.createpage.fair"}catch{return false}})();
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home}}),[history,bookmarks,dark]);
  useEffect(()=>setAddress(tab.url),[tab.id,tab.url]);
@@ -37,6 +39,8 @@ function App(){
  },[tab.id,tab.url]);
 
  useEffect(()=>{
+  const onFairwasNavigate=e=>navigate(e.detail);
+  addEventListener("fairwas:navigate",onFairwasNavigate);
   const key=e=>{
    if((e.ctrlKey||e.metaKey)&&e.key==="l"){e.preventDefault();document.querySelector("#address")?.select()}
    if((e.ctrlKey||e.metaKey)&&e.key==="t"){e.preventDefault();newTab()}
@@ -45,7 +49,7 @@ function App(){
    if((e.ctrlKey||e.metaKey)&&e.key==="h"){e.preventDefault();setPanel("history")}
    if((e.ctrlKey||e.metaKey)&&e.key==="b"){e.preventDefault();setPanel("bookmarks")}
   };
-  addEventListener("keydown",key);return()=>removeEventListener("keydown",key)
+  addEventListener("keydown",key);return()=>{removeEventListener("keydown",key);removeEventListener("fairwas:navigate",onFairwasNavigate)}
  },[active,tabs,tab]);
 
  function newTab(){const next=makeTab();setTabs(t=>[...t,next]);setActive(tabs.length)}
@@ -97,7 +101,7 @@ function App(){
   </aside>}
 
   <main className="viewport">
-   {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>}
+   {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url}/>:<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>}
   </main>
  </div>
 }
