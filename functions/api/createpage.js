@@ -113,10 +113,25 @@ export async function onRequest({request,env}){
    const owner=parts[0],repoName=parts[1].replace(/\.git$/,"");
    const tree=await fetch("https://api.github.com/repos/"+encodeURIComponent(owner)+"/"+encodeURIComponent(repoName)+"/git/trees/HEAD?recursive=1",{headers:{"accept":"application/vnd.github+json","user-agent":"Fairwas-CreatePage"}});
    if(!tree.ok)return json({ok:false,error:"repo_fetch_failed",detail:"GitHub returned "+tree.status},502);
-   const data=await tree.json();const blobs=(data.tree||[]).filter(x=>x.type==="blob").filter(x=>/\\.(html?|css|js|jsx|ts|tsx|json|md|svg|txt)$/i.test(x.path)).slice(0,200);
-   const files=[];for(const item of blobs){const raw=await fetch("https://raw.githubusercontent.com/"+encodeURIComponent(owner)+"/"+encodeURIComponent(repoName)+"/HEAD/"+item.path);if(raw.ok)files.push({path:"/"+item.path,content:await raw.text()})}
+   const data=await tree.json();
+   const blobs=(data.tree||[]).filter(x=>x.type==="blob");
+   const hasDist=blobs.some(x=>/^dist\\/i.test(x.path)&&/^dist\\/i.test(x.path)&&/\\/index\\.html$/i.test("/"+x.path));
+   const hasBuild=blobs.some(x=>/^build\\/i.test(x.path)&&/\\/index\\.html$/i.test("/"+x.path));
+   const sourcePattern=/\\.(html?|css|js|jsx|ts|tsx|json|md|svg|txt|webmanifest)$/i;
+   const selected=hasDist?blobs.filter(x=>/^dist\\//i.test(x.path)):hasBuild?blobs.filter(x=>/^build\\//i.test(x.path)):blobs.filter(x=>sourcePattern.test(x.path));
+   const files=[];
+   for(const item of selected.slice(0,1000)){
+    if(!sourcePattern.test(item.path))continue;
+    const raw=await fetch("https://raw.githubusercontent.com/"+encodeURIComponent(owner)+"/"+encodeURIComponent(repoName)+"/HEAD/"+item.path);
+    if(raw.ok){
+     let path="/"+item.path;
+     if(hasDist)path="/"+item.path.replace(/^dist\\//i,"");
+     else if(hasBuild)path="/"+item.path.replace(/^build\\//i,"");
+     files.push({path,content:await raw.text()});
+    }
+   }
    const title=repoName.replace(/[-_]+/g," ").replace(/\\b\\w/g,m=>m.toUpperCase());
-   return json({ok:true,title,hostname:repoName.toLowerCase().replace(/[^a-z0-9-]/g,"-")+".fair",files});
+   return json({ok:true,title,hostname:repoName.toLowerCase().replace(/[^a-z0-9-]/g,"-")+".fair",files,source_files:!hasDist&&!hasBuild,prebuilt:Boolean(hasDist||hasBuild)});
   }
 
   if(action==="create"){
