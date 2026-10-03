@@ -13,6 +13,17 @@ async function ensureServerSchema(env){
  await env.server.prepare("CREATE INDEX IF NOT EXISTS idx_servers_protocol_hostname ON servers(protocol,hostname)").run();
 }
 
+async function ensureProjectSchema(env){
+ const table=await env.database.prepare("PRAGMA table_info(cp_projects)").all();
+ const names=new Set((table.results||[]).map(x=>x.name));
+ const columns=[
+  ["build_root","ALTER TABLE cp_projects ADD COLUMN build_root TEXT NOT NULL DEFAULT '/'"],
+  ["build_output","ALTER TABLE cp_projects ADD COLUMN build_output TEXT NOT NULL DEFAULT '/dist'"],
+  ["build_command","ALTER TABLE cp_projects ADD COLUMN build_command TEXT NOT NULL DEFAULT 'npm run build'"]
+ ];
+ for(const [name,sql] of columns)if(!names.has(name))await env.database.prepare(sql).run();
+}
+
 
 export async function onRequest({request,env}){
  const u=new URL(request.url);
@@ -22,6 +33,7 @@ export async function onRequest({request,env}){
 
  try{
   await ensureServerSchema(env);
+  await ensureProjectSchema(env);
   await Promise.all([
    env.database.batch([
     env.database.prepare("CREATE TABLE IF NOT EXISTS cp_developers (id INTEGER PRIMARY KEY CHECK(id=1),developer_id TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
@@ -69,8 +81,9 @@ export async function onRequest({request,env}){
 
   if(action==="registry"){
    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
+   const user=developer?await env.users.prepare("SELECT id,email,status,created_at,updated_at FROM users WHERE developer_id=? LIMIT 1").bind(developer.developer_id).first():null;
    const linked=developer?await env.database.prepare("SELECT site_id,hostname,title,status FROM cp_projects WHERE developer_id=? ORDER BY hostname").bind(developer.developer_id).all():{results:[]};
-   return json({ok:true,developer:developer||null,sites:linked.results||[]});
+   return json({ok:true,developer:developer?{...developer,user_id:user?.id||null,email:user?.email||"",status:user?.status||"active",created_at:user?.created_at||developer.created_at,updated_at:user?.updated_at||developer.updated_at}:null,sites:linked.results||[]});
   }
 
   if(action==="developer"){
