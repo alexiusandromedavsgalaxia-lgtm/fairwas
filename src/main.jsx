@@ -26,8 +26,6 @@ function App(){
  const[history,setHistory]=useState(initial.history||[]);
  const[bookmarks,setBookmarks]=useState(initial.bookmarks||[]);
  const[panel,setPanel]=useState(null);const[addressFocused,setAddressFocused]=useState(false);
- const[resolved,setResolved]=useState(null);
- const[resolveError,setResolveError]=useState(null);
  const tab=tabs[active]||tabs[0];
  const scheme=protocolFor(tab.url);
  const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
@@ -35,17 +33,6 @@ function App(){
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home,compactChrome},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,compactChrome,tabs,active,tab?.url]);
  useEffect(()=>setAddress(displayAddress(tab.url,mobile)),[tab.id,tab.url,mobile]);
  useEffect(()=>{const mq=window.matchMedia("(max-width: 720px)");const onChange=()=>setMobile(mq.matches);onChange();mq.addEventListener?.("change",onChange);return()=>mq.removeEventListener?.("change",onChange)},[]);
- useEffect(()=>{
-  let cancelled=false;
-  setResolved(null);setResolveError(null);
-  if(tab.url===home||!protocolFor(tab.url))return;
-  fetch("/api/resolve?url="+encodeURIComponent(tab.url))
-   .then(async r=>{const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.error||"resolve_failed");return data})
-   .then(data=>{if(!cancelled)setResolved(data)})
-   .catch(e=>{if(!cancelled)setResolveError(e.message||"resolve_failed")});
-  return()=>{cancelled=true};
- },[tab.id,tab.url]);
-
  useEffect(()=>{
   const onMessage=e=>{
    const data=e?.data;
@@ -114,8 +101,28 @@ function App(){
   </aside>}
 
   <main className="viewport">
-   {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url}/>:<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>}
+   {tabs.map((item,i)=><TabView key={item.id} tab={item} active={i===active} navigate={navigate} history={history} bookmarks={bookmarks}/>)}
   </main>
+ </div>
+}
+
+function TabView({tab,active,navigate,history,bookmarks}){
+ const[resolved,setResolved]=useState(null);
+ const[resolveError,setResolveError]=useState(null);
+ const scheme=protocolFor(tab.url);
+ const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
+ useEffect(()=>{
+  let cancelled=false;
+  setResolved(null);setResolveError(null);
+  if(tab.url===home||!protocolFor(tab.url))return;
+  fetch("/api/resolve?url="+encodeURIComponent(tab.url))
+   .then(async r=>{const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.error||"resolve_failed");return data})
+   .then(data=>{if(!cancelled)setResolved(data)})
+   .catch(e=>{if(!cancelled)setResolveError(e.message||"resolve_failed")});
+  return()=>{cancelled=true};
+ },[tab.id,tab.url]);
+ return <div className="tab-view" style={{display:active?"block":"none"}}>
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url}/>:<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>}
  </div>
 }
 
