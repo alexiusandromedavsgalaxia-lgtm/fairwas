@@ -23,7 +23,7 @@ function App(){
  const[resolveError,setResolveError]=useState(null);
  const tab=tabs[active]||tabs[0];
  const scheme=protocolFor(tab.url);
- const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="web.createpage.fair"||host==="docs.createpage.fair"})();
+ const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home}}),[history,bookmarks,dark]);
  useEffect(()=>setAddress(tab.url),[tab.id,tab.url]);
