@@ -53,6 +53,17 @@ async function renderSiteHtml(siteId,html,env){
  }
  return output;
 }
+function extractHtmlRedirect(html){
+ const source=String(html||"");
+ const meta=source.match(/<meta\\s+[^>]*http-equiv=[\"']refresh[\"'][^>]*content=[\"'][^\"']*url=([^\"' >]+)[^\"']*[\"'][^>]*>/i)||source.match(/<meta\\s+[^>]*content=[\"'][^\"']*url=([^\"' >]+)[^\"']*[^>]*http-equiv=[\"']refresh[\"'][^>]*>/i);
+ if(meta&&meta[1])return meta[1].trim();
+ const js=source.match(/(?:window\\.)?location(?:\\.href)?\\s*=\\s*[\"']([^\"']+)[\"']/i);
+ return js&&js[1]?js[1].trim():null;
+}
+function resolveHtmlRedirect(target,base){
+ if(!target)return null;
+ try{return new URL(target,base).toString()}catch{return null}
+}
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
  if(hostname==="home")return{type:"home",title:"Fairwas · HTTC",protocol:"httc",description:DESCRIPTION};
