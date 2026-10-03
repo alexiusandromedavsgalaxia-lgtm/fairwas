@@ -132,7 +132,7 @@ function Home({navigate,history,bookmarks}){
 }
 
 function ProtocolPage({tab,scheme,resolved,resolveError}){
- if(resolved?.document?.type==="site"&&resolved.document.file?.content_type==="text/html"&&resolved.document.file.content){
+ if(resolved?.document?.type==="site"&&resolved.document.file?.content_type?.split(";")[0]==="text/html"&&resolved.document.file.content){
   return <section className="published-frame"><iframe title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms" srcDoc={resolved.document.rendered||resolved.document.file.content}/></section>
  }
  return <section className="webpage">
