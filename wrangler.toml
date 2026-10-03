@@ -1,0 +1,8 @@
+name="fairwas"
+compatibility_date="2026-10-03"
+pages_build_output_dir="./dist"
+
+[[d1_databases]]
+binding="pages"
+database_name="workers-pages"
+database_id="REPLACE_WITH_YOUR_D1_DATABASE_ID"
