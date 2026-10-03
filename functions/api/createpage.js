@@ -6,9 +6,26 @@ export async function onRequest({request,env}){
  const u=new URL(request.url);
  const action=u.searchParams.get("action")||"sites";
  const method=request.method;
- if(!env.database)return json({ok:false,error:"database_binding_missing"},500);
+ if(!env.database||!env.pages||!env.server||!env.users)return json({ok:false,error:"d1_binding_missing",detail:"CreatePage requiere pages, server, database y users."},500);
 
  try{
+  await Promise.all([
+   env.database.batch([
+    env.database.prepare("CREATE TABLE IF NOT EXISTS cp_developers (id INTEGER PRIMARY KEY CHECK(id=1),developer_id TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
+    env.database.prepare("CREATE TABLE IF NOT EXISTS cp_projects (site_id TEXT PRIMARY KEY,hostname TEXT NOT NULL UNIQUE,title TEXT NOT NULL,developer_id TEXT,status TEXT NOT NULL DEFAULT 'draft',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
+    env.database.prepare("CREATE TABLE IF NOT EXISTS cp_deployments (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT NOT NULL,version TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL)"),
+    env.database.prepare("CREATE TABLE IF NOT EXISTS cp_databases (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,name TEXT NOT NULL UNIQUE,engine TEXT NOT NULL DEFAULT 'SQLite',status TEXT NOT NULL DEFAULT 'registered',created_at TEXT NOT NULL)"),
+    env.database.prepare("CREATE TABLE IF NOT EXISTS cp_profiles (id INTEGER PRIMARY KEY CHECK(id=1),display_name TEXT NOT NULL DEFAULT 'Fairwas user',updated_at TEXT NOT NULL)"),
+    env.database.prepare("CREATE TABLE IF NOT EXISTS cp_workers (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,name TEXT NOT NULL,script TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'draft',updated_at TEXT NOT NULL)"),
+    env.database.prepare("CREATE TABLE IF NOT EXISTS cp_docs (id TEXT PRIMARY KEY,title TEXT NOT NULL,content TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL)")
+   ]),
+   env.users.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY,developer_id TEXT UNIQUE,display_name TEXT NOT NULL,email TEXT,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
+   env.pages.batch([
+    env.pages.prepare("CREATE TABLE IF NOT EXISTS sites (site_id TEXT PRIMARY KEY,hostname TEXT NOT NULL UNIQUE,protocol TEXT NOT NULL DEFAULT 'httc',title TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',logo_url TEXT,framework TEXT,language TEXT,backend TEXT,runtime TEXT,database_type TEXT,status TEXT NOT NULL DEFAULT 'draft',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
+    env.pages.prepare("CREATE TABLE IF NOT EXISTS site_files (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT NOT NULL,path TEXT NOT NULL,content_type TEXT NOT NULL,content TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(site_id,path))")
+   ]),
+   env.server.prepare("CREATE TABLE IF NOT EXISTS servers (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,hostname TEXT NOT NULL UNIQUE,protocol TEXT NOT NULL DEFAULT 'httc',origin TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)")
+  ]);
   if(action==="profile"){
    if(method==="POST"){
     const b=await request.json();
@@ -46,7 +63,9 @@ export async function onRequest({request,env}){
     const displayName=String(b.display_name||"").trim();
     if(!/^[a-z0-9][a-z0-9-]{2,31}$/.test(developerId))return json({ok:false,error:"invalid_developer_id"},400);
     if(!displayName)return json({ok:false,error:"display_name_required"},400);
-    await env.database.prepare("INSERT INTO cp_developers(id,developer_id,display_name,created_at,updated_at) VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET developer_id=excluded.developer_id,display_name=excluded.display_name,updated_at=excluded.updated_at").bind(developerId,displayName,now()).run();
+    const stamp=now();
+    await env.users.prepare("INSERT INTO users(id,developer_id,display_name,status,created_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(developer_id) DO UPDATE SET display_name=excluded.display_name,status='active',updated_at=excluded.updated_at").bind(developerId,developerId,displayName,"active",stamp,stamp).run();
+    await env.database.prepare("INSERT INTO cp_developers(id,developer_id,display_name,created_at,updated_at) VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET developer_id=excluded.developer_id,display_name=excluded.display_name,updated_at=excluded.updated_at").bind(developerId,displayName,stamp,stamp).run();
    }
    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
    return json({ok:true,developer:developer||null});
@@ -85,7 +104,7 @@ export async function onRequest({request,env}){
    if(!hostname)return json({ok:false,error:"hostname_required"},400);
    if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
-   if(!developer)return json({ok:false,error:"developer_not_registered"},403);
+   if(!developer)return json({ok:false,error:"developer_not_registered",detail:"Registra primero tu cuenta en /registry."},403);
    const site_id=id(), stamp=now(), version="v1-"+Date.now();
    const html=String(b.html||"<!doctype html><html><head><meta charset=\"utf-8\"><title>"+title+"</title></head><body><main><h1>"+title+"</h1></main></body></html>");
    const origin="pages://"+hostname;
@@ -113,5 +132,5 @@ export async function onRequest({request,env}){
   }
 
   return json({ok:false,error:"unknown_action"},404);
- }catch(e){return json({ok:false,error:"request_failed",detail:String(e)},500)}
+ }catch(e){const detail=String(e);return json({ok:false,error:"request_failed",detail:detail,code:/D1|SQLITE|no such table|constraint/i.test(detail)?"d1_error":"runtime_error"},500)}
 }
