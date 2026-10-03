@@ -19,3 +19,9 @@ binding="database"
 database_name="database"
 database_id="cdbf74ac-569d-4304-89bc-842384dee141"
 preview_database_id="database"
+
+[[d1_databases]]
+binding="users"
+database_name="users"
+database_id="e13c0728-7e13-458f-a19b-fdf54ee78f02"
+preview_database_id="users"
