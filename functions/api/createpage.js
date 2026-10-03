@@ -1,6 +1,12 @@
 function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store"}})}
 const now=()=>new Date().toISOString();
 const id=()=>crypto.randomUUID();
+function contentType(path){
+ const p=String(path||"").toLowerCase();
+ const ext=p.includes(".")?p.slice(p.lastIndexOf(".")):"";
+ return ({".html":"text/html; charset=utf-8",".htm":"text/html; charset=utf-8",".css":"text/css; charset=utf-8",".js":"text/javascript; charset=utf-8",".mjs":"text/javascript; charset=utf-8",".json":"application/json; charset=utf-8",".svg":"image/svg+xml",".txt":"text/plain; charset=utf-8",".xml":"application/xml; charset=utf-8",".webmanifest":"application/manifest+json",".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",".gif":"image/gif",".webp":"image/webp",".avif":"image/avif",".ico":"image/x-icon",".bmp":"image/bmp",".woff":"font/woff",".woff2":"font/woff2",".ttf":"font/ttf",".otf":"font/otf",".eot":"application/vnd.ms-fontobject",".mp3":"audio/mpeg",".wav":"audio/wav",".ogg":"audio/ogg",".mp4":"video/mp4",".webm":"video/webm",".wasm":"application/wasm",".map":"application/json"}[ext]||"application/octet-stream");
+}
+
 async function ensureServerSchema(env){
  if(!env.server)throw new Error("server_binding_missing");
  await env.server.prepare("CREATE TABLE IF NOT EXISTS servers (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,hostname TEXT NOT NULL UNIQUE,protocol TEXT NOT NULL DEFAULT 'httc',origin TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
@@ -127,7 +133,7 @@ export async function onRequest({request,env}){
      let path="/"+item.path;
      if(hasDist)path="/"+item.path.replace(/^dist\\//i,"");
      else if(hasBuild)path="/"+item.path.replace(/^build\\//i,"");
-     files.push({path,content:await raw.text()});
+     const type=raw.headers.get("content-type")||contentType(path);\n     if(type.startsWith("text/")||/json|javascript|svg|xml/.test(type)){files.push({path,content:await raw.text(),content_type:contentType(path)});}\n     else{const bytes=new Uint8Array(await raw.arrayBuffer());let binary="";for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));files.push({path,content:btoa(binary),content_type:contentType(path),encoding:"base64"});}
     }
    }
    const title=repoName.replace(/[-_]+/g," ").replace(/\\b\\w/g,m=>m.toUpperCase());
@@ -155,7 +161,7 @@ export async function onRequest({request,env}){
    try{
     const incoming=Array.isArray(b.build_files)&&b.build_files.length?b.build_files:(Array.isArray(b.files)&&b.files.length?b.files:[{path:"/index.html",content:html}]);
     const normalizedIncoming=incoming.map(f=>({...f,path:String(f.path||"/index.html").replace(/\\/g,"/").replace(/^\/+/,"/")}));
-    const fileStatements=normalizedIncoming.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,updated_at) VALUES(?,?,?,?,?)").bind(site_id,String(f.path||"/index.html"),String(f.path||"").endsWith(".css")?"text/css":String(f.path||"").endsWith(".js")?"text/javascript":"text/html",String(f.content||""),stamp));
+    const fileStatements=normalizedIncoming.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,updated_at) VALUES(?,?,?,?,?)").bind(site_id,String(f.path||"/index.html"),f.content_type||contentType(f.path),String(f.content||""),stamp));
     await env.pages.batch([
      env.pages.prepare("INSERT INTO sites(site_id,hostname,protocol,title,description,logo_url,framework,language,backend,runtime,database_type,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(site_id,hostname,"httc",title,b.description||"",b.logo_url||"",b.framework||"Custom",b.language||"HTML",b.backend||"None",b.runtime||"Cloudflare Pages",b.database_type||"None","publishing",stamp,stamp),
      ...fileStatements
