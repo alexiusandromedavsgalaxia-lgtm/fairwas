@@ -8,7 +8,7 @@ import CreatePage from"./CreatePage";
 const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
 const makeTab=(url=home)=>makeNav({id:crypto.randomUUID(),url,title:url===home?"Inicio":hostOf(url)});
-const hostOf=(url)=>{try{return new URL(url).hostname||url.split("/")[2]||url}catch{return url}};
+const hostOf=(url)=>{const value=String(url||"").trim();try{return new URL(value).hostname||value.split("/")[2]||value}catch{const match=value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i);return match?.[1]||value}};
 const initial=load();
 
 function App(){
@@ -23,7 +23,7 @@ function App(){
  const[resolveError,setResolveError]=useState(null);
  const tab=tabs[active]||tabs[0];
  const scheme=protocolFor(tab.url);
- const isCreatePage=(()=>{try{const u=new URL(tab.url);return u.hostname==="web.createpage.fair"||u.hostname==="docs.createpage.fair"}catch{return false}})();
+ const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="web.createpage.fair"||host==="docs.createpage.fair"})();
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home}}),[history,bookmarks,dark]);
  useEffect(()=>setAddress(tab.url),[tab.id,tab.url]);
