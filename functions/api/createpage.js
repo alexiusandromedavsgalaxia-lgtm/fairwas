@@ -19,7 +19,7 @@ export async function onRequest({request,env}){
   }
 
   if(action==="sites"){
-   const r=await env.pages.prepare("SELECT s.site_id,s.hostname,s.protocol,s.title,s.description,s.framework,s.language,s.backend,s.runtime,s.database_type,s.status,s.created_at,s.updated_at,p.developer_id FROM sites s LEFT JOIN ""cp_projects p ON p.site_id=s.site_id ORDER BY s.created_at DESC").all();
+   const r=await env.pages.prepare("SELECT s.site_id,s.hostname,s.protocol,s.title,s.description,s.framework,s.language,s.backend,s.runtime,s.database_type,s.status,s.created_at,s.updated_at,p.developer_id FROM sites s LEFT JOIN cp_projects p ON p.site_id=s.site_id ORDER BY s.created_at DESC").all();
    return json({ok:true,items:r.results||[]});
   }
 
@@ -46,7 +46,7 @@ export async function onRequest({request,env}){
     const displayName=String(b.display_name||"").trim();
     if(!/^[a-z0-9][a-z0-9-]{2,31}$/.test(developerId))return json({ok:false,error:"invalid_developer_id"},400);
     if(!displayName)return json({ok:false,error:"display_name_required"},400);
-    await env.database.prepare("INSERT INTO cp_developers(id,developer_id,display_name,created_at,updated_at) VALUES(1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET developer_id=excluded.developer_id,display_name=excluded.display_name,updated_at=excluded.updated_at").bind(developerId,displayName,now()).run();
+    await env.database.prepare("INSERT INTO cp_developers(id,developer_id,display_name,created_at,updated_at) VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET developer_id=excluded.developer_id,display_name=excluded.display_name,updated_at=excluded.updated_at").bind(developerId,displayName,now()).run();
    }
    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
    return json({ok:true,developer:developer||null});
@@ -69,6 +69,8 @@ export async function onRequest({request,env}){
    const title=String(b.title||"").trim()||hostname;
    if(!hostname)return json({ok:false,error:"hostname_required"},400);
    if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
+   const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
+   if(!developer)return json({ok:false,error:"developer_not_registered"},403);
    const site_id=id(), stamp=now(), version="v1-"+Date.now();
    const html=String(b.html||"<!doctype html><html><head><meta charset=\"utf-8\"><title>"+title+"</title></head><body><main><h1>"+title+"</h1></main></body></html>");
    const origin="pages://"+hostname;
@@ -78,8 +80,6 @@ export async function onRequest({request,env}){
      env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,updated_at) VALUES(?,?,?,?,?)").bind(site_id,"/index.html","text/html",html,stamp)
     ]);
     await env.server.prepare("INSERT INTO servers(site_id,hostname,protocol,origin,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(site_id,hostname,"httc",origin,"active",stamp,stamp).run();
-    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
-    if(!developer)return json({ok:false,error:"developer_not_registered"},403);
     await env.database.batch([
      env.database.prepare("INSERT INTO cp_projects(site_id,hostname,title,developer_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(site_id,hostname,title,developer.developer_id,"published",stamp,stamp),
      env.database.prepare("INSERT INTO cp_deployments(site_id,version,status,created_at) VALUES(?,?,?,?)").bind(site_id,version,"published",stamp)
