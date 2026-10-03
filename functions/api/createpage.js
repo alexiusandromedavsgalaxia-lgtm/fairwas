@@ -194,16 +194,30 @@ export async function onRequest({request,env}){
    const stamp=now(),version="v"+Date.now();
    const normalized=incoming.map(f=>({...f,path:String(f.path||"/index.html").replace(/\\/g,"/").replace(/^\/+/, "/"),content_type:f.content_type||contentType(f.path)}));
    const oldFiles=await env.pages.prepare("SELECT path,content_type,content,encoding,updated_at FROM site_files WHERE site_id=?").bind(resolvedId).all();
-   await env.pages.batch([
-    env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(resolvedId),
-    ...normalized.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,encoding,updated_at) VALUES(?,?,?,?,?,?)").bind(resolvedId,f.path,f.content_type,String(f.content||""),f.encoding||null,stamp))
-   ]);
-   await env.pages.prepare("UPDATE sites SET hostname=?,title=?,status='published',updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,stamp,resolvedId).run();
-   await env.server.prepare("UPDATE servers SET hostname=?,origin=?,status='active',updated_at=? WHERE site_id=?").bind(nextHostname,"pages://"+nextHostname,stamp,resolvedId).run();
-   await env.database.batch([
-    env.database.prepare("UPDATE cp_projects SET hostname=?,title=?,status='published',build_root=?,build_output=?,build_command=?,updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,String(b.build_root||project.build_root||"/"),String(b.build_output||project.build_output||"/dist"),String(b.build_command||project.build_command||"npm run build"),stamp,resolvedId),
-    env.database.prepare("INSERT INTO cp_deployments(site_id,version,status,created_at) VALUES(?,?,?,?)").bind(resolvedId,version,"published",stamp)
-   ]);
+   const oldSite=await env.pages.prepare("SELECT * FROM sites WHERE site_id=?").bind(resolvedId).first();
+   const oldServer=await env.server.prepare("SELECT * FROM servers WHERE site_id=?").bind(resolvedId).first();
+   try{
+    await env.pages.batch([
+     env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(resolvedId),
+     ...normalized.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,encoding,updated_at) VALUES(?,?,?,?,?,?)").bind(resolvedId,f.path,f.content_type,String(f.content||""),f.encoding||null,stamp))
+    ]);
+    await env.pages.prepare("UPDATE sites SET hostname=?,title=?,status='published',updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,stamp,resolvedId).run();
+    await env.server.prepare("UPDATE servers SET hostname=?,origin=?,status='active',updated_at=? WHERE site_id=?").bind(nextHostname,"pages://"+nextHostname,stamp,resolvedId).run();
+    await env.database.batch([
+     env.database.prepare("UPDATE cp_projects SET hostname=?,title=?,status='published',build_root=?,build_output=?,build_command=?,updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,String(b.build_root||project.build_root||"/"),String(b.build_output||project.build_output||"/dist"),String(b.build_command||project.build_command||"npm run build"),stamp,resolvedId),
+     env.database.prepare("INSERT INTO cp_deployments(site_id,version,status,created_at) VALUES(?,?,?,?)").bind(resolvedId,version,"published",stamp)
+    ]);
+   }catch(e){
+    try{
+     await env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(resolvedId).run();
+     if(oldFiles.results?.length)await env.pages.batch(oldFiles.results.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,encoding,updated_at) VALUES(?,?,?,?,?,?)").bind(resolvedId,f.path,f.content_type,f.content,f.encoding||null,f.updated_at)));
+     if(oldSite)await env.pages.prepare("UPDATE sites SET hostname=?,title=?,status=?,updated_at=? WHERE site_id=?").bind(oldSite.hostname,oldSite.title,oldSite.status,oldSite.updated_at,resolvedId).run();
+     if(oldServer)await env.server.prepare("UPDATE servers SET hostname=?,origin=?,status=?,updated_at=? WHERE site_id=?").bind(oldServer.hostname,oldServer.origin,oldServer.status,oldServer.updated_at,resolvedId).run();
+     await env.database.prepare("UPDATE cp_projects SET hostname=?,title=?,status=?,build_root=?,build_output=?,build_command=?,updated_at=? WHERE site_id=?").bind(project.hostname,project.title,project.status,project.build_root,project.build_output,project.build_command,project.updated_at,resolvedId).run();
+     await env.database.prepare("DELETE FROM cp_deployments WHERE site_id=? AND version=?").bind(resolvedId,version).run();
+    }catch{}
+    return json({ok:false,error:"update_failed",detail:String(e)},500);
+   }
    return json({ok:true,site_id:resolvedId,hostname:nextHostname,url:"httc://"+nextHostname,version,status:"published"});
   }
 
