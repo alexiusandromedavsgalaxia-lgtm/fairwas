@@ -27,7 +27,7 @@ async function renderSiteHtml(siteId,html,env){
   for(const [path,url] of binaryUrls){
    const escaped=escRe(path);
    result=result.replace(new RegExp("(['\\\"])"+escaped+"\\1","g"),"$1"+url+"$1");
-   result=result.replace(new RegExp("(['\\\"])\\./"+escaped.replace(/^\\//,"")+"\\1","g"),"$1"+url+"$1");
+   result=result.replace(new RegExp("(['\\\"])\\./"+escaped.replace(/^\\//"")+"\\1","g"),"$1"+url+"$1");
   }
   return result;
  };
