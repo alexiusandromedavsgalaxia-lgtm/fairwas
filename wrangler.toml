@@ -17,5 +17,5 @@ preview_database_id="server"
 [[d1_databases]]
 binding="database"
 database_name="database"
-database_id="codbf74ac-569d-4304-89bc-842384dee141"
+database_id="cdbf74ac-569d-4304-89bc-842384dee141"
 preview_database_id="database"
