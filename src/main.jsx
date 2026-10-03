@@ -36,7 +36,8 @@ function App(){
  useEffect(()=>{
   const onMessage=e=>{
    const data=e?.data;
-   if(data?.type==="fairwas:navigate"&&typeof data.url==="string"&&data.url.startsWith("httc://"))navigate(data.url);
+   if(data?.type==="fairwas:newtab"&&typeof data.url==="string"&&data.url.startsWith("httc://"))newTab(data.url);
+   else if(data?.type==="fairwas:navigate"&&typeof data.url==="string"&&data.url.startsWith("httc://"))navigate(data.url);
   };
   const key=e=>{
    if((e.ctrlKey||e.metaKey)&&e.key==="l"){e.preventDefault();document.querySelector("#address")?.select()}
@@ -51,7 +52,7 @@ function App(){
   return()=>{window.removeEventListener("message",onMessage);window.removeEventListener("keydown",key)};
  },[active,tabs,tab]);
 
- function newTab(){const next=makeTab();setTabs(t=>{setActive(t.length);return[...t,next]})}
+ function newTab(url=home){const next=makeTab(url);setTabs(t=>{setActive(t.length);return[...t,next]});if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100))}
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>{if(i<a)return a-1;if(i===a)return Math.min(a,tabs.length-2);return a})}
  function navigate(raw=address){
   const url=toFairwas(normalizeAddress(raw));
@@ -144,7 +145,7 @@ function Home({navigate,history,bookmarks}){
 
 function fairwasLinkBridge(html){
  const source=String(html||"");
- const bridge="<script>(function(){document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var raw=a.getAttribute('href')||'';try{var u=new URL(raw,location.href);if(u.protocol==='httc:'){e.preventDefault();e.stopPropagation();window.parent.postMessage({type:'fairwas:navigate',url:u.toString()},'*');}}catch(_){}});})();<\\/script>";
+ const bridge="<script>(function(){document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var raw=a.getAttribute('href')||'';try{var u=new URL(raw,location.href);if(u.protocol==='httc:'){e.preventDefault();e.stopPropagation();var target=(a.getAttribute('target')||'').toLowerCase();window.parent.postMessage({type:target==='_blank'?'fairwas:newtab':'fairwas:navigate',url:u.toString()},'*');}}catch(_){}});})();<\\/script>";
  return source.includes("</body>")?source.replace("</body>",bridge+"</body>"):bridge+source;
 }
 
