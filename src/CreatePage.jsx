@@ -2,7 +2,7 @@ import React,{useEffect,useState}from"react";
 
 function parseFairwasUrl(value){
  const raw=String(value||"").trim();
- const match=raw.match(/^([a-z][a-z0-9+.-]*):\\/\\/([^/?#]+)([^?#]*)(\\?[^#]*)?(#.*)?$/i);
+ const match=raw.match(/^([a-z][a-z0-9+.-]*):\/\/([^/?#]+)([^?#]*)(\?[^#]*)?(#.*)?$/i);
  if(!match)return null;
  return{protocol:match[1].toLowerCase(),hostname:match[2].toLowerCase(),pathname:match[3]||"/",search:match[4]||"",hash:match[5]||""};
 }
