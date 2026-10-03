@@ -75,7 +75,7 @@ function Node({t,s}){return <div className="cp-node"><b>{t}</b><span>{s}</span><
 function Workers({workers}){return <><Head eyebrow="WORKERS" title="Workers" text="Workers asociados al ecosistema CreatePage."/><div className="cp-list">{workers.map(w=><div className="cp-card cp-row" key={w.id}><div><b>{w.name}</b><small>{w.status}</small></div></div>)}{!workers.length&&<Empty text="No hay Workers todavía."/>}</div></>}
 function Profile(){const[name,setName]=useState("Fairwas user");const[ok,setOk]=useState(false);useEffect(()=>{api("profile").then(x=>setName(x.profile.display_name)).catch(()=>{})},[]);return <><Head eyebrow="MY / PROFILE" title="Mi perfil"/><div className="cp-card cp-form"><label>Nombre<input value={name} onChange={e=>setName(e.target.value)}/></label><button onClick={async()=>{await api("profile",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({display_name:name})});setOk(true)}}>Guardar perfil</button>{ok&&<small>Guardado en Database.</small>}</div></>}
 function Editor(){
- const[files,setFiles]=useState([{path:"/index.html",content:"<!doctype html>\\\n<html>\\\n<head><meta charset=\"utf-8\"><title>Mi sitio</title></head>\\\n<body><h1>Hola desde CreatePage</h1></body>\\\n</html>"}]);
+ const[files,setFiles]=useState([{path:"/index.html",content:"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Mi sitio</title></head>\n<body><h1>Hola desde CreatePage</h1></body>\n</html>"}]);
  const[selected,setSelected]=useState("/index.html");
  const[code,setCode]=useState(files[0].content);
  const[site,setSite]=useState({hostname:"",title:"Mi sitio"});
