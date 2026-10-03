@@ -98,7 +98,7 @@ function App(){
      <button onClick={()=>setPanel(panel==="bookmarks"?null:"bookmarks")} aria-label="Barra lateral">☰</button>
      <button onClick={()=>setPanel(panel==="history"?null:"history")} aria-label="Historial">◷</button>
      <button onClick={()=>setPanel(panel==="settings"?null:"settings")} aria-label="Más opciones">•••</button>
-     <button onClick={()=>setCompactChrome(v=>!v)} aria-label={compactChrome?"Mostrar pestañas y barra completa":"Reducir barra superior"}>{compactChrome?"↕":"⌄"}</button>
+     <button className="chrome-mode-toggle" onClick={()=>setCompactChrome(v=>!v)} aria-label={compactChrome?"Salir de barra compacta":"Activar barra compacta"}>{compactChrome?"Salir":"Compactar"}</button>
     </div>
    </div>
   </header>
