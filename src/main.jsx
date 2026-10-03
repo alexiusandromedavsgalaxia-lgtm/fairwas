@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState}from"react";
+import React,{useEffect,useState}from"react";
 import{createRoot}from"react-dom/client";
 import"./styles.css";
 import{protocolFor,toFairwas}from"./protocols";
@@ -47,10 +47,10 @@ function App(){
  },[tab.id,tab.url]);
 
  useEffect(()=>{
-  const onMessage=e=>{const data=e.data;if(data&&data.type==="fairwas:navigate"&&typeof data.url==="string"&&data.url.startsWith("httc://"))navigate(data.url)};
-  const onFairwasNavigate=e=>navigate(e.detail);
-  addEventListener("message",onMessage);
-  addEventListener("fairwas:navigate",onFairwasNavigate);
+  const onMessage=e=>{
+   const data=e?.data;
+   if(data?.type==="fairwas:navigate"&&typeof data.url==="string"&&data.url.startsWith("httc://"))navigate(data.url);
+  };
   const key=e=>{
    if((e.ctrlKey||e.metaKey)&&e.key==="l"){e.preventDefault();document.querySelector("#address")?.select()}
    if((e.ctrlKey||e.metaKey)&&e.key==="t"){e.preventDefault();newTab()}
@@ -59,7 +59,9 @@ function App(){
    if((e.ctrlKey||e.metaKey)&&e.key==="h"){e.preventDefault();setPanel("history")}
    if((e.ctrlKey||e.metaKey)&&e.key==="b"){e.preventDefault();setPanel("bookmarks")}
   };
-  addEventListener("keydown",key);return()=>{removeEventListener("message",onMessage);removeEventListener("keydown",key);removeEventListener("fairwas:navigate",onFairwasNavigate)}
+  window.addEventListener("message",onMessage);
+  window.addEventListener("keydown",key);
+  return()=>{window.removeEventListener("message",onMessage);window.removeEventListener("keydown",key)};
  },[active,tabs,tab]);
 
  function newTab(){const next=makeTab();setTabs(t=>{setActive(t.length);return[...t,next]})}
