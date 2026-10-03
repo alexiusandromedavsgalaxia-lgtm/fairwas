@@ -121,9 +121,9 @@ export async function onRequest({request,env}){
    if(!tree.ok)return json({ok:false,error:"repo_fetch_failed",detail:"GitHub returned "+tree.status},502);
    const data=await tree.json();
    const blobs=(data.tree||[]).filter(x=>x.type==="blob");
-   const hasDist=blobs.some(x=>/^dist\\/i.test(x.path)&&/^dist\\/i.test(x.path)&&/\\/i.dex\\.html$/i.test("/"+x.path));
-   const hasBuild=blobs.some(x=>/^build\\/i.test(x.path)&&/\\/index\\.html$/i.test("/"+x.path));
-   const sourcePattern=/\\.(html?|css|js|jsx|ts|tsx|json|md|svg|txt|webmanifest)$/i;
+   const hasDist=blobs.some(x=>/^dist\//i.test(x.path)&&/\/index\.html$/i.test("/"+x.path));
+   const hasBuild=blobs.some(x=>/^build\//i.test(x.path)&&/\/index\.html$/i.test("/"+x.path));
+   const sourcePattern=/\.(html?|css|js|mjs|jsx|ts|tsx|json|md|svg|txt|webmanifest|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp3|wav|ogg|mp4|webm|wasm|map)$/i;
    const selected=hasDist?blobs.filter(x=>/^dist\\//i.test(x.path)):hasBuild?blobs.filter(x=>/^build\\//i.test(x.path)):blobs.filter(x=>sourcePattern.test(x.path));
    const files=[];
    for(const item of selected.slice(0,1000)){
