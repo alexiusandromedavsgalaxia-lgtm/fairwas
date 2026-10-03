@@ -76,9 +76,9 @@ function App(){
  return <div className={"app "+(dark?"dark":"light")}>
   <header className="chrome">
    <div className="topbar">
-    <div className="traffic-space"><span></span><span></span><span></span></div>
+    <div className="traffic-space"><img className="fairwas-logo" src="/fairwas.svg" alt="Fairwas"/></div>
     <div className="tabstrip">
-     {tabs.map((t,i)=><button className={"tab "+(i===active?"active":"")} key={t.id} onClick={()=>setActive(i)}><span className="tab-favicon">{t.url===home?"":t.title?.[0]}</span><span className="tabtext">{t.title}</span>{tabs.length>1&&<i onClick={e=>{e.stopPropagation();closeTab(i)}}>×</i>}</button>)}
+     {tabs.map((t,i)=><button className={"tab "+(i===active?"active":"")} key={t.id} onClick={()=>setActive(i)}><span className="tab-favicon"><img src="/fairwas.svg" alt="" /></span><span className="tabtext">{t.title}</span>{tabs.length>1&&<i onClick={e=>{e.stopPropagation();closeTab(i)}}>×</i>}</button>)}
      <button className="newtab" onClick={newTab} aria-label="Nueva pestaña">+</button>
     </div>
    </div>
@@ -114,7 +114,7 @@ function App(){
 
 function Home({navigate,history,bookmarks}){
  const[q,setQ]=useState("");
- return <section className="start">
+ return <section className="start"><div className="start-brand"><img src="/fairwas.svg" alt="Fairwas"/><div><strong>Fairwas</strong><span>HTTC browser</span></div></div>
   <div className="start-top"><button>☰</button><button>Editar</button></div>
   <div className="start-content">
    <form onSubmit={e=>{e.preventDefault();navigate(q)}} className="start-search"><span>⌕</span><input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar o introducir dirección"/><button aria-label="Buscar">⌕</button></form>
