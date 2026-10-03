@@ -5,7 +5,7 @@ async function ensureServerSchema(env){if(!env.server)return false;await env.ser
 function escRe(value){return String(value).replace(/[.*+?^$()|[\]\\]/g,"\\$&");}
 function dataUrl(file){if(file.encoding!=="base64")return null;return "data:"+(file.content_type||contentType(file.path))+";base64,"+file.content;}
 async function renderSiteHtml(siteId,html,env){
- const rows=await env.pages.prepare("SELECT path,content_type,content FROM site_files WHERE site_id=?").bind(siteId).all();
+ const rows=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=?").bind(siteId).all();
  const files=rows.results||[];
  const binaryUrls=new Map();
  for(const asset of files){
@@ -52,8 +52,8 @@ async function publishedDocument(parsed,env){
  const server=await env.server.prepare("SELECT site_id,hostname,protocol,origin,status FROM servers WHERE hostname=? AND protocol='httc' AND status='active'").bind(hostname).first();if(!server)return null;
  const site=await env.pages.prepare("SELECT site_id,hostname,title,description,logo_url,framework,language,backend,runtime,database_type,status FROM sites WHERE site_id=? AND status='published'").bind(server.site_id).first();if(!site)return null;
  const path=parsed.pathname||"/";const requested=path==="/"||path==="/home"?"/index.html":path;
- let file=await env.pages.prepare("SELECT path,content_type,content FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,requested).first();
- if(!file&&!requested.includes("."))file=await env.pages.prepare("SELECT path,content_type,content FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
+ let file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,requested).first();
+ if(!file&&!requested.includes("."))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0];
  return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered:type==="text/html"?await renderSiteHtml(site.site_id,file.content,env):null};
@@ -63,7 +63,7 @@ export async function onRequestGet({request,env}){
  if(!ALLOWED.has(parsed.protocol.slice(0,-1).toLowerCase()))return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
  const document=await publishedDocument(parsed,env);if(!document)return Response.json({ok:false,error:"site_not_found",host:parsed.hostname},{status:404});
  const assetPath=req.searchParams.get("asset");
- if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});return new Response(asset.content,{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});
+ if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});return new Response(asset.content,{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});
  }
  let persisted=false;try{if(env.pages){await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,"httc",new Date().toISOString()).run();persisted=true}}catch{}
  return Response.json({ok:true,url:target,protocol:"httc",host:parsed.hostname,path:parsed.pathname+(parsed.search||""),persisted,document});
