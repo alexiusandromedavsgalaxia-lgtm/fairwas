@@ -105,55 +105,26 @@ function Editor(){
  const[selected,setSelected]=useState("/index.html");
  const[code,setCode]=useState(files[0].content);
  const[site,setSite]=useState({hostname:"",title:"Mi sitio"});
+ const[build,setBuild]=useState({root:"/",output:"/dist",command:"npm run build"});
  const[status,setStatus]=useState("");
  const[repoUrl,setRepoUrl]=useState("");
-
  const currentFiles=()=>files.map(file=>file.path===selected?{...file,content:code}:file);
+ const normalizePath=raw=>{let path=String(raw||"").trim().replace(/\\/g,"/");if(!path.startsWith("/"))path="/"+path;path=path.replace(/\/+/g,"/");return path.length>1?path.replace(/\/$/,""):path};
  const pick=path=>{const file=files.find(item=>item.path===path);if(!file)return;setSelected(path);setCode(file.content)};
- const add=()=>{
-  const raw=window.prompt("Ruta del archivo","/app.js");
-  if(!raw)return;
-  const path=raw.startsWith("/")?raw:"/"+raw;
-  if(files.some(file=>file.path===path)){setStatus("Ese archivo ya existe.");return}
-  setFiles([...currentFiles(),{path,content:""}]);setSelected(path);setCode("");setStatus("");
- };
- const importFiles=event=>{
-  const list=Array.from(event.target.files||[]);
-  if(!list.length)return;
-  Promise.all(list.map(file=>file.text().then(content=>({path:"/"+(file.webkitRelativePath||file.name).replace(/^\/+/, ""),content})))).then(items=>{
-   setFiles(current=>{const map=new Map(currentFiles().map(file=>[file.path,file]));items.forEach(file=>map.set(file.path,file));return[...map.values()]});
-   setStatus(items.length+" archivo"+(items.length===1?"":"s")+" importado"+(items.length===1?"":"s")+".");
-  }).catch(error=>setStatus(error instanceof Error?error.message:"No se pudieron importar los archivos."));
- };
- const importRepo=async()=>{
-  if(!repoUrl.trim()){setStatus("Introduce la URL del repositorio.");return}
-  setStatus("Importando repositorio…");
-  try{
-   const data=await api("import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({repo_url:repoUrl.trim()})});
-   const imported=(data.files||[]).map(file=>({...file,path:file.path.startsWith("/")?file.path:"/"+file.path}));
-   if(!imported.length){setStatus("El repositorio no contiene archivos compatibles.");return}
-   setFiles(imported);setSite(current=>({...current,hostname:data.hostname||current.hostname,title:data.title||current.title}));
-   setSelected(imported[0].path);setCode(imported[0].content||"");setStatus("Repositorio importado.");
-  }catch(error){setStatus(error instanceof Error?error.message:"No se pudo importar el repositorio.")}
- };
- const publish=async()=>{
-  const next=currentFiles();
-  const index=next.find(file=>file.path==="/index.html");
-  if(!index){setStatus("El sitio necesita un /index.html.");return}
-  if(!site.hostname.trim()){setStatus("Introduce un dominio antes de publicar.");return}
-  setStatus("Publicando…");
-  try{
-   const data=await api("create",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...site,hostname:site.hostname.trim().toLowerCase(),html:index.content,files:next})});
-   setFiles(next);setStatus("Publicado: "+data.url);
-  }catch(error){setStatus(error instanceof Error?error.message:"No se pudo publicar.")}
- };
+ const addFile=()=>{const raw=window.prompt("Ruta del archivo","/src/app.js");if(!raw)return;const path=normalizePath(raw);if(path.endsWith("/")){setStatus("Usa + Carpeta para crear directorios.");return}if(files.some(file=>file.path===path)){setStatus("Ese archivo ya existe.");return}const next=[...currentFiles(),{path,content:""}];setFiles(next);setSelected(path);setCode("");setStatus("Archivo creado.")};
+ const addFolder=()=>{const raw=window.prompt("Ruta de la carpeta","/src/components");if(!raw)return;const path=normalizePath(raw).replace(/\/$/,"");if(files.some(file=>file.path.startsWith(path+"/"))){setStatus("Esa carpeta ya existe.");return}const marker=path+"/.gitkeep";const next=[...currentFiles(),{path:marker,content:""}];setFiles(next);setSelected(marker);setCode("");setStatus("Carpeta creada.")};
+ const remove=()=>{if(!selected)return;const file=files.find(item=>item.path===selected);if(!file)return;if(!window.confirm("¿Eliminar "+file.path+"?"))return;const next=files.filter(item=>item.path!==selected);if(!next.length){setStatus("El proyecto necesita al menos un archivo.");return}setFiles(next);const target=next[0];setSelected(target.path);setCode(target.content);setStatus("Archivo eliminado.")};
+ const rename=()=>{if(!selected)return;const raw=window.prompt("Nueva ruta",selected);if(!raw)return;const path=normalizePath(raw);if(path===selected)return;if(files.some(file=>file.path===path)){setStatus("Ya existe un archivo con esa ruta.");return}const next=currentFiles().map(file=>file.path===selected?{...file,path}:file);setFiles(next);setSelected(path);setCode(next.find(file=>file.path===path)?.content||"");setStatus("Archivo renombrado.")};
+ const importFiles=event=>{const list=Array.from(event.target.files||[]);if(!list.length)return;Promise.all(list.map(file=>file.text().then(content=>({path:"/"+(file.webkitRelativePath||file.name).replace(/^\/+/, ""),content})))).then(items=>{setFiles(current=>{const map=new Map(currentFiles().map(file=>[file.path,file]));items.forEach(file=>map.set(file.path,file));return[...map.values()]});setStatus(items.length+" archivo"+(items.length===1?"":"s")+" importado"+(items.length===1?"":"s")+".")}).catch(error=>setStatus(error instanceof Error?error.message:"No se pudieron importar los archivos."))};
+ const importRepo=async()=>{if(!repoUrl.trim()){setStatus("Introduce la URL del repositorio.");return}setStatus("Importando repositorio…");try{const data=await api("import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({repo_url:repoUrl.trim()})});const imported=(data.files||[]).map(file=>({...file,path:normalizePath(file.path)}));if(!imported.length){setStatus("El repositorio no contiene archivos compatibles.");return}setFiles(imported);setSite(current=>({...current,hostname:data.hostname||current.hostname,title:data.title||current.title}));setSelected(imported[0].path);setCode(imported[0].content||"");setStatus("Repositorio importado.")}catch(error){setStatus(error instanceof Error?error.message:"No se pudo importar el repositorio.")}};
+ const publish=async()=>{const next=currentFiles();const index=next.find(file=>file.path==="/index.html");if(!index){setStatus("El sitio necesita un /index.html.");return}if(!site.hostname.trim()){setStatus("Introduce un dominio antes de publicar.");return}setStatus("Publicando…");try{const data=await api("create",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...site,hostname:site.hostname.trim().toLowerCase(),html:index.content,files:next,build_root:build.root,build_output:build.output,build_command:build.command})});setFiles(next);setStatus("Publicado: "+data.url)}catch(error){setStatus(error instanceof Error?error.message:"No se pudo publicar.")}};
+ const tree=files.map(file=>file.path).sort((x,y)=>x.localeCompare(y)).map(path=>({path,depth:Math.max(0,path.split("/").length-2)}));
  return <section className="cp-ide">
-  <div className="cp-ide-top"><div><small>CREATEPAGE IDE</small><h1>Editor del sitio</h1></div><div className="cp-ide-actions"><button type="button" onClick={add}>+ Archivo</button><label className="cp-button">Importar archivo/carpeta<input type="file" multiple webkitdirectory="" onChange={importFiles}/></label><button type="button" onClick={publish}>Publicar</button></div></div>
-  <div className="cp-ide-import"><input placeholder="https://github.com/usuario/repositorio" value={repoUrl} onChange={e=>setRepoUrl(e.target.value)}/><button type="button" onClick={importRepo}>Importar repositorio Git</button><input placeholder="dominio.fair" value={site.hostname} onChange={e=>setSite(s=>({...s,hostname:e.target.value}))}/><input placeholder="Nombre del sitio" value={site.title} onChange={e=>setSite(s=>({...s,title:e.target.value}))}/></div>
-  <div className="cp-ide-body"><aside className="cp-files" aria-label="Archivos">{files.map(file=><button type="button" className={selected===file.path?"active":""} key={file.path} onClick={()=>pick(file.path)}>{file.path}</button>)}</aside><div className="cp-editor-wrap"><div className="cp-editor-head"><b>{selected}</b><span aria-live="polite">{status}</span></div><textarea className="cp-editor" value={code} onChange={e=>setCode(e.target.value)} spellCheck="false" aria-label={"Editor de "+selected}/></div></div>
+  <div className="cp-ide-top"><div><small>CREATEPAGE IDE</small><h1>Editor del sitio</h1></div><div className="cp-ide-actions"><button type="button" onClick={addFile}>+ Archivo</button><button type="button" onClick={addFolder}>+ Carpeta</button><button type="button" onClick={rename}>Renombrar</button><button type="button" onClick={remove}>Eliminar</button><label className="cp-button">Importar carpeta<input type="file" multiple webkitdirectory="" onChange={importFiles}/></label><button type="button" onClick={publish}>Publicar</button></div></div>
+  <div className="cp-ide-import"><input placeholder="https://github.com/usuario/repositorio" value={repoUrl} onChange={e=>setRepoUrl(e.target.value)}/><button type="button" onClick={importRepo}>Importar Git</button><input placeholder="dominio.fair" value={site.hostname} onChange={e=>setSite(s=>({...s,hostname:e.target.value}))}/><input placeholder="Nombre del sitio" value={site.title} onChange={e=>setSite(s=>({...s,title:e.target.value}))}/><input placeholder="Raíz del proyecto /" value={build.root} onChange={e=>setBuild(x=>({...x,root:e.target.value}))}/><input placeholder="Salida /dist" value={build.output} onChange={e=>setBuild(x=>({...x,output:e.target.value}))}/><input placeholder="Comando de compilación" value={build.command} onChange={e=>setBuild(x=>({...x,command:e.target.value}))}/></div>
+  <div className="cp-ide-body"><aside className="cp-files" aria-label="Explorador de archivos"><div className="cp-files-title">EXPLORADOR</div>{tree.map(item=><button type="button" className={selected===item.path?"active":""} style={{paddingLeft:10+item.depth*14}} key={item.path} onClick={()=>pick(item.path)}>{item.path.split("/").pop()||"/"}<small>{item.path}</small></button>)}</aside><div className="cp-editor-wrap"><div className="cp-editor-head"><b>{selected}</b><span aria-live="polite">{status}</span></div><textarea className="cp-editor" value={code} onChange={e=>setCode(e.target.value)} spellCheck="false" aria-label={"Editor de "+selected}/></div></div>
  </section>;
 }
-
 function Init({onDone}){const[f,setF]=useState({hostname:"",title:"",description:"",framework:"React + Vite",language:"JavaScript",backend:"Cloudflare Pages Functions",runtime:"Cloudflare",database_type:"SQLite",database_name:"",html:""});const[busy,setBusy]=useState(false);const[done,setDone]=useState(null);const set=(k,v)=>setF(x=>({...x,[k]:v}));const submit=async e=>{e.preventDefault();setBusy(true);try{const r=await api("create",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(f)});setDone(r);onDone()}catch(e){setDone({error:e.message})}finally{setBusy(false)}};return <><Head eyebrow="INIT" title="Crear un sitio" text="Un único flujo registra el sitio, el dominio y la publicación real."/><form className="cp-card cp-form" onSubmit={submit}><div className="cp-grid two"><label>Dominio<input required placeholder="miweb.fair" value={f.hostname} onChange={e=>set("hostname",e.target.value)}/><small>Se publicará como httc://miweb.fair</small></label><label>Nombre<input required placeholder="Mi web" value={f.title} onChange={e=>set("title",e.target.value)}/></label><label>Framework<select value={f.framework} onChange={e=>set("framework",e.target.value)}><option>React + Vite</option><option>Vanilla</option><option>Custom</option></select></label><label>Lenguaje<select value={f.language} onChange={e=>set("language",e.target.value)}><option>JavaScript</option><option>TypeScript</option><option>HTML</option></select></label><label>Backend<input value={f.backend} onChange={e=>set("backend",e.target.value)}/></label><label>Runtime<input value={f.runtime} onChange={e=>set("runtime",e.target.value)}/></label><label>Base de datos<input placeholder="UserData" value={f.database_name} onChange={e=>set("database_name",e.target.value)}/><small>Motor: SQLite</small></label><label>Logo URL<input value={f.logo_url||""} onChange={e=>set("logo_url",e.target.value)}/></label></div><label>Descripción<textarea value={f.description} onChange={e=>set("description",e.target.value)} /></label><label>index.html<textarea className="codebox" value={f.html} onChange={e=>set("html",e.target.value)} /></label><div className="cp-publishbar"><span>Protocolo <b>HTTC</b> · destino Pages + Server</span><button disabled={busy}>{busy?"Publicando…":"Crear y publicar"}</button></div>{done?.error&&<div className="cp-error">{done.error}</div>}{done?.status==="published"&&<div className="cp-success">Publicado: <b>{done.url}</b> · {done.version}</div>}</form></>}
 function DocsPage({path}){return <section className="cp-docs"><small>CREATEPAGE DOCS</small><h1>Documentación</h1><p>HTTC, publicación, Pages, Database y Server.</p><div className="cp-card"><h2>{path}</h2><p>La documentación de CreatePage se sirve bajo <b>docs.createpage.fair</b>.</p></div></section>}
 function Empty({text}){return <div className="cp-card cp-empty">{text}</div>}
