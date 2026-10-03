@@ -62,12 +62,17 @@ export async function onRequest({request,env}){
   if(action==="developer"){
    if(method==="POST"){
     const b=await request.json();
-    const developerId=String(b.developer_id||"").trim().toLowerCase();
     const displayName=String(b.display_name||"").trim();
-    if(!/^[a-z0-9][a-z0-9-]{2,31}$/.test(developerId))return json({ok:false,error:"invalid_developer_id"},400);
     if(!displayName)return json({ok:false,error:"display_name_required"},400);
     const stamp=now();
     const email=String(b.email||"").trim();
+    const currentDeveloper=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+    let developerId=String(currentDeveloper?.developer_id||"").trim().toLowerCase();
+    if(!developerId){
+     do{
+      developerId="dev-"+crypto.randomUUID().replace(/-/g,"").slice(0,16);
+     }while(await env.users.prepare("SELECT id FROM users WHERE developer_id=? LIMIT 1").bind(developerId).first());
+    }
     const existingUser=await env.users.prepare("SELECT id FROM users WHERE developer_id=? LIMIT 1").bind(developerId).first();
     if(existingUser){
      await env.users.prepare("UPDATE users SET display_name=?,email=?,status='active',updated_at=? WHERE id=?").bind(displayName,email,stamp,existingUser.id).run();
