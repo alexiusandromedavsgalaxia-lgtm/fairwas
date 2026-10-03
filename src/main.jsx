@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useState}from"react";
 import{createRoot}from"react-dom/client";
 import"./styles.css";
-import{PROTOCOLS,protocolFor,toFairwas}from"./protocols";
+import{protocolFor,toFairwas}from"./protocols";
 import{load,save}from"./storage";
 
 const home="httc://home";
@@ -61,7 +61,7 @@ function App(){
  function goBack(){setTabs(t=>t.map((x,i)=>{if(i!==active||!x.back.length)return x;const back=[...x.back];const url=back.pop();return{...x,url,title:url===home?"Inicio":hostOf(url),back,forward:[x.url,...x.forward]}}))}
  function goForward(){setTabs(t=>t.map((x,i)=>{if(i!==active||!x.forward.length)return x;const[url,...forward]=x.forward;return{...x,url,title:url===home?"Inicio":hostOf(url),back:[...x.back,x.url],forward}}))}
  function clearHistory(){setHistory([])}
- const protocolList=useMemo(()=>Object.values(PROTOCOLS),[]);
+
 
  return <div className={"app "+(dark?"dark":"light")}>
   <header className="chrome">
@@ -93,7 +93,7 @@ function App(){
   {panel&&<aside className="panel">
    {panel==="history"&&<><div className="paneltitle"><b>Historial</b><button onClick={clearHistory}>Borrar historial</button></div>{history.length?<div className="list">{history.map((x,i)=><button className="listitem" key={x.url+i} onClick={()=>openItem(x.url)}><b>{x.title}</b><small>{x.url}</small></button>)}</div>:<p className="empty">No hay historial.</p>}</>}
    {panel==="bookmarks"&&<><div className="paneltitle"><b>Favoritos</b></div>{bookmarks.length?<div className="list">{bookmarks.map(x=><button className="listitem" key={x.url} onClick={()=>openItem(x.url)}><b>{x.title}</b><small>{x.url}</small></button>)}</div>:<p className="empty">No hay favoritos.</p>}</>}
-   {panel==="settings"&&<><div className="paneltitle"><b>Ajustes</b></div><label className="setting"><span>Modo oscuro</span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><div className="settingblock"><b>Protocolos</b>{protocolList.map(p=><div className="protocolrow" key={p.scheme}><span>{p.label}</span><small>{p.scheme}:// · {p.region}</small></div>)}</div></>}
+   {panel==="settings"&&<><div className="paneltitle"><b>Ajustes</b></div><label className="setting"><span>Modo oscuro</span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><div className="settingblock"><b>Protocolo</b><div className="protocolrow"><span>HTTC</span><small>httc:// · Global</small></div></div></>}
   </aside>}
 
   <main className="viewport">
