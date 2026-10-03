@@ -1,0 +1,87 @@
+function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store"}})}
+const now=()=>new Date().toISOString();
+const id=()=>crypto.randomUUID();
+
+export async function onRequest({request,env}){
+ const u=new URL(request.url);
+ const action=u.searchParams.get("action")||"sites";
+ const method=request.method;
+ if(!env.database)return json({ok:false,error:"database_binding_missing"},500);
+
+ try{
+  if(action==="profile"){
+   if(method==="POST"){
+    const b=await request.json();
+    await env.database.prepare("INSERT INTO cp_profiles(id,display_name,updated_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at").bind(b.display_name||"Fairwas user",now()).run();
+   }
+   const r=await env.database.prepare("SELECT * FROM cp_profiles WHERE id=1").first();
+   return json({ok:true,profile:r||{id:1,display_name:"Fairwas user"}});
+  }
+
+  if(action==="sites"){
+   const r=await env.pages.prepare("SELECT site_id,hostname,protocol,title,description,framework,language,backend,runtime,database_type,status,created_at,updated_at FROM sites ORDER BY created_at DESC").all();
+   return json({ok:true,items:r.results||[]});
+  }
+
+  if(action==="databases"){
+   const r=await env.database.prepare("SELECT * FROM cp_databases ORDER BY id DESC").all();
+   return json({ok:true,items:r.results||[]});
+  }
+
+  if(action==="servers"){
+   const r=await env.server.prepare("SELECT * FROM servers ORDER BY id DESC").all();
+   return json({ok:true,items:r.results||[]});
+  }
+
+  if(action==="registry"){
+   const [p,s]=await Promise.all([
+    env.pages.prepare("SELECT site_id,hostname,title,status FROM sites ORDER BY hostname").all(),
+    env.server.prepare("SELECT site_id,hostname,protocol,origin,status FROM servers ORDER BY hostname").all()
+   ]);
+   return json({ok:true,sites:p.results||[],servers:s.results||[]});
+  }
+
+  if(action==="workers"){
+   const r=await env.database.prepare("SELECT * FROM cp_workers ORDER BY id DESC").all();
+   return json({ok:true,items:r.results||[]});
+  }
+
+  if(action==="docs"){
+   const r=await env.database.prepare("SELECT id,title,updated_at FROM cp_docs ORDER BY updated_at DESC").all();
+   return json({ok:true,items:r.results||[]});
+  }
+
+  if(action==="create"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const b=await request.json();
+   const hostname=String(b.hostname||"").trim().toLowerCase();
+   const title=String(b.title||"").trim()||hostname;
+   if(!hostname)return json({ok:false,error:"hostname_required"},400);
+   if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
+   const site_id=id(), stamp=now(), version="v1-"+Date.now();
+   const html=String(b.html||"<!doctype html><html><head><meta charset=\"utf-8\"><title>"+title+"</title></head><body><main><h1>"+title+"</h1></main></body></html>");
+   const origin="pages://"+hostname;
+   try{
+    await env.pages.batch([
+     env.pages.prepare("INSERT INTO sites(site_id,hostname,protocol,title,description,logo_url,framework,language,backend,runtime,database_type,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(site_id,hostname,"httc",title,b.description||"",b.logo_url||"",b.framework||"Custom",b.language||"HTML",b.backend||"None",b.runtime||"Cloudflare Pages",b.database_type||"None","publishing",stamp,stamp),
+     env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,updated_at) VALUES(?,?,?,?,?)").bind(site_id,"/index.html","text/html",html,stamp)
+    ]);
+    await env.server.prepare("INSERT INTO servers(site_id,hostname,protocol,origin,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(site_id,hostname,"httc",origin,"active",stamp,stamp).run();
+    await env.database.batch([
+     env.database.prepare("INSERT INTO cp_projects(site_id,hostname,title,status,created_at,updated_at) VALUES(?,?,?,?,?,?)").bind(site_id,hostname,title,"published",stamp,stamp),
+     env.database.prepare("INSERT INTO cp_deployments(site_id,version,status,created_at) VALUES(?,?,?,?)").bind(site_id,version,"published",stamp)
+    ]);
+    if(b.database_name){
+     await env.database.prepare("INSERT INTO cp_databases(site_id,name,engine,status,created_at) VALUES(?,?,?,?,?)").bind(site_id,b.database_name,"SQLite","registered",stamp).run();
+    }
+    await env.pages.prepare("UPDATE sites SET status='published',updated_at=? WHERE site_id=?").bind(now(),site_id).run();
+    return json({ok:true,site_id,hostname,url:"httc://"+hostname,version,status:"published"});
+   }catch(e){
+    try{await env.pages.prepare("UPDATE sites SET status='failed',updated_at=? WHERE site_id=?").bind(now(),site_id).run()}catch{}
+    return json({ok:false,error:"publish_failed",detail:String(e)},500);
+   }
+  }
+
+  return json({ok:false,error:"unknown_action"},404);
+ }catch(e){return json({ok:false,error:"request_failed",detail:String(e)},500)}
+}
