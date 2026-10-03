@@ -33,7 +33,7 @@ function App(){
    if((e.ctrlKey||e.metaKey)&&e.key==="b"){e.preventDefault();setPanel("bookmarks")}
   };
   addEventListener("keydown",key);return()=>removeEventListener("keydown",key)
- },[active,tabs,tab]);
+ },[active,tabs,tab,history,bookmarks]);
 
  function newTab(){setTabs(t=>[...t,makeTab()]);setActive(tabs.length)}
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>Math.min(a,tabs.length-2))}
