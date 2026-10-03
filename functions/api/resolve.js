@@ -6,13 +6,41 @@ function escRe(value){return String(value).replace(/[.*+?^$()|[\]\\]/g,"\\$&");}
 function dataUrl(file){if(file.encoding!=="base64")return null;return "data:"+(file.content_type||contentType(file.path))+";base64,"+file.content;}
 async function renderSiteHtml(siteId,html,env){
  const rows=await env.pages.prepare("SELECT path,content_type,content FROM site_files WHERE site_id=?").bind(siteId).all();
- const files=rows.results||[];let output=String(html||"");
+ const files=rows.results||[];
+ const binaryUrls=new Map();
  for(const asset of files){
-  const path=String(asset.path||"");const type=String(asset.content_type||contentType(path)).split(";")[0];const content=String(asset.content||"");const escaped=escRe(path);
-  if(type==="text/css"){output=output.replace(new RegExp("<link\\s+[^>]*href=['"]"+escaped+"['"][^>]*>","i"),"<style data-httc-asset='"+path.replace(/'/g,"&#39;")+"'>"+content+"</style>");}
-  else if(type==="text/javascript"||type==="application/javascript"){output=output.replace(new RegExp("<script\\s+[^>]*src=['"]"+escaped+"['"][^>]*>\\s*</script>","i"),"<script data-httc-asset='"+path.replace(/'/g,"&#39;")+"'>"+content+"</script>");}
-  const data=dataUrl(asset);
-  if(data){const q=escRe(path);output=output.replace(new RegExp("(['"])"+q+"\\1","g"),"$1"+data+"$1");}
+  const url=dataUrl(asset);
+  if(url)binaryUrls.set(String(asset.path||""),url);
+ }
+ let output=String(html||"");
+ const replaceAssetRefs=(text)=>{
+  let result=String(text||"");
+  for(const [path,url] of binaryUrls){
+   const escaped=escRe(path);
+   result=result.replace(new RegExp("(['\\\"])"+escaped+"\\\\1","g"),"$1"+url+"$1");
+   result=result.replace(new RegExp("(['\\\"])\\\\./"+escaped.replace(/^\\\\//,"")+"\\\\1","g"),"$1"+url+"$1");
+  }
+  return result;
+ };
+ for(const asset of files){
+  const path=String(asset.path||"");
+  const type=String(asset.content_type||contentType(path)).split(";")[0];
+  let content=String(asset.content||"");
+  if(type==="text/css")content=replaceAssetRefs(content);
+  if(type==="text/css"){
+   const escaped=escRe(path);
+   output=output.replace(new RegExp("<link\\\\s+[^>]*href=['\\\"]"+escaped+"['\\\"][^>]*>","i"),"<style data-httc-asset='"+path.replace(/'/g,"&#39;")+"'>"+content+"</style>");
+  }else if(type==="text/javascript"||type==="application/javascript"){
+   const escaped=escRe(path);
+   output=output.replace(new RegExp("<script\\\\s+[^>]*src=['\\\"]"+escaped+"['\\\"][^>]*>\\\\s*</script>","i"),"<script data-httc-asset='"+path.replace(/'/g,"&#39;")+"'>"+content+"</script>");
+  }
+  const data=binaryUrls.get(path);
+  if(data){
+   const bare=path.replace(/^\\\\/,"");
+   const q=escRe(bare);
+   output=output.replace(new RegExp("(['\\\"])(?:\\\\./)?"+q+"\\\\1","g"),"$1"+data+"$1");
+   output=output.replace(new RegExp("(['\\\"])" + escRe(path) + "\\\\1","g"),"$1"+data+"$1");
+  }
  }
  return output;
 }
