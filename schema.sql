@@ -105,3 +105,14 @@ CREATE TABLE IF NOT EXISTS cp_docs (
  content TEXT NOT NULL DEFAULT '',
  updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS users (
+ id TEXT PRIMARY KEY,
+ developer_id TEXT UNIQUE,
+ display_name TEXT NOT NULL,
+ email TEXT,
+ status TEXT NOT NULL DEFAULT 'active',
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_users_developer_id ON users(developer_id);
