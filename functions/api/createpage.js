@@ -136,7 +136,7 @@ export async function onRequest({request,env}){
      const type=raw.headers.get("content-type")||contentType(path);\n     if(type.startsWith("text/")||/json|javascript|svg|xml/.test(type)){files.push({path,content:await raw.text(),content_type:contentType(path)});}\n     else{const bytes=new Uint8Array(await raw.arrayBuffer());let binary="";for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));files.push({path,content:btoa(binary),content_type:contentType(path),encoding:"base64"});}
     }
    }
-   const title=repoName.replace(/[-_]+/g," ").replace(/\\b\\w/g,m=>m.toUpperCase());
+   const title=repoName.replace(/[-_]+/g," ").replace(/\b\w/g,m=>m.toUpperCase());
    return json({ok:true,title,hostname:repoName.toLowerCase().replace(/[^a-z0-9-]/g,"-")+".fair",files,source_files:!hasDist&&!hasBuild,prebuilt:Boolean(hasDist||hasBuild)});
   }
 
