@@ -36,8 +36,11 @@ export async function onRequest({request,env}){
   }
 
   if(action==="sites"){
-   const r=await env.pages.prepare("SELECT s.site_id,s.hostname,s.protocol,s.title,s.description,s.framework,s.language,s.backend,s.runtime,s.database_type,s.status,s.created_at,s.updated_at,p.developer_id FROM sites s LEFT JOIN cp_projects p ON p.site_id=s.site_id ORDER BY s.created_at DESC").all();
-   return json({ok:true,items:r.results||[]});
+   const r=await env.pages.prepare("SELECT site_id,hostname,protocol,title,description,framework,language,backend,runtime,database_type,status,created_at,updated_at FROM sites ORDER BY created_at DESC").all();
+   const projects=await env.database.prepare("SELECT site_id,developer_id FROM cp_projects").all();
+   const developers=new Map((projects.results||[]).map(p=>[p.site_id,p.developer_id]));
+   const items=(r.results||[]).map(site=>({...site,developer_id:developers.get(site.site_id)||null}));
+   return json({ok:true,items});
   }
 
   if(action==="databases"){
@@ -105,6 +108,12 @@ export async function onRequest({request,env}){
    if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
    if(!developer)return json({ok:false,error:"developer_not_registered",detail:"Registra primero tu cuenta en /registry."},403);
+
+   const existingPage=await env.pages.prepare("SELECT site_id,status FROM sites WHERE hostname=? AND protocol='httc'").bind(hostname).first();
+   if(existingPage)return json({ok:false,error:"hostname_already_registered",detail:"Ese dominio ya está registrado en Pages."},409);
+   const existingServer=await env.server.prepare("SELECT site_id,status FROM servers WHERE hostname=? AND protocol='httc'").bind(hostname).first();
+   if(existingServer)return json({ok:false,error:"hostname_already_registered",detail:"Ese dominio ya está registrado en Server."},409);
+
    const site_id=id(), stamp=now(), version="v1-"+Date.now();
    const html=String(b.html||"<!doctype html><html><head><meta charset=\"utf-8\"><title>"+title+"</title></head><body><main><h1>"+title+"</h1></main></body></html>");
    const origin="pages://"+hostname;
@@ -126,8 +135,14 @@ export async function onRequest({request,env}){
     await env.pages.prepare("UPDATE sites SET status='published',updated_at=? WHERE site_id=?").bind(now(),site_id).run();
     return json({ok:true,site_id,hostname,url:"httc://"+hostname,version,status:"published"});
    }catch(e){
-    try{await env.pages.prepare("UPDATE sites SET status='failed',updated_at=? WHERE site_id=?").bind(now(),site_id).run()}catch{}
-    return json({ok:false,error:"publish_failed",detail:String(e)},500);
+    const detail=String(e);
+    try{await env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(site_id).run()}catch{}
+    try{await env.pages.prepare("DELETE FROM sites WHERE site_id=?").bind(site_id).run()}catch{}
+    try{await env.server.prepare("DELETE FROM servers WHERE site_id=?").bind(site_id).run()}catch{}
+    try{await env.database.prepare("DELETE FROM cp_deployments WHERE site_id=?").bind(site_id).run()}catch{}
+    try{await env.database.prepare("DELETE FROM cp_databases WHERE site_id=?").bind(site_id).run()}catch{}
+    try{await env.database.prepare("DELETE FROM cp_projects WHERE site_id=?").bind(site_id).run()}catch{}
+    return json({ok:false,error:"publish_failed",detail},500);
    }
   }
 
