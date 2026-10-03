@@ -67,7 +67,12 @@ export async function onRequest({request,env}){
     if(!/^[a-z0-9][a-z0-9-]{2,31}$/.test(developerId))return json({ok:false,error:"invalid_developer_id"},400);
     if(!displayName)return json({ok:false,error:"display_name_required"},400);
     const stamp=now();
-    await env.users.prepare("INSERT INTO users(id,developer_id,display_name,status,created_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(developer_id) DO UPDATE SET display_name=excluded.display_name,status='active',updated_at=excluded.updated_at").bind(developerId,developerId,displayName,"active",stamp,stamp).run();
+    const existingUser=await env.users.prepare("SELECT id FROM users WHERE developer_id=? LIMIT 1").bind(developerId).first();
+    if(existingUser){
+     await env.users.prepare("UPDATE users SET display_name=?,status='active',updated_at=? WHERE id=?").bind(displayName,stamp,existingUser.id).run();
+    }else{
+     await env.users.prepare("INSERT INTO users(id,developer_id,display_name,status,created_at,updated_at) VALUES(?,?,?,?,?,?)").bind(developerId,developerId,displayName,"active",stamp,stamp).run();
+    }
     await env.database.prepare("INSERT INTO cp_developers(id,developer_id,display_name,created_at,updated_at) VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET developer_id=excluded.developer_id,display_name=excluded.display_name,updated_at=excluded.updated_at").bind(developerId,displayName,stamp,stamp).run();
    }
    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
