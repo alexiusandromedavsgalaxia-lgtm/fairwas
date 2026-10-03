@@ -18,11 +18,23 @@ function App(){
  const[history,setHistory]=useState(initial.history||[]);
  const[bookmarks,setBookmarks]=useState(initial.bookmarks||[]);
  const[panel,setPanel]=useState(null);
+ const[resolved,setResolved]=useState(null);
+ const[resolveError,setResolveError]=useState(null);
  const tab=tabs[active]||tabs[0];
  const scheme=protocolFor(tab.url);
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home}}),[history,bookmarks,dark]);
  useEffect(()=>setAddress(tab.url),[tab.id,tab.url]);
+ useEffect(()=>{
+  let cancelled=false;
+  setResolved(null);setResolveError(null);
+  if(tab.url===home||!protocolFor(tab.url))return;
+  fetch("/api/resolve?url="+encodeURIComponent(tab.url))
+   .then(r=>r.json().then(data=>({ok:r.ok,data})))
+   .then(({ok,data})=>{if(cancelled)return;if(!ok||!data.ok)throw new Error(data.error||"resolve_failed");setResolved(data)})
+   .catch(e=>{if(!cancelled)setResolveError(e.message||"resolve_failed")});
+  return()=>{cancelled=true};
+ },[tab.id,tab.url]);
 
  useEffect(()=>{
   const key=e=>{
@@ -86,7 +98,7 @@ function App(){
   </aside>}
 
   <main className="viewport">
-   {tab.url===home?<Home navigate={navigate} protocols={protocolList} history={history} bookmarks={bookmarks}/>:<ProtocolPage tab={tab} scheme={scheme} navigate={navigate}/>}
+   {tab.url===home?<Home navigate={navigate} protocols={protocolList} history={history} bookmarks={bookmarks}/>:<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>}
   </main>
  </div>
 }
@@ -102,13 +114,13 @@ function Home({navigate,protocols,history,bookmarks}){
  </section>
 }
 
-function ProtocolPage({tab,scheme,navigate}){
+function ProtocolPage({tab,scheme,resolved,resolveError}){
  return <section className="protocol-page">
   <div className="page-icon">{scheme?.label?.[0]||"F"}</div>
   <span className="eyebrow">{scheme?.label||"PROTOCOLO"}</span>
   <h1>{tab.title}</h1><code className="fullurl">{tab.url}</code>
   <div className="state"><span className="pulse"></span><b>Dirección aceptada por Fairwas</b><p>{scheme?scheme.description:"Esquema externo"}</p></div>
-  <div className="transport"><b>Capa de transporte</b><span>conectada a la arquitectura de Fairwas</span><small>El resolver del protocolo se encuentra aislado de la interfaz para poder sustituirlo por el transporte real sin rehacer el navegador.</small></div>
+  <div className={"transport "+(resolveError?"error":"")}><b>{resolveError?"Error de resolución":"Capa de transporte"}</b><span>{resolveError?resolveError:resolved?"resuelta por /api/resolve":"resolviendo…"}</span><small>{resolved?.document?.type==="home"?"Documento interno del protocolo listo para renderizar.":resolved?.document?.type==="resource"?"Recurso reconocido por el backend; todavía no se descarga contenido externo.":"El backend valida el esquema, registra la visita y devuelve un documento estructurado."}</small></div>
  </section>
 }
 
