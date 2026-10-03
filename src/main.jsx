@@ -5,7 +5,8 @@ import{PROTOCOLS,protocolFor,toFairwas}from"./protocols";
 import{load,save}from"./storage";
 
 const home="httc://home";
-const makeTab=(url=home)=>({id:crypto.randomUUID(),url,title:url===home?"Fairwas":hostOf(url)});
+const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
+const makeTab=(url=home)=>makeNav({id:crypto.randomUUID(),url,title:url===home?"Fairwas":hostOf(url)});
 const hostOf=(url)=>{try{return new URL(url).hostname||url.split("/")[2]||url}catch{return url}};
 const initial=load();
 
@@ -39,7 +40,7 @@ function App(){
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>Math.min(a,tabs.length-2))}
  function navigate(raw=address){
   const url=toFairwas(raw);
-  setTabs(t=>t.map((x,i)=>i===active?{...x,url,title:url===home?"Fairwas":hostOf(url)}:x));
+  setTabs(t=>t.map((x,i)=>i===active?{...x,url,title:url===home?"Fairwas":hostOf(url),back:[...x.back,x.url],forward:[]}:x));
   if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100));
   setPanel(null);
  }
@@ -48,6 +49,8 @@ function App(){
   setBookmarks(b=>[{url:tab.url,title:tab.title,time:new Date().toISOString()},...b])
  }
  function openItem(url){navigate(url)}
+ function goBack(){setTabs(t=>t.map((x,i)=>{if(i!==active||!x.back.length)return x;const back=[...x.back];const url=back.pop();return {...x,url,title:url===home?"Fairwas":hostOf(url),back,forward:[x.url,...x.forward]}}))}
+ function goForward(){setTabs(t=>t.map((x,i)=>{if(i!==active||!x.forward.length)return x;const [url,...forward]=x.forward;return {...x,url,title:url===home?"Fairwas":hostOf(url),back:[...x.back,x.url],forward}}))}
  function clearHistory(){setHistory([])}
  const protocolList=useMemo(()=>Object.values(PROTOCOLS),[]);
 
@@ -59,8 +62,8 @@ function App(){
     <button className="newtab" onClick={newTab}>+</button>
    </div>
    <div className="toolbar">
-    <button onClick={()=>window.history.back()} aria-label="Atrás">←</button>
-    <button onClick={()=>window.history.forward()} aria-label="Adelante">→</button>
+    <button onClick={goBack} disabled={!tab.back.length} aria-label="Atrás">←</button>
+    <button onClick={goForward} disabled={!tab.forward.length} aria-label="Adelante">→</button>
     <button onClick={()=>location.reload()} aria-label="Recargar">↻</button>
     <form className="addressbar" onSubmit={e=>{e.preventDefault();navigate()}}>
       <span className={scheme?"scheme-dot":""}>{scheme?scheme.label:"⌕"}</span>
