@@ -1,24 +1,16 @@
-const ALLOWED=new Set(["httc","amwp","euwp","aswp","afwp","ocwp"]);
+const ALLOWED=new Set(["httc"]);
 
-const DESCRIPTIONS={
- httc:"Fairwas global web transport",
- amwp:"American Web Protocol",
- euwp:"European Web Protocol",
- aswp:"Asian Web Protocol",
- afwp:"African Web Protocol",
- ocwp:"Oceanian Web Protocol"
-};
+const DESCRIPTION="Fairwas global web protocol";
 
-function documentFor(parsed,protocol){
+function documentFor(parsed){
  const path=parsed.pathname||"/";
- const query=parsed.searchParams;
  if(path==="/"||path==="/home"){
-  return {type:"home",title:"Fairwas · "+protocol.toUpperCase(),protocol,description:DESCRIPTIONS[protocol]};
+  return {type:"home",title:"Fairwas · HTTC",protocol:"httc",description:DESCRIPTION};
  }
  if(path==="/search"){
-  return {type:"search",title:"Fairwas search",protocol,query:query.get("q")||"",results:[]};
+  return {type:"search",title:"Fairwas search",protocol:"httc",query:parsed.searchParams.get("q")||"",results:[]};
  }
- return {type:"resource",title:parsed.hostname||protocol.toUpperCase(),protocol,host:parsed.hostname,path:parsed.pathname+(parsed.search||"")};
+ return {type:"resource",title:parsed.hostname||"HTTC",protocol:"httc",host:parsed.hostname,path:parsed.pathname+(parsed.search||"")};
 }
 
 export async function onRequestGet({request,env}){
@@ -31,13 +23,12 @@ export async function onRequestGet({request,env}){
  if(!ALLOWED.has(protocol)){
   return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
  }
- let persisted=true;
+ let persisted=false;
  if(env.pages){
   try{
-   await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,protocol,new Date().toISOString()).run();
-  }catch{
-   persisted=false;
-  }
+   await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,"httc",new Date().toISOString()).run();
+   persisted=true;
+  }catch{}
  }
- return Response.json({ok:true,url:target,protocol,host:parsed.hostname,path:parsed.pathname+(parsed.search||""),persisted,document:documentFor(parsed,protocol)});
+ return Response.json({ok:true,url:target,protocol:"httc",host:parsed.hostname,path:parsed.pathname+(parsed.search||""),persisted,document:documentFor(parsed)});
 }
