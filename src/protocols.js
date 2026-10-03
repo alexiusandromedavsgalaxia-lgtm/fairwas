@@ -1,25 +1,22 @@
 export const PROTOCOLS=Object.freeze({
- HTTC:Object.freeze({scheme:"httc",label:"HTTC",region:"Global",description:"Fairwas global web transport"}),
- AMWP:Object.freeze({scheme:"amwp",label:"AMWP",region:"America",description:"American Web Protocol"}),
- EUWP:Object.freeze({scheme:"euwp",label:"EUWP",region:"Europe",description:"European Web Protocol"}),
- ASWP:Object.freeze({scheme:"aswp",label:"ASWP",region:"Asia",description:"Asian Web Protocol"}),
- AFWP:Object.freeze({scheme:"afwp",label:"AFWP",region:"Africa",description:"African Web Protocol"}),
- OCWP:Object.freeze({scheme:"ocwp",label:"OCWP",region:"Oceania",description:"Oceanian Web Protocol"})
+ HTTC:Object.freeze({
+  scheme:"httc",
+  label:"HTTC",
+  region:"Global",
+  description:"Fairwas global web protocol"
+ })
 });
 
-export const FAIRWAS_SCHEMES=Object.freeze(
- Object.values(PROTOCOLS).map(protocol=>protocol.scheme)
-);
+export const FAIRWAS_SCHEMES=Object.freeze(["httc"]);
 
 const protocolPattern=/^([a-z][a-z0-9+.-]*):\/\//i;
 const domainPattern=/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:[/?#].*)?$/i;
-const directProtocolPattern=new RegExp("^(?:https?|"+FAIRWAS_SCHEMES.join("|")+"):\\/\\/","i");
+const directProtocolPattern=/^httc:\/\//i;
 
 export const protocolFor=(url="")=>{
  const match=String(url).trim().match(protocolPattern);
  if(!match)return null;
- const scheme=match[1].toLowerCase();
- return Object.values(PROTOCOLS).find(protocol=>protocol.scheme===scheme)||null;
+ return match[1].toLowerCase()==="httc"?PROTOCOLS.HTTC:null;
 };
 
 export const isFairwasProtocol=(url="")=>Boolean(protocolFor(url));
