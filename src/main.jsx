@@ -9,8 +9,8 @@ const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
 const makeTab=(url=home,tab={})=>makeNav({id:tab.id||crypto.randomUUID(),url,title:tab.title|| (url===home?"Inicio":hostOf(url)),back:Array.isArray(tab.back)?tab.back:[],forward:Array.isArray(tab.forward)?tab.forward:[]});
 const displayDomain=(url)=>{const value=String(url||"").trim();try{const parsed=new URL(value);return parsed.protocol==="httc:"&&parsed.hostname&&parsed.hostname!=="home"?parsed.hostname:value}catch{return value}};
-const displayAddress=(url,mobile=false)=>{const value=String(url||"").trim();if(!value)return"";try{const parsed=new URL(value);if(parsed.protocol!=="httc:")return value;const host=parsed.hostname||"";if(!host||host==="home")return value;const path=(parsed.pathname&&parsed.pathname!=="/"?parsed.pathname:"")+(parsed.search||"")+(parsed.hash||"");return mobile?host+path:"httc://web."+host+path;}catch{return value}};
-const normalizeAddress=(raw)=>{const value=String(raw||"").trim();const match=value.match(/^httc:\/\/web\.([^/?#]+)(\/[^?#]*)?(?:\?([^#]*))?(?:#(.*))?$/i);if(match)return"httc://"+match[1]+(match[2]||"/")+(match[3]?"?"+match[3]:"")+(match[4]?"#"+match[4]:"");return value;};
+const displayAddress=(url,mobile=false)=>{const value=String(url||"").trim();if(!value)return"";try{const parsed=new URL(value);if(parsed.protocol!=="httc:")return value;const host=parsed.hostname||"";if(!host||host==="home")return value;const path=(parsed.pathname&&parsed.pathname!=="/"?parsed.pathname:"")+(parsed.search||"")+(parsed.hash||"");return mobile?host+path:"httc://"+host+path;}catch{return value}};
+const normalizeAddress=(raw)=>{const value=String(raw||"").trim();const match=value.match(/^httc:\/\/web\.([^/?#]+)(\/[^?#]*)?(?:\?([^#]*))?(?:#(.*))?$/i);if(match)return"httc://web."+match[1]+(match[2]||"/")+(match[3]?"?"+match[3]:"")+(match[4]?"#"+match[4]:"");return value;};
 const hostOf=(url)=>{const value=String(url||"").trim();try{return new URL(value).hostname||value.split("/")[2]||value}catch{const match=value.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i);return match?.[1]||value}};
 const initial=load();
 const savedTabs=Array.isArray(initial.tabs)&&initial.tabs.length?initial.tabs.map(t=>makeTab(t.url||home,t)):[makeTab(initial.settings.home||home)];
@@ -133,7 +133,7 @@ function Home({navigate,history,bookmarks}){
 
 function ProtocolPage({tab,scheme,resolved,resolveError}){
  if(resolved?.document?.type==="site"&&resolved.document.file?.content_type==="text/html"&&resolved.document.file.content){
-  return <section className="published-frame"><iframe title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms" srcDoc={resolved.document.file.content}/></section>
+  return <section className="published-frame"><iframe title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms" srcDoc={resolved.document.rendered||resolved.document.file.content}/></section>
  }
  return <section className="webpage">
   {resolveError?<div className="not-found"><div className="not-found-icon">⌕</div><h1>No se puede abrir la página</h1><p>{resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError}</p><code>{tab.url}</code></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Página lista":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
