@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useRef,useState}from"react";\n\nfunction parseFairwasUrl(value){\n const raw=String(value||"").trim();\n const match=raw.match(/^([a-z][a-z0-9+.-]*):\\/\\/([^/?#]+)([^?#]*)(\\?[^#]*)?(#.*)?$/i);\n if(!match)return null;\n return{protocol:match[1].toLowerCase(),hostname:match[2].toLowerCase(),pathname:match[3]||"/",search:match[4]||"",hash:match[5]||""};\n}\n\nfunction navigate(path){window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://web.createpage.fair"+path}))}
+import React,{useEffect,useState}from"react";\n\nfunction parseFairwasUrl(value){\n const raw=String(value||"").trim();\n const match=raw.match(/^([a-z][a-z0-9+.-]*):\\/\\/([^/?#]+)([^?#]*)(\\?[^#]*)?(#.*)?$/i);\n if(!match)return null;\n return{protocol:match[1].toLowerCase(),hostname:match[2].toLowerCase(),pathname:match[3]||"/",search:match[4]||"",hash:match[5]||""};\n}\n\nfunction navigate(path){window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://web.createpage.fair"+path}))}
 
 const routes=[
  ["/","Inicio"],
