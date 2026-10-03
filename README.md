@@ -1,21 +1,20 @@
 # Fairwas
 
-Fairwas es un navegador web **protocol-first** construido desde cero.
+Fairwas es un navegador web **protocol-first** construido alrededor de un único protocolo: **HTTC**.
 
-## Protocolos propios
+## Protocolo
 
-- **HTTC** — `httc://` — Global Web
-- **AMWP** — `amwp://` — American Web Protocol
-- **EUWP** — `euwp://` — European Web Protocol
-- **ASWP** — `aswp://` — Asian Web Protocol
-- **AFWP** — `afwp://` — African Web Protocol
-- **OCWP** — `ocwp://` — Oceanian Web Protocol
+- **HTTC** — `httc://` — protocolo web global de Fairwas
+
+Todos los procesos de navegación, resolución, publicación y comunicación de sitios de Fairwas se unifican bajo HTTC. Los protocolos regionales anteriores se han eliminado del producto.
 
 ## Stack
 
 React + Vite, Cloudflare Pages Functions y Cloudflare D1.
 
-El binding de D1 es **`pages`**, la base es **`workers-pages`** y el servidor usa **`env.pages`**.
+Bindings de D1:
+- **`pages`** → base `workers-pages`
+- **`server`** → base `server`
 
 ## Incluido
 
@@ -26,9 +25,9 @@ El binding de D1 es **`pages`**, la base es **`workers-pages`** y el servidor us
 - favoritos
 - ajustes
 - modo oscuro
+- resolución HTTC
 - registro de visitas en D1
-- API de resolución de protocolos
-- arquitectura separada entre UI, protocolos y transporte
+- registro de servidores
 - manifest PWA
 - configuración de Cloudflare Pages
 
@@ -39,5 +38,3 @@ npm install
 npm run dev
 npm run build
 ```
-
-La implementación del transporte real de HTTC/AMWP/EUWP/ASWP/AFWP/OCWP queda detrás de la API para que no haya que rehacer la interfaz cuando se conecte la infraestructura real.
