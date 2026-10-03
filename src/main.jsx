@@ -30,7 +30,7 @@ function App(){
  const scheme=protocolFor(tab.url);
  const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
 
- useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home},tabs,activeTab:active}),[history,bookmarks,dark,tabs,active]);
+ useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,tabs,active,tab?.url]);
  useEffect(()=>setAddress(displayAddress(tab.url,mobile)),[tab.id,tab.url,mobile]);
  useEffect(()=>{const mq=window.matchMedia("(max-width: 720px)");const onChange=()=>setMobile(mq.matches);onChange();mq.addEventListener?.("change",onChange);return()=>mq.removeEventListener?.("change",onChange)},[]);
  useEffect(()=>{
