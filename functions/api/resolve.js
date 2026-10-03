@@ -1,6 +1,13 @@
 const ALLOWED=new Set(["httc"]);
 const DESCRIPTION="Fairwas global web protocol";
 
+async function ensureServerSchema(env){
+ if(!env.server)return false;
+ await env.server.prepare("CREATE TABLE IF NOT EXISTS servers (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,hostname TEXT NOT NULL UNIQUE,protocol TEXT NOT NULL DEFAULT 'httc',origin TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+ await env.server.prepare("CREATE INDEX IF NOT EXISTS idx_servers_protocol_hostname ON servers(protocol,hostname)").run();
+ return true;
+}
+
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
  if(hostname==="home")return{type:"home",title:"Fairwas · HTTC",protocol:"httc",description:DESCRIPTION};
@@ -8,6 +15,7 @@ async function publishedDocument(parsed,env){
   return{type:"createpage",title:"CreatePage",protocol:"httc",host:hostname,path:parsed.pathname||"/",description:"Create and manage Fairwas sites."};
  }
  if(!env.server||!env.pages)return null;
+ await ensureServerSchema(env);
  const server=await env.server.prepare("SELECT site_id,hostname,protocol,origin,status FROM servers WHERE hostname=? AND protocol='httc' AND status='active'").bind(hostname).first();
  if(!server)return null;
  const site=await env.pages.prepare("SELECT site_id,hostname,title,description,logo_url,framework,language,backend,runtime,database_type,status FROM sites WHERE site_id=? AND status='published'").bind(server.site_id).first();
