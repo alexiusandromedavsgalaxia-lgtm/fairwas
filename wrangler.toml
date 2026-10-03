@@ -13,3 +13,9 @@ binding="server"
 database_name="server"
 database_id="9bfa7efc-5ff4-4bf7-989c-171546b1c121"
 preview_database_id="server"
+
+[[d1_databases]]
+binding="database"
+database_name="database"
+database_id="codbf74ac-569d-4304-89bc-842384dee141"
+preview_database_id="database"
