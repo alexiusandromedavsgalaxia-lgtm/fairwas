@@ -8,6 +8,23 @@ async function ensureServerSchema(env){
  return true;
 }
 
+async function renderSiteHtml(siteId,html,env){
+ const assets=await env.pages.prepare("SELECT path,content_type,content FROM site_files WHERE site_id=? AND content_type IN ('text/css','text/javascript')").bind(siteId).all();
+ let output=String(html||"");
+ for(const asset of (assets.results||[])){
+  const path=String(asset.path||"");
+  const content=String(asset.content||"");
+  if(asset.content_type==="text/css"){
+   const escaped=path.replace(/[.*+?^{}()|[\]\\]/g,"\\async function publishedDocument(parsed,env){");
+   output=output.replace(new RegExp("<link\\s+[^>]*href=[\\\"']"+escaped+"[\\\"'][^>]*>","i"),"<style data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\">"+content+"</style>");
+  }else{
+   const escaped=path.replace(/[.*+?^{}()|[\]\\]/g,"\\async function publishedDocument(parsed,env){");
+   output=output.replace(new RegExp("<script\\s+[^>]*src=[\\\"']"+escaped+"[\\\"'][^>]*>\\s*</script>","i"),"<script data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\">"+content+"<\\/script>");
+  }
+ }
+ return output;
+}
+
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
  if(hostname==="home")return{type:"home",title:"Fairwas · HTTC",protocol:"httc",description:DESCRIPTION};
