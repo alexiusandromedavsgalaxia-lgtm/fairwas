@@ -17,8 +17,8 @@ async function renderSiteHtml(siteId,html,env){
   let result=String(text||"");
   for(const [path,url] of binaryUrls){
    const escaped=escRe(path);
-   result=result.replace(new RegExp("(['\\\"])"+escaped+"\\\\1","g"),"$1"+url+"$1");
-   result=result.replace(new RegExp("(['\\\"])\\\\./"+escaped.replace(/^\\\\//,"")+"\\\\1","g"),"$1"+url+"$1");
+   result=result.replace(new RegExp("(['\\\"])"+escaped+"\\1","g"),"$1"+url+"$1");
+   result=result.replace(new RegExp("(['\\\"])\\./"+escaped.replace(/^\\//,"")+"\\1","g"),"$1"+url+"$1");
   }
   return result;
  };
@@ -36,10 +36,10 @@ async function renderSiteHtml(siteId,html,env){
   }
   const data=binaryUrls.get(path);
   if(data){
-   const bare=path.replace(/^\\\\/,"");
+   const bare=path.replace(/^\//,"");
    const q=escRe(bare);
-   output=output.replace(new RegExp("(['\\\"])(?:\\\\./)?"+q+"\\\\1","g"),"$1"+data+"$1");
-   output=output.replace(new RegExp("(['\\\"])" + escRe(path) + "\\\\1","g"),"$1"+data+"$1");
+   output=output.replace(new RegExp("(['\\\"])(?:\\./)?"+q+"\\1","g"),"$1"+data+"$1");
+   output=output.replace(new RegExp("(['\\\"])" + escRe(path) + "\\1","g"),"$1"+data+"$1");
   }
  }
  return output;
