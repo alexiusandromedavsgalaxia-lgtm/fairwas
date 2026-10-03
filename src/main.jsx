@@ -65,29 +65,33 @@ function App(){
 
  return <div className={"app "+(dark?"dark":"light")}>
   <header className="chrome">
-   <div className="tabstrip">
-    <div className="traffic-space"></div>
-    <div className="tabs">
-     {tabs.map((t,i)=><button className={"tab "+(i===active?"active":"")} key={t.id} onClick={()=>setActive(i)}><span className="tabtext">{t.title}</span>{tabs.length>1&&<i onClick={e=>{e.stopPropagation();closeTab(i)}}>×</i>}</button>)}
+   <div className="topbar">
+    <div className="traffic-space"><span></span><span></span><span></span></div>
+    <div className="tabstrip">
+     {tabs.map((t,i)=><button className={"tab "+(i===active?"active":"")} key={t.id} onClick={()=>setActive(i)}><span className="tab-favicon">{t.url===home?"":t.title?.[0]}</span><span className="tabtext">{t.title}</span>{tabs.length>1&&<i onClick={e=>{e.stopPropagation();closeTab(i)}}>×</i>}</button>)}
      <button className="newtab" onClick={newTab} aria-label="Nueva pestaña">+</button>
     </div>
    </div>
    <div className="toolbar">
-    <button onClick={goBack} disabled={!tab.back.length} aria-label="Atrás">‹</button>
-    <button onClick={goForward} disabled={!tab.forward.length} aria-label="Adelante">›</button>
+    <div className="navgroup">
+     <button onClick={goBack} disabled={!tab.back.length} aria-label="Atrás">‹</button>
+     <button onClick={goForward} disabled={!tab.forward.length} aria-label="Adelante">›</button>
+    </div>
     <form className="addressbar" onSubmit={e=>{e.preventDefault();navigate()}}>
-      <span className="address-icon">{scheme?.label||"⌕"}</span>
+      <span className="site-control">⌄</span>
       <input id="address" value={address} onChange={e=>setAddress(e.target.value)} aria-label="Dirección o búsqueda" spellCheck="false"/>
-      {tab.url!==home&&<button type="button" className="mini" onClick={bookmark} aria-label="Añadir a favoritos">☆</button>}
+      {tab.url!==home&&<button type="button" className="address-action" onClick={bookmark} aria-label="Añadir a favoritos">☆</button>}
     </form>
-    <button onClick={()=>setPanel(panel==="bookmarks"?null:"bookmarks")} aria-label="Favoritos">☆</button>
-    <button onClick={()=>setPanel(panel==="history"?null:"history")} aria-label="Historial">◷</button>
-    <button onClick={()=>setPanel(panel==="settings"?null:"settings")} aria-label="Ajustes">☰</button>
+    <div className="toolgroup">
+     <button onClick={()=>setPanel(panel==="bookmarks"?null:"bookmarks")} aria-label="Barra lateral">☰</button>
+     <button onClick={()=>setPanel(panel==="history"?null:"history")} aria-label="Historial">◷</button>
+     <button onClick={()=>setPanel(panel==="settings"?null:"settings")} aria-label="Más opciones">•••</button>
+    </div>
    </div>
   </header>
 
   {panel&&<aside className="panel">
-   {panel==="history"&&<><div className="paneltitle"><b>Historial</b><button onClick={clearHistory}>Borrar</button></div>{history.length?<div className="list">{history.map((x,i)=><button className="listitem" key={x.url+i} onClick={()=>openItem(x.url)}><b>{x.title}</b><small>{x.url}</small></button>)}</div>:<p className="empty">No hay historial.</p>}</>}
+   {panel==="history"&&<><div className="paneltitle"><b>Historial</b><button onClick={clearHistory}>Borrar historial</button></div>{history.length?<div className="list">{history.map((x,i)=><button className="listitem" key={x.url+i} onClick={()=>openItem(x.url)}><b>{x.title}</b><small>{x.url}</small></button>)}</div>:<p className="empty">No hay historial.</p>}</>}
    {panel==="bookmarks"&&<><div className="paneltitle"><b>Favoritos</b></div>{bookmarks.length?<div className="list">{bookmarks.map(x=><button className="listitem" key={x.url} onClick={()=>openItem(x.url)}><b>{x.title}</b><small>{x.url}</small></button>)}</div>:<p className="empty">No hay favoritos.</p>}</>}
    {panel==="settings"&&<><div className="paneltitle"><b>Ajustes</b></div><label className="setting"><span>Modo oscuro</span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><div className="settingblock"><b>Protocolos</b>{protocolList.map(p=><div className="protocolrow" key={p.scheme}><span>{p.label}</span><small>{p.scheme}:// · {p.region}</small></div>)}</div></>}
   </aside>}
@@ -101,20 +105,22 @@ function App(){
 function Home({navigate,history,bookmarks}){
  const[q,setQ]=useState("");
  return <section className="start">
+  <div className="start-top"><button>☰</button><button>Editar</button></div>
   <div className="start-content">
-   <div className="start-mark">F</div>
-   <h1>Fairwas</h1>
-   <form onSubmit={e=>{e.preventDefault();navigate(q)}} className="start-search"><input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar o introducir dirección"/><button aria-label="Buscar">⌕</button></form>
-   <div className="start-links"><button onClick={()=>navigate("httc://home")}>Inicio</button><button onClick={()=>setQ("")}>Nueva búsqueda</button><span>{history.length} visitas · {bookmarks.length} favoritos</span></div>
+   <form onSubmit={e=>{e.preventDefault();navigate(q)}} className="start-search"><span>⌕</span><input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar o introducir dirección"/><button aria-label="Buscar">⌕</button></form>
+   <div className="favorites-title">Favoritos</div>
+   <div className="favorite-grid">
+    {bookmarks.slice(0,8).map(x=><button className="favorite" key={x.url} onClick={()=>navigate(x.url)}><span>{x.title?.[0]||"F"}</span><b>{x.title}</b></button>)}
+    {!bookmarks.length&&<div className="empty-favorites">Tus favoritos aparecerán aquí.</div>}
+   </div>
+   <div className="start-stats"><span>{history.length} visitas</span><span>·</span><span>{bookmarks.length} favoritos</span></div>
   </div>
  </section>
 }
 
 function ProtocolPage({tab,scheme,resolved,resolveError}){
  return <section className="webpage">
-  <div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div>
-  <div className={"state "+(resolveError?"error":"")}><span className="status-dot"></span><div><b>{resolveError?"No se ha podido cargar esta página":resolved?"Página lista":"Cargando página…"}</b><p>{resolveError||resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div>
-  {resolved?.document?.type==="search"&&<div className="result-note">Búsqueda: <b>{resolved.document.query||"sin texto"}</b></div>}
+  {resolveError?<div className="not-found"><div className="not-found-icon">⌕</div><h1>No se puede abrir la página</h1><p>{resolveError}</p><code>{tab.url}</code></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Página lista":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
  </section>
 }
 
