@@ -48,7 +48,7 @@ function App(){
 
  useEffect(()=>{
   const onFairwasNavigate=e=>navigate(e.detail);
-  addEventListener("fairwas:navigate",onFairwasNavigate);
+  addEventListener("message",onMessage);\n  addEventListener("fairwas:navigate",onFairwasNavigate);
   const key=e=>{
    if((e.ctrlKey||e.metaKey)&&e.key==="l"){e.preventDefault();document.querySelector("#address")?.select()}
    if((e.ctrlKey||e.metaKey)&&e.key==="t"){e.preventDefault();newTab()}
@@ -57,7 +57,7 @@ function App(){
    if((e.ctrlKey||e.metaKey)&&e.key==="h"){e.preventDefault();setPanel("history")}
    if((e.ctrlKey||e.metaKey)&&e.key==="b"){e.preventDefault();setPanel("bookmarks")}
   };
-  addEventListener("keydown",key);return()=>{removeEventListener("keydown",key);removeEventListener("fairwas:navigate",onFairwasNavigate)}
+  addEventListener("keydown",key);return()=>{removeEventListener("message",onMessage);removeEventListener("keydown",key);removeEventListener("fairwas:navigate",onFairwasNavigate)}
  },[active,tabs,tab]);
 
  function newTab(){const next=makeTab();setTabs(t=>{setActive(t.length);return[...t,next]})}
@@ -131,9 +131,15 @@ function Home({navigate,history,bookmarks}){
  </section>
 }
 
+function fairwasLinkBridge(html){
+ const source=String(html||"");
+ const bridge="<script>(function(){document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var raw=a.getAttribute('href')||'';try{var u=new URL(raw,location.href);if(u.protocol==='httc:'){e.preventDefault();e.stopPropagation();window.parent.postMessage({type:'fairwas:navigate',url:u.toString()},'*');}}catch(_){}});})();<\\/script>";
+ return source.includes("</body>")?source.replace("</body>",bridge+"</body>"):bridge+source;
+}
+
 function ProtocolPage({tab,scheme,resolved,resolveError}){
  if(resolved?.document?.type==="site"&&resolved.document.file?.content_type?.split(";")[0]==="text/html"&&resolved.document.file.content){
-  return <section className="published-frame"><iframe title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms" srcDoc={resolved.document.rendered||resolved.document.file.content}/></section>
+  return <section className="published-frame"><iframe title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms" srcDoc={fairwasLinkBridge(resolved.document.rendered||resolved.document.file.content)}/></section>
  }
  return <section className="webpage">
   {resolveError?<div className="not-found"><div className="not-found-icon">⌕</div><h1>No se puede abrir la página</h1><p>{resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError}</p><code>{tab.url}</code></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Página lista":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
