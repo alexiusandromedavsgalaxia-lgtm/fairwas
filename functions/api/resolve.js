@@ -4,7 +4,7 @@ const DESCRIPTION="Fairwas global web protocol";
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
  if(hostname==="home")return{type:"home",title:"Fairwas · HTTC",protocol:"httc",description:DESCRIPTION};
- if(hostname==="web.createpage.fair"||hostname==="docs.createpage.fair"){
+ if(hostname==="createpage.fair"||hostname==="docs.createpage.fair"){
   return{type:"createpage",title:"CreatePage",protocol:"httc",host:hostname,path:parsed.pathname||"/",description:"Create and manage Fairwas sites."};
  }
  if(!env.server||!env.pages)return null;
