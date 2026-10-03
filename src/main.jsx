@@ -61,7 +61,7 @@ function App(){
  },[active,tabs,tab]);
 
  function newTab(){const next=makeTab();setTabs(t=>[...t,next]);setActive(tabs.length)}
- function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>Math.min(a,tabs.length-2))}
+ function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>{if(i<a)return a-1;if(i===a)return Math.min(a,tabs.length-2);return a})}
  function navigate(raw=address){
   const url=toFairwas(normalizeAddress(raw));
   setTabs(t=>t.map((x,i)=>i!==active||url===x.url?x:{...x,url,title:url===home?"Inicio":hostOf(url),back:[...x.back,x.url],forward:[]}));
