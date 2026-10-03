@@ -16,7 +16,8 @@ const initial=load();
 function App(){
  const[tabs,setTabs]=useState([makeTab(initial.settings.home||home)]);
  const[active,setActive]=useState(0);
- const[address,setAddress]=useState(initial.settings.home||home);\n const[mobile,setMobile]=useState(()=>typeof window!=="undefined"&&window.matchMedia("(max-width: 720px)").matches);
+ const[address,setAddress]=useState(initial.settings.home||home);
+ const[mobile,setMobile]=useState(()=>typeof window!=="undefined"&&window.matchMedia("(max-width: 720px)").matches);
  const[dark,setDark]=useState(initial.settings.dark!==false);
  const[history,setHistory]=useState(initial.history||[]);
  const[bookmarks,setBookmarks]=useState(initial.bookmarks||[]);
