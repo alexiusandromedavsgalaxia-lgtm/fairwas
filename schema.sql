@@ -12,3 +12,13 @@ CREATE TABLE IF NOT EXISTS bookmarks (
  title TEXT NOT NULL,
  created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS servers (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ hostname TEXT NOT NULL UNIQUE,
+ protocol TEXT NOT NULL,
+ origin TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_servers_protocol_hostname ON servers(protocol,hostname);
