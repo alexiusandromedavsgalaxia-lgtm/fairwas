@@ -1,0 +1,1 @@
+const key="fairwas:v1";const initial={history:[],bookmarks:[],settings:{dark:true,home:"httc://home",search:"https://www.google.com/search?q="}};export function load(){try{return {...initial,...JSON.parse(localStorage.getItem(key)||"{}")}}catch{return initial}}export function save(data){try{localStorage.setItem(key,JSON.stringify(data))}catch{}}
