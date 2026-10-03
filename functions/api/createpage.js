@@ -63,9 +63,10 @@ export async function onRequest({request,env}){
    if(method==="POST"){
     const b=await request.json();
     const displayName=String(b.display_name||"").trim();
-    if(!displayName)return json({ok:false,error:"display_name_required"},400);
-    const stamp=now();
     const email=String(b.email||"").trim();
+    if(!displayName)return json({ok:false,error:"display_name_required"},400);
+    if(!email)return json({ok:false,error:"email_required"},400);
+    const stamp=now();
     const currentDeveloper=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
     let developerId=String(currentDeveloper?.developer_id||"").trim().toLowerCase();
     if(!developerId){
