@@ -30,7 +30,6 @@ CREATE TABLE IF NOT EXISTS sites (
  updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sites_protocol_hostname ON sites(protocol,hostname);
-ALTER TABLE sites ADD COLUMN developer_id TEXT;
 
 CREATE TABLE IF NOT EXISTS site_files (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,12 +61,12 @@ CREATE TABLE IF NOT EXISTS cp_developers (
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_sites_developer ON sites(developer_id);
 
 CREATE TABLE IF NOT EXISTS cp_projects (
  site_id TEXT PRIMARY KEY,
  hostname TEXT NOT NULL UNIQUE,
  title TEXT NOT NULL,
+ developer_id TEXT,
  status TEXT NOT NULL DEFAULT 'draft',
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
