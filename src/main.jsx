@@ -80,7 +80,7 @@ function App(){
     <div className="traffic-space"><img className="fairwas-logo" src="/fairwas.svg" alt="Fairwas"/></div>
     <div className="tabstrip">
      {tabs.map((t,i)=><button className={"tab "+(i===active?"active":"")} key={t.id} onClick={()=>setActive(i)}><span className="tab-favicon"><img src="/fairwas.svg" alt="" /></span><span className="tabtext">{t.title}</span>{tabs.length>1&&<i onClick={e=>{e.stopPropagation();closeTab(i)}}>×</i>}</button>)}
-     <button className="newtab" onClick={newTab} aria-label="Nueva pestaña">+</button>
+     <button className="newtab" type="button" onClick={e=>{e.preventDefault();e.stopPropagation();newTab()}} aria-label="Nueva pestaña">+</button>
     </div>
    </div>
    <div className="toolbar">
