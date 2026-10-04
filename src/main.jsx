@@ -54,7 +54,12 @@ function App(){
   return()=>{window.removeEventListener("message",onMessage);window.removeEventListener("keydown",key);window.removeEventListener("fairwas:navigate",onCreatePageNavigate)};
  },[active,tabs,tab]);
 
- function newTab(url=home){const next=makeTab(url);setTabs(t=>{setActive(t.length);return[...t,next]});if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100))}
+ function newTab(url=home){
+  const next=makeTab(url);
+  setTabs(t=>[...t,next]);
+  setActive(tabs.length);
+  if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100));
+}
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>{if(i<a)return a-1;if(i===a)return Math.min(a,tabs.length-2);return a})}
  function navigate(raw=address){
   const url=toFairwas(normalizeAddress(raw));
