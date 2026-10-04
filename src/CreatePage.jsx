@@ -7,7 +7,7 @@ function parseFairwasUrl(value){
  return{protocol:match[1].toLowerCase(),hostname:match[2].toLowerCase(),pathname:match[3]||"/",search:match[4]||"",hash:match[5]||""};
 }
 
-function navigate(path){window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://createpage.fair"+path}))}
+function navigate(path,onNavigate){const url="httc://createpage.fair"+path;if(typeof onNavigate==="function")onNavigate(url);else window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:url}))}
 
 const publicRoutes=[
  ["/","Inicio"],
@@ -31,16 +31,16 @@ async function api(action,options){
  return d;
 }
 
-export default function CreatePage({url}){
+export default function CreatePage({url,onNavigate}){
  let parsed;try{parsed=new URL(url)}catch{parsed=null}
  const host=parsed?.hostname||"createpage.fair";
  const path=(parsed?.pathname||"/")+(parsed?.search||"");
  if(host==="docs.createpage.fair")return <DocsPage path={path}/>;
- return <Workspace path={path}/>;
+ return <Workspace path={path} onNavigate={onNavigate}/>;
 }
 
-function Layout({path,children,hasAccount}){
- const go=p=>{window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:"httc://createpage.fair"+p}))};
+function Layout({path,children,hasAccount,onNavigate}){
+ const go=p=>navigate(p,onNavigate);
  const routes=hasAccount?privateRoutes:publicRoutes;
  return <section className="cp-shell">
   <aside className="cp-side">
@@ -52,7 +52,7 @@ function Layout({path,children,hasAccount}){
  </section>
 }
 
-function Workspace({path}){
+function Workspace({path,onNavigate}){
  const[sites,setSites]=useState([]),[dbs,setDbs]=useState([]),[servers,setServers]=useState([]),[registry,setRegistry]=useState(null),[workers,setWorkers]=useState([]);
  const[error,setError]=useState("");
  const[loading,setLoading]=useState(true);
@@ -78,9 +78,9 @@ function Workspace({path}){
  const effectivePath=privatePath&&!hasAccount?"/registry":routePath;
  const editorSiteId=new URLSearchParams(path.split("?")[1]||"").get("site_id")||"";
  const page=loading?<div className="cp-card cp-empty">Comprobando tu cuenta de desarrollador…</div>:
-  effectivePath==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers}/>:
+  effectivePath==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers} onNavigate={onNavigate}/>:
   effectivePath==="/init"?<Init onDone={reload}/>:
-  effectivePath==="/my/sites"?<Sites sites={sites}/>:
+  effectivePath==="/my/sites"?<Sites sites={sites} onNavigate={onNavigate}/>:
   effectivePath==="/my/databases"?<Databases dbs={dbs}/>:
   effectivePath==="/my/servers"?<Servers servers={servers}/>:
   effectivePath==="/registry"?<Registry data={registry}/>:
@@ -88,13 +88,13 @@ function Workspace({path}){
   effectivePath==="/workers"?<Workers workers={workers}/>:
   effectivePath==="/editor"?<Editor siteId={editorSiteId}/>:
   effectivePath==="/my/profile"?<Profile data={registry}/>:<NotFound/>;
- return <Layout path={effectivePath} hasAccount={hasAccount}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
+ return <Layout path={effectivePath} hasAccount={hasAccount} onNavigate={onNavigate}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
 }
 
 function Head({eyebrow,title,text}){return <header className="cp-head"><div><small>{eyebrow}</small><h1>{title}</h1>{text&&<p>{text}</p>}</div></header>}
-function Dashboard({sites,dbs,servers,workers}){return <><Head eyebrow="CREATEPAGE" title="Tu infraestructura web" text="Crea, publica y administra sitios HTTC desde un único espacio."/><div className="cp-grid four"><Stat n={sites.length} t="Sitios publicados"/><Stat n={dbs.length} t="Bases de datos"/><Stat n={servers.length} t="Servidores"/><Stat n={workers.length} t="Workers"/></div><div className="cp-card cp-hero"><div><small>HTTC</small><h2>Publicación conectada</h2><p>Cada sitio se registra en Pages y Server. Las bases SQLite se registran en Database.</p></div><button type="button" onClick={()=>navigate("/init")}>Crear un sitio →</button></div></>}
+function Dashboard({sites,dbs,servers,workers,onNavigate}){return <><Head eyebrow="CREATEPAGE" title="Tu infraestructura web" text="Crea, publica y administra sitios HTTC desde un único espacio."/><div className="cp-grid four"><Stat n={sites.length} t="Sitios publicados"/><Stat n={dbs.length} t="Bases de datos"/><Stat n={servers.length} t="Servidores"/><Stat n={workers.length} t="Workers"/></div><div className="cp-card cp-hero"><div><small>HTTC</small><h2>Publicación conectada</h2><p>Cada sitio se registra en Pages y Server. Las bases SQLite se registran en Database.</p></div><button type="button" onClick={()=>navigate("/init",onNavigate)}>Crear un sitio →</button></div></>}
 function Stat({n,t}){return <div className="cp-card cp-stat"><b>{n}</b><span>{t}</span></div>}
-function Sites({sites}){return <><Head eyebrow="MY / SITES" title="Mis sitios" text="Sitios almacenados y publicados en Pages."/><div className="cp-list">{sites.map(s=><div className="cp-card cp-row" key={s.site_id}><div><b>{s.title}</b><small>httc://{s.hostname}</small></div><div className="cp-row-actions"><span className="cp-pill">{s.status}</span><button type="button" onClick={()=>navigate("/editor?site_id="+encodeURIComponent(s.site_id))}>Editar</button></div></div>)}{!sites.length&&<Empty text="Todavía no hay sitios."/>}</div></>}
+function Sites({sites,onNavigate}){return <><Head eyebrow="MY / SITES" title="Mis sitios" text="Sitios almacenados y publicados en Pages."/><div className="cp-list">{sites.map(s=><div className="cp-card cp-row" key={s.site_id}><div><b>{s.title}</b><small>httc://{s.hostname}</small></div><div className="cp-row-actions"><span className="cp-pill">{s.status}</span><button type="button" onClick={()=>navigate("/editor?site_id="+encodeURIComponent(s.site_id),onNavigate)}>Editar</button></div></div>)}{!sites.length&&<Empty text="Todavía no hay sitios."/>}</div></>}
 
 function Databases({dbs}){return <><Head eyebrow="MY / DATABASES" title="Mis bases de datos" text="Recursos de datos registrados en Database."/><div className="cp-list">{dbs.map(d=><div className="cp-card cp-row" key={d.id}><div><b>{d.name}</b><small>{d.engine} · {d.status}</small></div><span className="cp-pill">{d.site_id?"Conectada":"Libre"}</span></div>)}{!dbs.length&&<Empty text="No hay bases de datos."/>}</div></>}
 function Servers({servers}){return <><Head eyebrow="MY / SERVERS" title="Mis servidores" text="Dominios y orígenes registrados en Server."/><div className="cp-list">{servers.map(s=><div className="cp-card cp-row" key={s.id}><div><b>{s.hostname}</b><small>{s.protocol} · {s.origin}</small></div><span className="cp-pill">{s.status}</span></div>)}{!servers.length&&<Empty text="No hay servidores."/>}</div></>}
