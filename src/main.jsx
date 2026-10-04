@@ -125,7 +125,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
   return()=>{cancelled=true};
  },[tab.id,tab.url]);
  return <div className="tab-view" style={{display:active?"block":"none"}}>
-  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url}/>:active?<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>:null}
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>:null}
  </div>
 }
 
