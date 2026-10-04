@@ -129,7 +129,8 @@ function TabView({tab,active,navigate,history,bookmarks}){
    .catch(e=>{if(!cancelled)setResolveError(e.message||"resolve_failed")});
   return()=>{cancelled=true};
  },[tab.id,tab.url]);
- return <div className="tab-view" style={{display:active?"block":"none"}}>
+ if(!active)return null;
+ return <div className="tab-view">
   {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>:null}
  </div>
 }
