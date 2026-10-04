@@ -26,7 +26,7 @@ function App(){
  const[history,setHistory]=useState(initial.history||[]);
  const[bookmarks,setBookmarks]=useState(initial.bookmarks||[]);
  const[panel,setPanel]=useState(null);const[addressFocused,setAddressFocused]=useState(false);
- const tab=tabs[active]||tabs[0];
+ const tab=tabs[active]||tabs[tabs.length-1]||makeTab();
  const scheme=protocolFor(tab.url);
  const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
 
