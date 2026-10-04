@@ -7,7 +7,7 @@ import CreatePage from"./CreatePage";
 
 const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
-const makeTab=(url=home,tab={})=>makeNav({id:tab.id||crypto.randomUUID(),url,title:tab.title|| (url===home?"Inicio":hostOf(url)),back:Array.isArray(tab.back)?tab.back:[],forward:Array.isArray(tab.forward)?tab.forward:[]});
+const makeTab=(url=home,tab={})=>makeNav({id:tab.id||(globalThis.crypto?.randomUUID?.()||("tab-"+Date.now()+"-"+Math.random().toString(36).slice(2))),url,title:tab.title|| (url===home?"Inicio":hostOf(url)),back:Array.isArray(tab.back)?tab.back:[],forward:Array.isArray(tab.forward)?tab.forward:[]});
 const displayDomain=(url)=>{const value=String(url||"").trim();try{const parsed=new URL(value);return parsed.protocol==="httc:"&&parsed.hostname&&parsed.hostname!=="home"?parsed.hostname:value}catch{return value}};
 const displayAddress=(url,mobile=false)=>{const value=String(url||"").trim();if(!value)return"";try{const parsed=new URL(value);if(parsed.protocol!=="httc:")return value;const host=parsed.hostname||"";if(!host||host==="home")return value;const path=(parsed.pathname&&parsed.pathname!=="/"?parsed.pathname:"")+(parsed.search||"")+(parsed.hash||"");return mobile?host+path:"httc://"+host+path;}catch{return value}};
 const normalizeAddress=(raw)=>{const value=String(raw||"").trim();const match=value.match(/^httc:\/\/web\.([^/?#]+)(\/[^?#]*)?(?:\?([^#]*))?(?:#(.*))?$/i);if(match)return"httc://web."+match[1]+(match[2]||"/")+(match[3]?"?"+match[3]:"")+(match[4]?"#"+match[4]:"");return value;};
@@ -56,11 +56,8 @@ function App(){
 
  function newTab(url=home){
   const next=makeTab(url);
-  setTabs(prev=>{
-   const nextTabs=[...prev,next];
-   setActive(nextTabs.length-1);
-   return nextTabs;
-  });
+  setTabs(prev=>[...prev,next]);
+  setActive(prev=>prev+1);
   if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100));
 }
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>{if(i<a)return a-1;if(i===a)return Math.min(a,tabs.length-2);return a})}
