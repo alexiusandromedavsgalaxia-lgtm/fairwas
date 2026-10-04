@@ -56,8 +56,11 @@ function App(){
 
  function newTab(url=home){
   const next=makeTab(url);
-  setTabs(t=>[...t,next]);
-  setActive(tabs.length);
+  setTabs(prev=>{
+   const nextTabs=[...prev,next];
+   setActive(nextTabs.length-1);
+   return nextTabs;
+  });
   if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100));
 }
  function closeTab(i){if(tabs.length===1){setTabs([makeTab()]);setActive(0);return}setTabs(t=>t.filter((_,n)=>n!==i));setActive(a=>{if(i<a)return a-1;if(i===a)return Math.min(a,tabs.length-2);return a})}
