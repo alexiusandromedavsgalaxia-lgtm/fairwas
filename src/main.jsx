@@ -47,9 +47,11 @@ function App(){
    if((e.ctrlKey||e.metaKey)&&e.key==="h"){e.preventDefault();setPanel("history")}
    if((e.ctrlKey||e.metaKey)&&e.key==="b"){e.preventDefault();setPanel("bookmarks")}
   };
+  const onCreatePageNavigate=e=>{const url=e?.detail;if(typeof url==="string"&&url.startsWith("httc://createpage.fair"))navigate(url)};
   window.addEventListener("message",onMessage);
   window.addEventListener("keydown",key);
-  return()=>{window.removeEventListener("message",onMessage);window.removeEventListener("keydown",key)};
+  window.addEventListener("fairwas:navigate",onCreatePageNavigate);
+  return()=>{window.removeEventListener("message",onMessage);window.removeEventListener("keydown",key);window.removeEventListener("fairwas:navigate",onCreatePageNavigate)};
  },[active,tabs,tab]);
 
  function newTab(url=home){const next=makeTab(url);setTabs(t=>{setActive(t.length);return[...t,next]});if(url!==home)setHistory(h=>[{url,title:hostOf(url),time:new Date().toISOString()},...h.filter(x=>x.url!==url)].slice(0,100))}
@@ -123,7 +125,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
   return()=>{cancelled=true};
  },[tab.id,tab.url]);
  return <div className="tab-view" style={{display:active?"block":"none"}}>
-  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url}/>:<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>}
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url}/>:active?<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>:null}
  </div>
 }
 
