@@ -13,44 +13,55 @@ async function ensurePagesSchema(env){
  const columns=await env.pages.prepare("PRAGMA table_info(site_files)").all();const names=new Set((columns.results||[]).map(x=>x.name));if(!names.has("encoding"))await env.pages.prepare("ALTER TABLE site_files ADD COLUMN encoding TEXT").run();
  return true;
 }
-async function renderSiteHtml(siteId,html,env){
+async function renderSiteHtml(siteId,html,env,htmlPath="/index.html"){
  const rows=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=?").bind(siteId).all();
  const files=rows.results||[];
  const binaryUrls=new Map();
- for(const asset of files){
-  const url=dataUrl(asset);
-  if(url)binaryUrls.set(String(asset.path||""),url);
- }
- let output=String(html||"");
- const replaceAssetRefs=(text)=>{
+ for(const asset of files){const url=dataUrl(asset);if(url)binaryUrls.set(String(asset.path||""),url)}
+ const normalizeAsset=(raw,basePath)=>{
+  try{const url=new URL(String(raw||""),"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath));if(url.origin!=="https://fairwas.invalid")return null;return url.pathname}catch{return null}
+ };
+ const replaceBinaryRefs=(text,basePath)=>{
   let result=String(text||"");
-  for(const [path,url] of binaryUrls){
-   const escaped=escRe(path);
-   result=result.replace(new RegExp("(['\\\"])"+escaped+"\\1","g"),"$1"+url+"$1");
-   result=result.replace(new RegExp("(['\\\"])\\./"+escaped.replace(/^\//,"")+"\\1","g"),"$1"+url+"$1");
-  }
+  result=result.replace(/((?:src|href|poster|data-src|xlink:href)\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,raw,suffix)=>{
+   const path=normalizeAsset(raw,basePath),data=path&&binaryUrls.get(path);
+   return data?prefix+data+suffix:all;
+  });
+  result=result.replace(/(srcset\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,value,suffix)=>{
+   const rewritten=value.split(",").map(item=>{const parts=item.trim().split(/\s+/);const path=normalizeAsset(parts[0],basePath);if(path&&binaryUrls.has(path))parts[0]=binaryUrls.get(path);return parts.join(" ")}).join(", ");
+   return prefix+rewritten+suffix;
+  });
+  result=result.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi,(all,q,raw)=>{
+   const path=normalizeAsset(raw.trim(),basePath),data=path&&binaryUrls.get(path);return data?"url("+q+data+q+")":all;
+  });
   return result;
  };
+ let output=String(html||"");
+ const htmlDir=String(htmlPath||"/index.html").replace(/[^/]*$/,"")||"/";
  for(const asset of files){
   const path=String(asset.path||"");
-  const type=String(asset.content_type||contentType(path)).split(";")[0];
+  const type=String(asset.content_type||contentType(path)).split(";")[0].trim().toLowerCase();
   let content=String(asset.content||"");
-  if(type==="text/css")content=replaceAssetRefs(content);
+  if(asset.encoding==="base64")continue;
+  if(type==="text/css")content=replaceBinaryRefs(content,path);
+  const aliases=new Set([path,path.replace(/^\//,""),"./"+path.replace(/^\//,""),htmlDir+path.replace(/^\//,"")]);
+  const matches=(raw)=>{const resolved=normalizeAsset(raw,htmlPath);return resolved===path||aliases.has(String(raw||""))};
   if(type==="text/css"){
-   const escaped=escRe(path);
-   output=output.replace(new RegExp("<link\\s+[^>]*href=['\\\"]"+escaped+"['\\\"][^>]*>","i"),"<style data-httc-asset='"+path.replace(/'/g,"&#39;")+"'>"+content+"</style>");
-  }else if(type==="text/javascript"||type==="application/javascript"){
-   const escaped=escRe(path);
-   output=output.replace(new RegExp("<script\\s+[^>]*src=['\\\"]"+escaped+"['\\\"][^>]*>\\s*</script>","i"),"<script data-httc-asset='"+path.replace(/'/g,"&#39;")+"'>"+content+"</script>");
-  }
-  const data=binaryUrls.get(path);
-  if(data){
-   const bare=path.replace(/^\//,"");
-   const q=escRe(bare);
-   output=output.replace(new RegExp("(['\\\"])(?:\\./)?"+q+"\\1","g"),"$1"+data+"$1");
-   output=output.replace(new RegExp("(['\\\"])" + escRe(path) + "\\1","g"),"$1"+data+"$1");
+   output=output.replace(/<link\b[^>]*>/gi,tag=>{
+    const rel=(tag.match(/\brel\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
+    const href=(tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
+    if(!/\bstylesheet\b/i.test(rel)||!matches(href))return tag;
+    return "<style data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\">"+content+"</style>";
+   });
+  }else if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"){
+   output=output.replace(/<script\b[^>]*>\s*<\/script>/gi,tag=>{
+    const src=(tag.match(/\bsrc\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
+    if(!src||!matches(src))return tag;
+    return "<script data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\">"+content.replace(/<\/script/gi,"<\\/script")+"</script>";
+   });
   }
  }
+ output=replaceBinaryRefs(output,htmlPath);
  return output;
 }
 function extractHtmlRedirect(html){
@@ -90,7 +101,7 @@ async function publishedDocument(parsed,env){
  const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
  const bodyLooksHtml=/^\s*(?:<!doctype\s+html|<html(?:\s|>)|<head(?:\s|>)|<body(?:\s|>))/i.test(String(file.content||""));
  const isHtml=/^(?:text\/html|application\/xhtml\+xml)$/i.test(type)||pathLooksHtml||bodyLooksHtml;
- const rendered=isHtml?await renderSiteHtml(site.site_id,file.content,env):null;
+ const rendered=isHtml?await renderSiteHtml(site.site_id,file.content,env,file.path):null;
  const redirect=rendered?resolveHtmlRedirect(extractHtmlRedirect(rendered),parsed.href):null;
  return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered,redirect};
 }
