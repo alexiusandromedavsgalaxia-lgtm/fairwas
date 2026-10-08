@@ -39,14 +39,6 @@ npm run dev
 npm run build
 ```
 
-## Seguridad de CreatePage
+## CreatePage
 
-La API de CreatePage requiere el secreto `FAIRWAS_ADMIN_TOKEN`. No lo guardes en Git ni lo incluyas en el código del cliente.
-
-1. En Cloudflare, abre el proyecto Pages de Fairwas y entra en **Settings → Variables and Secrets**.
-2. Añade un secreto llamado `FAIRWAS_ADMIN_TOKEN` con una clave larga y aleatoria.
-3. Vuelve a desplegar el proyecto para que las Functions reciban el secreto.
-4. Al abrir CreatePage, introduce esa clave cuando el navegador la solicite. Se conserva solo en `sessionStorage` de esa pestaña/sesión.
-5. Para revocarla, cambia el secreto en Cloudflare y vuelve a desplegar. Las sesiones que tengan la clave antigua dejarán de autorizarse.
-
-Si el secreto no está configurado, la API falla de forma cerrada y devuelve `admin_auth_not_configured`. La migración estática tiene su endpoint independiente y también debe protegerse con controles de acceso y límites si se expone públicamente.
+CreatePage y la migración estática no solicitan una clave de administración. La API conserva límites de tamaño, cantidad de archivos y validación de rutas al publicar.
