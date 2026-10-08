@@ -37,15 +37,16 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
  const fileByPath=new Map(files.map(file=>[String(file.path||""),file]));
  const binaryUrls=new Map();
  for(const asset of files){const url=dataUrl(asset);if(url)binaryUrls.set(String(asset.path||""),url)}
+ const baseUrl=(basePath)=>/^https?:\/\//i.test(String(basePath||""))?String(basePath):"https://fairwas.invalid"+(String(basePath||"/").startsWith("/")?String(basePath||"/"):"/"+String(basePath||"/"));
  const normalizeAsset=(raw,basePath)=>{
-  try{const url=new URL(String(raw||""),"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath));if(url.origin!=="https://fairwas.invalid")return null;return url.pathname}catch{return null}
+  try{const url=new URL(String(raw||""),baseUrl(basePath));if(url.origin!=="https://fairwas.invalid")return null;return url.pathname}catch{return null}
  };
  const assetUrl=(raw,basePath)=>{
   const path=normalizeAsset(raw,basePath);
   if(!path||!fileByPath.has(path))return null;
   const binary=binaryUrls.get(path);
   if(binary)return binary;
-  let search="";try{search=new URL(String(raw||""),"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath)).search}catch{}
+  let search="";try{search=new URL(String(raw||""),baseUrl(basePath)).search}catch{}
   return assetEndpoint(hostname,path,search);
  };
  const replaceResourceRefs=(text,basePath)=>{
@@ -69,6 +70,9 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   return result;
  };
  let output=String(html||"");
+ let resourceBasePath=htmlPath;
+ const baseTag=output.match(/<base\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/i);
+ if(baseTag&&baseTag[1]){try{resourceBasePath=new URL(baseTag[1],baseUrl(htmlPath)).href}catch{}}
  for(const asset of files){
   const path=String(asset.path||"");
   const type=String(asset.content_type||contentType(path)).split(";")[0].trim().toLowerCase();
@@ -79,7 +83,7 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
    output=output.replace(/<link\b[^>]*>/gi,tag=>{
     const rel=(tag.match(/\brel\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
     const href=(tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
-    if(!/\bstylesheet\b/i.test(rel)||normalizeAsset(href,htmlPath)!==path)return tag;
+    if(!/\bstylesheet\b/i.test(rel)||normalizeAsset(href,resourceBasePath)!==path)return tag;
     const media=(tag.match(/\bmedia\s*=\s*["']([^"']+)["']/i)||[])[1];
     const disabled=/\bdisabled(?:\s|=|\/?>)/i.test(tag);
     return "<style data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\""+(media?" media=\""+media.replace(/"/g,"&quot;")+"\"":"")+(disabled?" disabled":"")+">"+content+"</style>";
@@ -101,10 +105,10 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   const rel=(tag.match(/\brel\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
   const href=(tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
   if(/\bstylesheet\b/i.test(rel)||!href||/^(?:data:|https?:|\/\/|#)/i.test(href))return tag;
-  const url=assetUrl(href,htmlPath);
+  const url=assetUrl(href,resourceBasePath);
   return url?tag.replace(href,url):tag;
  });
- output=replaceResourceRefs(output,htmlPath);
+ output=replaceResourceRefs(output,resourceBasePath);
  return output;
 }
 function extractHtmlRedirect(html){
