@@ -20,3 +20,16 @@ test("rewriteModuleImports rewrites static and dynamic local imports", () => {
   assert.match(result, /url=httc%3A%2F%2Fsite\.fair%2Fshared%2Fy\.js/);
   assert.match(result, /url=httc%3A%2F%2Fsite\.fair%2Fchunks%2Flazy\.js/);
 });
+
+
+test("assetEndpoint preserves asset query strings without changing the stored path", () => {
+  const url = assetEndpoint("site.fair", "/api/data.json", "?version=3&lang=es");
+  assert.match(url, /url=httc%3A%2F%2Fsite.fair%2Fapi%2Fdata.json%3Fversion%3D3%26lang%3Des/);
+  assert.match(url, /asset=%2Fapi%2Fdata.json/);
+});
+
+test("moduleAssetUrl preserves query strings for module imports", () => {
+  const url = moduleAssetUrl("site.fair", "./chunk.js?v=2", "/scripts/app.js");
+  assert.match(url, /url=httc%3A%2F%2Fsite.fair%2Fscripts%2Fchunk.js%3Fv%3D2/);
+  assert.match(url, /asset=%2Fscripts%2Fchunk.js/);
+});
