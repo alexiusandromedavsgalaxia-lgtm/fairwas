@@ -185,7 +185,7 @@ function RedirectPage({target,navigate,baseUrl}){
 }
 
 function ProtocolPage({tab,scheme,resolved,resolveError,navigate}){
- if(resolved?.document?.type==="site"&&resolved.document.file?.content_type?.split(";")[0]==="text/html"&&resolved.document.file.content){
+ if(resolved?.document?.type==="site"&&resolved.document.file?.content&&( /^(text\/html|application\/xhtml\+xml)$/i.test(String(resolved.document.file.content_type||"").split(";")[0].trim()) || /\.(html?|xhtml)$/i.test(String(resolved.document.file.path||"")) || /^\s*(<!doctype\s+html|<html(\s|>)|<head(\s|>)|<body(\s|>))/i.test(String(resolved.document.file.content)))){
   if(resolved.document.redirect)return <RedirectPage target={resolved.document.redirect} navigate={navigate} baseUrl={tab.url}/>;
   return <section className="published-frame"><iframe key={tab.reloadToken||0} title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms" srcDoc={fairwasLinkBridge(resolved.document.rendered||resolved.document.file.content,tab.url)}/></section>
  }
