@@ -4,7 +4,21 @@ const TEXT=/^(text\/|application\/(?:json|javascript|xml|svg\+xml|manifest\+json
 const STATIC_EXT=/\.(?:html?|css|js|mjs|json|svg|xml|txt|webmanifest|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp3|wav|ogg|mp4|webm|wasm|map)$/i;
 function cleanPath(path){let p=String(path||"/").split("?")[0].split("#")[0].replace(/\\/g,"/");if(!p.startsWith("/"))p="/"+p;p=p.replace(/\/+/g,"/");return p==="/"?"/index.html":p}
 function sameOrigin(a,b){return a.protocol===b.protocol&&a.hostname===b.hostname&&a.port===b.port}
-function unsafeHost(host){const h=String(host||"").toLowerCase();if(h==="localhost"||h.endsWith(".localhost")||h.endsWith(".local")||h.endsWith(".internal"))return true;const m=h.match(/^\d+\.\d+\.\d+\.\d+$/);if(!m)return false;const p=h.split(".").map(Number);return p[0]===10||p[0]===127||p[0]===0||(p[0]===169&&p[1]===254)||(p[0]===172&&p[1]>=16&&p[1]<=31)||(p[0]===192&&p[1]===168)}
+function unsafeHost(host){
+ const h=String(host||"").toLowerCase().replace(/^\[|\]$/g,"");
+ if(h==="localhost"||h.endsWith(".localhost")||h.endsWith(".local")||h.endsWith(".internal"))return true;
+ if(h.includes(":")){
+  // Block IPv6 loopback, unspecified, link-local, unique-local and mapped private IPv4.
+  if(h==="::"||h==="::1"||/^fe[89ab]/.test(h)||/^f[cd]/.test(h))return true;
+  const mapped=h.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if(mapped)return unsafeHost(mapped[1]);
+  return false;
+ }
+ const p=h.split(".");
+ if(p.length!==4||!p.every(part=>/^\d{1,3}$/.test(part)&&Number(part)<=255))return false;
+ const [a,b]=p.map(Number);
+ return a===10||a===127||a===0||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127)||(a===192&&b===0)||(a===198&&(b===18||b===19))||a>=224;
+}
 function b64(bytes){let s="";for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(s)}
 function isText(type,path){return TEXT.test(type)||/\.(?:html?|css|js|mjs|json|svg|xml|txt|webmanifest|map)$/i.test(path)}
 function refs(source,base){
