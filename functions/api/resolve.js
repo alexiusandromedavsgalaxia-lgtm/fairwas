@@ -13,56 +13,89 @@ async function ensurePagesSchema(env){
  const columns=await env.pages.prepare("PRAGMA table_info(site_files)").all();const names=new Set((columns.results||[]).map(x=>x.name));if(!names.has("encoding"))await env.pages.prepare("ALTER TABLE site_files ADD COLUMN encoding TEXT").run();
  return true;
 }
-async function renderSiteHtml(siteId,html,env,htmlPath="/index.html"){
+function assetEndpoint(hostname,path){
+ return "/api/resolve?url="+encodeURIComponent("httc://"+hostname+(path.startsWith("/")?path:"/"+path))+"&asset="+encodeURIComponent(path);
+}
+function moduleAssetUrl(hostname,raw,basePath){
+ try{
+  const url=new URL(raw,"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath));
+  if(url.origin!=="https://fairwas.invalid")return null;
+  return assetEndpoint(hostname,url.pathname)+ (url.search||"") + (url.hash||"");
+ }catch{return null}
+}
+function rewriteModuleImports(source,hostname,basePath){
+ return String(source||"").replace(/((?:\bimport\s*(?:[^'"]*?\sfrom\s*)?|\bexport\s+[^'"]*?\sfrom\s*|\bimport\s*\()\s*)(["'])(\.{1,2}\/[^"']+|\/[^"']+)\2/g,(all,prefix,q,raw)=>{
+  const url=moduleAssetUrl(hostname,raw,basePath);
+  return url?prefix+q+new URL(url,"https://fairwas.invalid").href+q:all;
+ });
+}
+async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""){
  const rows=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=?").bind(siteId).all();
  const files=rows.results||[];
+ const fileByPath=new Map(files.map(file=>[String(file.path||""),file]));
  const binaryUrls=new Map();
  for(const asset of files){const url=dataUrl(asset);if(url)binaryUrls.set(String(asset.path||""),url)}
  const normalizeAsset=(raw,basePath)=>{
   try{const url=new URL(String(raw||""),"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath));if(url.origin!=="https://fairwas.invalid")return null;return url.pathname}catch{return null}
  };
- const replaceBinaryRefs=(text,basePath)=>{
+ const assetUrl=(raw,basePath)=>{
+  const path=normalizeAsset(raw,basePath);
+  if(!path||!fileByPath.has(path))return null;
+  return binaryUrls.get(path)||assetEndpoint(hostname,path);
+ };
+ const replaceResourceRefs=(text,basePath)=>{
   let result=String(text||"");
-  result=result.replace(/((?:src|href|poster|data-src|xlink:href)\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,raw,suffix)=>{
-   const path=normalizeAsset(raw,basePath),data=path&&binaryUrls.get(path);
-   return data?prefix+data+suffix:all;
+  result=result.replace(/((?:src|poster|data-src|xlink:href|data|cite|background)\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,raw,suffix)=>{
+   if(/^(?:data:|blob:|javascript:|https?:|\/\/|#)/i.test(raw.trim()))return all;
+   const value=assetUrl(raw,basePath);return value?prefix+value+suffix:all;
   });
   result=result.replace(/(srcset\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,value,suffix)=>{
-   const rewritten=value.split(",").map(item=>{const parts=item.trim().split(/\s+/);const path=normalizeAsset(parts[0],basePath);if(path&&binaryUrls.has(path))parts[0]=binaryUrls.get(path);return parts.join(" ")}).join(", ");
+   const rewritten=value.split(",").map(item=>{const parts=item.trim().split(/\s+/);if(parts[0]&&!/^(?:data:|https?:|\/\/)/i.test(parts[0])){const url=assetUrl(parts[0],basePath);if(url)parts[0]=url}return parts.join(" ")}).join(", ");
    return prefix+rewritten+suffix;
   });
   result=result.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi,(all,q,raw)=>{
-   const path=normalizeAsset(raw.trim(),basePath),data=path&&binaryUrls.get(path);return data?"url("+q+data+q+")":all;
+   if(/^(?:data:|blob:|https?:|\/\/|#)/i.test(raw.trim()))return all;
+   const value=assetUrl(raw.trim(),basePath);return value?"url("+q+value+q+")":all;
   });
   return result;
  };
  let output=String(html||"");
- const htmlDir=String(htmlPath||"/index.html").replace(/[^/]*$/,"")||"/";
  for(const asset of files){
   const path=String(asset.path||"");
   const type=String(asset.content_type||contentType(path)).split(";")[0].trim().toLowerCase();
-  let content=String(asset.content||"");
   if(asset.encoding==="base64")continue;
-  if(type==="text/css")content=replaceBinaryRefs(content,path);
-  const aliases=new Set([path,path.replace(/^\//,""),"./"+path.replace(/^\//,""),htmlDir+path.replace(/^\//,"")]);
-  const matches=(raw)=>{const resolved=normalizeAsset(raw,htmlPath);return resolved===path||aliases.has(String(raw||""))};
+  let content=String(asset.content||"");
+  if(type==="text/css")content=replaceResourceRefs(content,path);
   if(type==="text/css"){
    output=output.replace(/<link\b[^>]*>/gi,tag=>{
     const rel=(tag.match(/\brel\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
     const href=(tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
-    if(!/\bstylesheet\b/i.test(rel)||!matches(href))return tag;
-    return "<style data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\">"+content+"</style>";
+    if(!/\bstylesheet\b/i.test(rel)||normalizeAsset(href,htmlPath)!==path)return tag;
+    const media=(tag.match(/\bmedia\s*=\s*["']([^"']+)["']/i)||[])[1];
+    const disabled=/\bdisabled(?:\s|=|\/?>)/i.test(tag);
+    return "<style data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\""+(media?" media=\""+media.replace(/"/g,"&quot;")+"\"":"")+(disabled?" disabled":"")+">"+content+"</style>";
    });
-  }else if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"){
+  }else if(["text/javascript","application/javascript","text/ecmascript","application/ecmascript"].includes(type)){
    output=output.replace(/<script\b([^>]*)>\s*<\/script>/gi,(tag,attrs)=>{
     const src=(attrs.match(/\bsrc\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
-    if(!src||!matches(src))return tag;
-    const cleanAttrs=attrs.replace(/\s+src\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i,"");
+    if(!src||normalizeAsset(src,htmlPath)!==path)return tag;
+    if(/\btype\s*=\s*["']module["']/i.test(attrs)){
+     const endpoint=assetEndpoint(hostname,path);
+     return "<script"+attrs.replace(/\bsrc\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)/i,"src=\""+endpoint+"\"")+"></script>";
+    }
+    const cleanAttrs=attrs.replace(/\s+src\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)/i,"");
     return "<script"+cleanAttrs+" data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\">"+content.replace(/<\/script/gi,"<\\/script")+"</script>";
    });
   }
  }
- output=replaceBinaryRefs(output,htmlPath);
+ output=output.replace(/<link\b[^>]*>/gi,tag=>{
+  const rel=(tag.match(/\brel\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
+  const href=(tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
+  if(/\bstylesheet\b/i.test(rel)||!href||/^(?:data:|https?:|\/\/|#)/i.test(href))return tag;
+  const url=assetUrl(href,htmlPath);
+  return url?tag.replace(href,url):tag;
+ });
+ output=replaceResourceRefs(output,htmlPath);
  return output;
 }
 function extractHtmlRedirect(html){
@@ -102,7 +135,7 @@ async function publishedDocument(parsed,env){
  const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
  const bodyLooksHtml=/^\s*(?:<!doctype\s+html|<html(?:\s|>)|<head(?:\s|>)|<body(?:\s|>))/i.test(String(file.content||""));
  const isHtml=/^(?:text\/html|application\/xhtml\+xml)$/i.test(type)||pathLooksHtml||bodyLooksHtml;
- const rendered=isHtml?await renderSiteHtml(site.site_id,file.content,env,file.path):null;
+ const rendered=isHtml?await renderSiteHtml(site.site_id,file.content,env,file.path,parsed.hostname):null;
  const redirect=rendered?resolveHtmlRedirect(extractHtmlRedirect(rendered),parsed.href):null;
  return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered,redirect};
 }
@@ -111,7 +144,7 @@ export async function onRequestGet({request,env}){
  if(!ALLOWED.has(parsed.protocol.slice(0,-1).toLowerCase()))return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
  const document=await publishedDocument(parsed,env);if(!document)return Response.json({ok:false,error:"site_not_found",host:parsed.hostname},{status:404});
  const assetPathRaw=req.searchParams.get("asset");const assetPath=assetPathRaw?("/"+assetPathRaw.replace(/^\/+/, "").replace(/\\/g,"/")):null;
- if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});return new Response(asset.content,{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});
+ if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});let assetContent=asset.content;if(/^(?:text\\/javascript|application\\/(?:javascript|ecmascript))$/.test(type))assetContent=rewriteModuleImports(assetContent,document.site.hostname,asset.path);return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable","access-control-allow-origin":"*"}});
  }
  if(document.redirect){return Response.json({ok:true,url:target,protocol:"httc",redirect:document.redirect,document},{status:200,headers:{"cache-control":"no-store"}});}
  let persisted=false;try{if(env.pages){await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,"httc",new Date().toISOString()).run();persisted=true}}catch{}
