@@ -154,6 +154,17 @@ function resolveHtmlRedirect(target,base){
  if(!target)return null;
  try{return new URL(target,base).toString()}catch{return null}
 }
+export function documentPathCandidates(path){
+ const raw=String(path||"/");
+ const clean=raw.startsWith("/")?raw:"/"+raw;
+ const pathname=clean.replace(/\/{2,}/g,"/");
+ if(pathname==="/")return ["/index.html","/index.htm"];
+ if(/\.[a-z0-9]{1,12}$/i.test(pathname))return [pathname];
+ const directory=pathname.endsWith("/")?pathname:pathname+"/";
+ const exact=pathname.endsWith("/")?null:pathname;
+ const candidates=[exact,directory+"index.html",directory+"index.htm",directory+"index.xhtml",pathname+".html",pathname+".htm"];
+ return [...new Set(candidates.filter(Boolean))];
+}
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
  if(hostname==="home")return{type:"home",title:"Fairwas · HTTC",protocol:"httc",description:DESCRIPTION};
@@ -161,8 +172,14 @@ async function publishedDocument(parsed,env){
  if(!env.server||!env.pages)return null;await ensurePagesSchema(env);await ensureServerSchema(env);
  const server=await env.server.prepare("SELECT site_id,hostname,protocol,origin,status FROM servers WHERE hostname=? AND protocol='httc' AND status='active'").bind(hostname).first();if(!server)return null;
  const site=await env.pages.prepare("SELECT site_id,hostname,title,description,logo_url,framework,language,backend,runtime,database_type,status FROM sites WHERE site_id=? AND status='published'").bind(server.site_id).first();if(!site)return null;
- const path=parsed.pathname||"/";const requested=path==="/"||path==="/home"?"/index.html":path;
- let file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,requested).first();
+ const path=parsed.pathname||"/";
+ const requested=path==="/home"?"/":path;
+ let file=null;
+ for(const candidate of documentPathCandidates(requested)){
+  file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
+  if(file)break;
+ }
+ // Fall back to the app shell only when no concrete extensionless route exists.
  if(!file&&!/\.[a-z0-9]{1,12}$/i.test(requested))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
