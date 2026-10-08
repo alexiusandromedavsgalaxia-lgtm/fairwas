@@ -75,8 +75,10 @@ async function publishedDocument(parsed,env){
  let file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,requested).first();
  if(!file)file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
- const type=String(file.content_type||contentType(file.path)).split(";")[0];
- const isHtml=type==="text/html"||/^\\s*(?:<!doctype\\s+html|<html(?:\\s|>))/i.test(String(file.content||""));
+ const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
+ const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
+ const bodyLooksHtml=/^\s*(?:<!doctype\s+html|<html(?:\s|>)|<head(?:\s|>)|<body(?:\s|>))/i.test(String(file.content||""));
+ const isHtml=/^(?:text\/html|application\/xhtml\+xml)$/i.test(type)||pathLooksHtml||bodyLooksHtml;
  const rendered=isHtml?await renderSiteHtml(site.site_id,file.content,env):null;
  const redirect=rendered?resolveHtmlRedirect(extractHtmlRedirect(rendered),parsed.href):null;
  return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered,redirect};
