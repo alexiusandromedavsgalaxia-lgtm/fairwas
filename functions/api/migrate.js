@@ -2,9 +2,9 @@ const MAX_FILES=300;
 const MAX_BYTES=15*1024*1024;
 const TEXT=/^(text\/|application\/(?:json|javascript|xml|svg\+xml|manifest\+json))/i;
 const STATIC_EXT=/\.(?:html?|css|js|mjs|json|svg|xml|txt|webmanifest|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp3|wav|ogg|mp4|webm|wasm|map)$/i;
-function cleanPath(path){let p=String(path||"/").split("?")[0].split("#")[0].replace(/\\/g,"/");if(!p.startsWith("/"))p="/"+p;p=p.replace(/\/+/g,"/");return p==="/"?"/index.html":p}
+export function cleanPath(path){let p=String(path||"/").split("?")[0].split("#")[0].replace(/\\/g,"/");if(!p.startsWith("/"))p="/"+p;p=p.replace(/\/+/g,"/");return p==="/"?"/index.html":p}
 function sameOrigin(a,b){return a.protocol===b.protocol&&a.hostname===b.hostname&&a.port===b.port}
-function unsafeHost(host){
+export function unsafeHost(host){
  const h=String(host||"").toLowerCase().replace(/^\[|\]$/g,"");
  if(h==="localhost"||h.endsWith(".localhost")||h.endsWith(".local")||h.endsWith(".internal"))return true;
  if(h.includes(":")){
@@ -19,7 +19,7 @@ function unsafeHost(host){
  const [a,b]=p.map(Number);
  return a===10||a===127||a===0||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127)||(a===192&&b===0)||(a===198&&(b===18||b===19))||a>=224;
 }
-async function readLimited(response,limit){
+export async function readLimited(response,limit){
  const reader=response.body?.getReader();
  if(!reader)return new Uint8Array();
  const chunks=[];let size=0;
@@ -38,7 +38,7 @@ async function readLimited(response,limit){
 }
 function b64(bytes){let s="";for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(s)}
 function isText(type,path){return TEXT.test(type)||/\.(?:html?|css|js|mjs|json|svg|xml|txt|webmanifest|map)$/i.test(path)}
-function refs(source,base){
+export function refs(source,base){
  const found=new Set(),text=String(source||"");
  const add=(raw)=>{const value=String(raw||"").trim().replace(/^["']|["']$/g,"");if(!value||value.startsWith("#")||/^(?:data:|javascript:|mailto:|tel:|blob:|https?:\/\/[^/]*$)/i.test(value))return;try{const u=new URL(value,base);if(/^https?:$/.test(u.protocol))found.add(u.href)}catch{}};
  const attrs=/(?:href|src|poster|data-src|action|xlink:href|srcset)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
@@ -49,7 +49,7 @@ function refs(source,base){
  for(const m of text.matchAll(modules))add(m[1]);
  return [...found];
 }
-function localize(source,base,map){
+export function localize(source,base,map){
  const local=(raw)=>{try{const u=new URL(raw,base);if(!/^https?:$/.test(u.protocol)||u.hostname!==base.hostname||u.port!==base.port)return null;return map.get(cleanPath(u.pathname))||null}catch{return null}};
  let output=String(source||"");
  output=output.replace(/((?:href|src|poster|data-src|action|xlink:href)\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,raw,suffix)=>{const path=local(raw);if(!path)return all;try{const u=new URL(raw,base);return prefix+path+(u.search||"")+(u.hash||"")+suffix}catch{return all}});
