@@ -125,7 +125,6 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   const url=assetUrl(href,resourceBasePath);
   return url?tag.replace(href,url):tag;
  });
- output=replaceResourceRefs(output,resourceBasePath);
  output=output.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi,(all,attrs,body)=>{
   const type=(attrs.match(/\btype\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
   if(type&&!/(?:java|ecma)script|module/i.test(type))return all;
