@@ -1,5 +1,6 @@
 import * as parse5 from "parse5";
 import postcss from "postcss";
+import valueParser from "postcss-value-parser";
 import { parse as parseJavaScript } from "acorn";
 
 function walkHtml(node, visit) {
@@ -32,10 +33,17 @@ export function rewriteCssUrls(source, rewrite) {
   const original = String(source ?? "");
   let root;
   try { root = postcss.parse(original, { from: undefined }); } catch { return original; }
-  const rewriteValue = value => String(value).replace(/url\(\s*(["']?)(.*?)\1\s*\)/gi, (all, quote, raw) => {
-    const next = typeof rewrite === "function" ? rewrite(raw.trim()) : null;
-    return next ? "url(" + quote + next + quote + ")" : all;
-  });
+  const rewriteValue = value => {
+    const parsed = valueParser(String(value));
+    parsed.walk(node => {
+      if (node.type !== "function" || node.value.toLowerCase() !== "url") return;
+      const target = (node.nodes || []).find(child => child.type === "word" || child.type === "string");
+      if (!target) return;
+      const next = typeof rewrite === "function" ? rewrite(String(target.value || "").trim()) : null;
+      if (next) target.value = next;
+    });
+    return parsed.toString();
+  };
   root.walkDecls(decl => { decl.value = rewriteValue(decl.value); });
   root.walkAtRules("import", rule => {
     const match = rule.params.match(/^(\s*)(["'])(.*?)\2(.*)$/s);
