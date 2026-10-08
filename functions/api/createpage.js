@@ -1,5 +1,48 @@
 function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store"}})}
 const now=()=>new Date().toISOString();
+const MAX_PUBLISH_FILES=300;
+const MAX_PUBLISH_BYTES=15*1024*1024;
+const MAX_REQUEST_BYTES=22*1024*1024;
+async function readJsonLimited(request){
+ const declared=Number(request.headers.get("content-length")||0);
+ if(declared>MAX_REQUEST_BYTES)return{ok:false,status:413,error:"request_too_large"};
+ if(!request.body){try{return{ok:true,value:await request.json()}}catch{return{ok:false,status:400,error:"invalid_json"}}}
+ const reader=request.body.getReader(),chunks=[];let size=0;
+ try{
+  while(true){
+   const {done,value}=await reader.read();if(done)break;
+   size+=value.byteLength;
+   if(size>MAX_REQUEST_BYTES){try{await reader.cancel()}catch{};return{ok:false,status:413,error:"request_too_large"}}
+   chunks.push(value);
+  }
+ }catch{return{ok:false,status:400,error:"invalid_json"}}
+ const bytes=new Uint8Array(size);let offset=0;
+ for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength}
+ try{return{ok:true,value:JSON.parse(new TextDecoder().decode(bytes))}}catch{return{ok:false,status:400,error:"invalid_json"}}
+}
+export function validatePublishFiles(input){
+ if(!Array.isArray(input)||input.length===0)return{ok:false,error:"files_required"};
+ if(input.length>MAX_PUBLISH_FILES)return{ok:false,error:"too_many_files",max_files:MAX_PUBLISH_FILES};
+ const paths=new Set();let totalBytes=0;const files=[];
+ for(const item of input){
+  if(!item||typeof item!=="object")return{ok:false,error:"invalid_file"};
+  const raw=String(item.path||"/index.html").replace(/\\/g,"/");
+  const path="/"+raw.replace(/^\/+/, "");
+  if(path.length>1024||/[\u0000-\u001f?#]/.test(path)||path.split("/").some(part=>part===".."||part==="."))return{ok:false,error:"invalid_file_path",path};
+  if(paths.has(path))return{ok:false,error:"duplicate_file_path",path};
+  paths.add(path);
+  const encoding=item.encoding==null||item.encoding===""?null:String(item.encoding);
+  if(encoding!==null&&encoding!=="base64")return{ok:false,error:"invalid_file_encoding",path};
+  const content=String(item.content??"");
+  const bytes=encoding==="base64"?Math.max(0,Math.floor(content.length*3/4)-((content.endsWith("=="))?2:content.endsWith("=")?1:0)):new TextEncoder().encode(content).byteLength;
+  totalBytes+=bytes;
+  if(totalBytes>MAX_PUBLISH_BYTES)return{ok:false,error:"publish_too_large",max_bytes:MAX_PUBLISH_BYTES};
+  files.push({...item,path,content,encoding,content_type:String(item.content_type||contentType(path))});
+ }
+ if(!paths.has("/index.html"))return{ok:false,error:"index_html_required"};
+ return{ok:true,files,totalBytes};
+}
+
 const id=()=>crypto.randomUUID();
 function contentType(path){
  const p=String(path||"").toLowerCase();
@@ -47,7 +90,7 @@ export async function onRequest({request,env}){
   await ensureServerSchema(env);
   if(action==="profile"){
    if(method==="POST"){
-    const b=await request.json();
+    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
     const displayName=String(b.display_name||"").trim();
     if(!displayName)return json({ok:false,error:"display_name_required"},400);
     const stamp=now();
@@ -89,7 +132,7 @@ export async function onRequest({request,env}){
 
   if(action==="developer"){
    if(method==="POST"){
-    const b=await request.json();
+    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
     const displayName=String(b.display_name||"").trim();
     const email=String(b.email||"").trim();
     if(!displayName)return json({ok:false,error:"display_name_required"},400);
@@ -126,7 +169,7 @@ export async function onRequest({request,env}){
 
   if(action==="import"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
-   const b=await request.json();
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    let parsed;try{parsed=new URL(String(b.repo_url||""))}catch{return json({ok:false,error:"invalid_repo_url"},400)}
    if(parsed.hostname!=="github.com")return json({ok:false,error:"only_github_supported"},400);
    const parts=parsed.pathname.split("/").filter(Boolean);if(parts.length<2)return json({ok:false,error:"invalid_repo_url"},400);
@@ -139,8 +182,8 @@ export async function onRequest({request,env}){
    const hasBuild=blobs.some(x=>/^build\//i.test(x.path)&&/\/index\.html$/i.test("/"+x.path));
    const sourcePattern=/\.(html?|css|js|mjs|jsx|ts|tsx|json|md|svg|txt|webmanifest|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp3|wav|ogg|mp4|webm|wasm|map)$/i;
    const selected=hasDist?blobs.filter(x=>/^dist\//i.test(x.path)):hasBuild?blobs.filter(x=>/^build\//i.test(x.path)):blobs.filter(x=>sourcePattern.test(x.path));
-   const files=[];
-   for(const item of selected.slice(0,1000)){
+   const files=[];let importedBytes=0;
+   for(const item of selected.slice(0,300)){
     if(!sourcePattern.test(item.path))continue;
     const raw=await fetch("https://raw.githubusercontent.com/"+encodeURIComponent(owner)+"/"+encodeURIComponent(repoName)+"/HEAD/"+item.path);
     if(!raw.ok)continue;
@@ -149,12 +192,12 @@ export async function onRequest({request,env}){
     else if(hasBuild)path="/"+item.path.replace(/^build\//i,"");
     const type=raw.headers.get("content-type")||contentType(path);
     if(type.startsWith("text/")||/json|javascript|svg|xml/.test(type)){
-     files.push({path,content:await raw.text(),content_type:contentType(path)});
+     const content=await raw.text();importedBytes+=new TextEncoder().encode(content).byteLength;if(importedBytes>15*1024*1024)return json({ok:false,error:"import_too_large",max_bytes:15*1024*1024},413);files.push({path,content,content_type:contentType(path)});
     }else{
      const bytes=new Uint8Array(await raw.arrayBuffer());
      let binary="";
      for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
-     files.push({path,content:btoa(binary),content_type:contentType(path),encoding:"base64"});
+     importedBytes+=bytes.byteLength;if(importedBytes>15*1024*1024)return json({ok:false,error:"import_too_large",max_bytes:15*1024*1024},413);files.push({path,content:btoa(binary),content_type:contentType(path),encoding:"base64"});
     }
    }
    const title=repoName.replace(/[-_]+/g," ").replace(/\b\w/g,m=>m.toUpperCase());
@@ -176,7 +219,7 @@ export async function onRequest({request,env}){
 
   if(action==="update"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
-   const b=await request.json();
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const siteId=String(b.site_id||"").trim();
    const hostname=String(b.hostname||"").trim().toLowerCase();
    const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
@@ -192,7 +235,7 @@ export async function onRequest({request,env}){
    if(duplicate)return json({ok:false,error:"hostname_already_registered"},409);
    const incoming=Array.isArray(b.files)&&b.files.length?b.files:[{path:"/index.html",content:String(b.html||"")}];
    const stamp=now(),version="v"+Date.now();
-   const normalized=incoming.map(f=>({...f,path:String(f.path||"/index.html").replace(/\\/g,"/").replace(/^\/+/, "/"),content_type:f.content_type||contentType(f.path)}));
+   const validation=validatePublishFiles(incoming);if(!validation.ok)return json({ok:false,...validation},400);const normalized=validation.files;
    const oldFiles=await env.pages.prepare("SELECT path,content_type,content,encoding,updated_at FROM site_files WHERE site_id=?").bind(resolvedId).all();
    const oldSite=await env.pages.prepare("SELECT * FROM sites WHERE site_id=?").bind(resolvedId).first();
    const oldServer=await env.server.prepare("SELECT * FROM servers WHERE site_id=?").bind(resolvedId).first();
@@ -223,7 +266,7 @@ export async function onRequest({request,env}){
 
   if(action==="create"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
-   const b=await request.json();
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const hostname=String(b.hostname||"").trim().toLowerCase();
    const title=String(b.title||"").trim()||hostname;
    if(!hostname)return json({ok:false,error:"hostname_required"},400);
@@ -241,7 +284,7 @@ export async function onRequest({request,env}){
    const origin="pages://"+hostname;
    try{
     const incoming=Array.isArray(b.build_files)&&b.build_files.length?b.build_files:(Array.isArray(b.files)&&b.files.length?b.files:[{path:"/index.html",content:html}]);
-    const normalizedIncoming=incoming.map(f=>({...f,path:String(f.path||"/index.html").replace(/\\/g,"/").replace(/^\/+/,"/")}));
+    const validation=validatePublishFiles(incoming);if(!validation.ok)return json({ok:false,...validation},400);const normalizedIncoming=validation.files;
     const fileStatements=normalizedIncoming.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,encoding,updated_at) VALUES(?,?,?,?,?,?)").bind(site_id,String(f.path||"/index.html"),f.content_type||contentType(f.path),String(f.content||""),f.encoding||null,stamp));
     await env.pages.batch([
      env.pages.prepare("INSERT INTO sites(site_id,hostname,protocol,title,description,logo_url,framework,language,backend,runtime,database_type,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(site_id,hostname,"httc",title,b.description||"",b.logo_url||"",b.framework||"Custom",b.language||"HTML",b.backend||"None",b.runtime||"Cloudflare Pages",b.database_type||"None","publishing",stamp,stamp),
