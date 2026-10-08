@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanPath, unsafeHost, refs, localize } from "../functions/api/migrate.js";
+import { cleanPath, unsafeHost, refs, localize, readLimited } from "../functions/api/migrate.js";
 
 test("cleanPath normalizes relative paths and defaults root to index.html", () => {
   assert.equal(cleanPath(""), "/index.html");
@@ -37,4 +37,11 @@ test("localize rewrites same-origin asset references and keeps query/hash", () =
   const result = localize(html, new URL("https://example.test/index.html"), map);
   assert.match(result, /href="\/styles\.css"/);
   assert.match(result, /src="\/image\.png\?v=2#hero"/);
+});
+
+test("readLimited stops oversized responses before buffering them fully", async () => {
+  const tooLarge = await readLimited(new Response("123456"), 5);
+  assert.equal(tooLarge, null);
+  const small = await readLimited(new Response("hello"), 5);
+  assert.equal(new TextDecoder().decode(small), "hello");
 });
