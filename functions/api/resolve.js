@@ -33,10 +33,13 @@ export function rewriteSrcset(value,rewrite){
   const start=i;while(i<input.length&&!/\\s/.test(input[i]))i++;
   let url=input.slice(start,i),trailing="";
   while(url.endsWith(",")){trailing=","+trailing;url=url.slice(0,-1)}
-  while(i<input.length&&/\\s/.test(input[i]))i++;
-  const descriptorStart=i;while(i<input.length&&input[i]!==",")i++;
-  const descriptor=input.slice(descriptorStart,i).trim();
-  if(i<input.length)i++;
+  let descriptor="";
+  if(!trailing){
+   while(i<input.length&&/\\s/.test(input[i]))i++;
+   const descriptorStart=i;while(i<input.length&&input[i]!==",")i++;
+   descriptor=input.slice(descriptorStart,i).trim();
+   if(i<input.length)i++;
+  }
   if(!url)continue;
   const rewritten=typeof rewrite==="function"?rewrite(url):null;
   output.push((rewritten||url)+(descriptor?" "+descriptor:"")+trailing);
