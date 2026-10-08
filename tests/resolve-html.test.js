@@ -65,6 +65,6 @@ test("dotted SPA routes still get clean-route candidates", () => {
 
 test("rewriteLocationRedirects bridges runtime location redirects", () => {
   assert.equal(rewriteLocationRedirects("location.href = destination;"), "window.__fairwasNavigate(destination);");
-  assert.equal(rewriteLocationRedirects("window.location.assign(nextUrl);"), "window.__fairwasNavigate(nextUrl)");
+  assert.equal(rewriteLocationRedirects("window.location.assign(nextUrl);"), "window.__fairwasNavigate(nextUrl);");
   assert.equal(rewriteLocationRedirects("location.replace('/loqsea')"), "window.__fairwasNavigate('/loqsea')");
 });
