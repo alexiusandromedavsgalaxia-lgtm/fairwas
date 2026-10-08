@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assetEndpoint, moduleAssetUrl, rewriteModuleImports } from "../functions/api/resolve.js";
+import { assetEndpoint, moduleAssetUrl, rewriteModuleImports, rewriteSrcset } from "../functions/api/resolve.js";
 
 test("assetEndpoint routes stored files through the HTTC resolver", () => {
   const url = assetEndpoint("site.fair", "/images/hero image.png");
@@ -32,4 +32,16 @@ test("moduleAssetUrl preserves query strings for module imports", () => {
   const url = moduleAssetUrl("site.fair", "./chunk.js?v=2", "/scripts/app.js");
   assert.match(url, /url=httc%3A%2F%2Fsite.fair%2Fscripts%2Fchunk.js%3Fv%3D2/);
   assert.match(url, /asset=%2Fscripts%2Fchunk.js/);
+});
+
+
+test("rewriteSrcset preserves data URLs and image descriptors", () => {
+  const source = "data:image/png;base64,AAAA 1x, /images/hero.png 2x";
+  const result = rewriteSrcset(source, raw => raw.startsWith("/") ? "/local" + raw : null);
+  assert.equal(result, "data:image/png;base64,AAAA 1x, /local/images/hero.png 2x");
+});
+
+test("rewriteSrcset rewrites ordinary candidates without descriptors", () => {
+  const result = rewriteSrcset("/a.png, /b.png", raw => "/asset" + raw);
+  assert.equal(result, "/asset/a.png, /asset/b.png");
 });
