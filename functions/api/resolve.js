@@ -76,7 +76,8 @@ async function publishedDocument(parsed,env){
  if(!file&&!requested.includes("."))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0];
- const rendered=type==="text/html"?await renderSiteHtml(site.site_id,file.content,env):null;
+ const isHtml=type==="text/html"||/^\\s*(?:<!doctype\\s+html|<html(?:\\s|>))/i.test(String(file.content||""));
+ const rendered=isHtml?await renderSiteHtml(site.site_id,file.content,env):null;
  const redirect=rendered?resolveHtmlRedirect(extractHtmlRedirect(rendered),parsed.href):null;
  return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered,redirect};
 }
