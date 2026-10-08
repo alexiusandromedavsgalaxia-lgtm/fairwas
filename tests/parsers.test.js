@@ -39,3 +39,14 @@ test("HTML5 parser repairs malformed markup and transforms inline CSS/JS", () =>
   assert.match(result, /window\.__fairwasNavigate\(next\)/);
   assert.match(result, /<\/p>/i);
 });
+
+test("HTML5 parser rewrites resource attributes while preserving navigation links and script flags", () => {
+  const result = transformHtmlDocument('<img src=/image.png srcset="/small.png 1x, /large.png 2x"><a href="/next">next</a><script src="/app.js" defer></script>', {
+    rewriteResource: value => "/asset" + value,
+    rewriteSrcset: value => value.replace("/small.png", "/asset/small.png").replace("/large.png", "/asset/large.png")
+  });
+  assert.match(result, /src="\/asset\/image\.png"/);
+  assert.match(result, /srcset="\/asset\/small\.png 1x, \/asset\/large\.png 2x"/);
+  assert.match(result, /<a href="\/next">next<\/a>/);
+  assert.match(result, /<script src="\/asset\/app\.js" defer><\/script>/);
+});

@@ -101,27 +101,20 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   const path=String(asset.path||"");
   const type=String(asset.content_type||contentType(path)).split(";")[0].trim().toLowerCase();
   if(asset.encoding==="base64")continue;
-  let content=String(asset.content||"");
-  if(type==="text/css")content=replaceResourceRefs(content,path);
   if(type==="text/css"){
    output=output.replace(/<link\b[^>]*>/gi,tag=>{
     const rel=(tag.match(/\brel\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
     const href=(tag.match(/\bhref\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
     if(!/\bstylesheet\b/i.test(rel)||normalizeAsset(href,resourceBasePath)!==path)return tag;
-    const media=(tag.match(/\bmedia\s*=\s*["']([^"']+)["']/i)||[])[1];
-    const disabled=/\bdisabled(?:\s|=|\/?>)/i.test(tag);
-    return "<style data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\""+(media?" media=\""+media.replace(/"/g,"&quot;")+"\"":"")+(disabled?" disabled":"")+">"+content+"</style>";
+    const resource=assetUrl(href,resourceBasePath);
+    return resource?tag.replace(href,resource):tag;
    });
   }else if(["text/javascript","application/javascript","text/ecmascript","application/ecmascript","application/x-javascript","text/x-javascript"].includes(type)){
-   output=output.replace(/<script\b([^>]*)>\s*<\/script>/gi,(tag,attrs)=>{
+   output=output.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi,(tag,attrs,body)=>{
     const src=(attrs.match(/\bsrc\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
-    if(!src||normalizeAsset(src,htmlPath)!==path)return tag;
-    if(/\btype\s*=\s*["']module["']/i.test(attrs)){
-     const endpoint=assetEndpoint(hostname,path);
-     return "<script"+attrs.replace(/\bsrc\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)/i,"src=\""+endpoint+"\"")+"></script>";
-    }
-    const cleanAttrs=attrs.replace(/\s+src\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+)/i,"");
-    return "<script"+cleanAttrs+" data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\">"+content.replace(/<\/script/gi,"<\\/script")+"</script>";
+    if(!src||normalizeAsset(src,resourceBasePath)!==path)return tag;
+    const resource=assetUrl(src,resourceBasePath)||assetEndpoint(hostname,path);
+    return tag.replace(/\bsrc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i,'src="'+resource+'"');
    });
   }
  }
@@ -143,7 +136,13 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
    if(/^(?:data:|blob:|https?:|\/\/|#)/i.test(String(raw||"").trim()))return null;
    return assetUrl(String(raw||"").trim(),resourceBasePath);
   }),
-  rewriteJavaScript:rewriteLocationRedirects
+  rewriteJavaScript:source=>rewriteLocationRedirects(rewriteModuleImports(source,hostname,htmlPath)),
+  rewriteResource:(raw,tag,name)=>{
+   const value=String(raw||"").trim();
+   if(!value||/^(?:data:|blob:|https?:|\/\/|#)/i.test(value))return null;
+   return assetUrl(value,resourceBasePath);
+  },
+  rewriteSrcset:value=>rewriteSrcset(value,raw=>/^(?:data:|blob:|https?:|\/\/|#)/i.test(raw)?null:assetUrl(raw,resourceBasePath))
  });
  return output;
 }
@@ -219,7 +218,7 @@ export async function onRequestGet({request,env}){
  if(!ALLOWED.has(parsed.protocol.slice(0,-1).toLowerCase()))return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
  const document=await publishedDocument(parsed,env);if(!document)return Response.json({ok:false,error:"site_not_found",host:parsed.hostname},{status:404});
  const assetPathRaw=req.searchParams.get("asset");const assetPath=assetPathRaw?("/"+assetPathRaw.replace(/^\/+/, "").replace(/\\/g,"/")):null;
- if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60"}});let assetContent=asset.content;if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript"){assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);assetContent=rewriteLocationRedirects(assetContent);}return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60","access-control-allow-origin":"*"}});
+ if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=String(asset.content_type||contentType(asset.path)).split(";")[0].trim().toLowerCase();if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60"}});let assetContent=asset.content;if(type==="text/css")assetContent=rewriteCssUrls(assetContent,raw=>{const value=String(raw||"").trim();if(!value||/^(?:data:|blob:|https?:|\/\/|#)/i.test(value))return null;try{const u=new URL(value,"https://fairwas.invalid"+(String(asset.path||"/").startsWith("/")?asset.path:"/"+asset.path));if(u.origin!=="https://fairwas.invalid")return null;return assetEndpoint(document.server.hostname,u.pathname,u.search)}catch{return null}});if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript"){assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);assetContent=rewriteLocationRedirects(assetContent);}return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60","access-control-allow-origin":"*"}});
  }
  if(req.searchParams.get("raw")==="1"&&document.type==="site"){
   if(document.error||(document.path!=="/"&&document.path!==document.file?.path))return new Response("Not found",{status:404,headers:{"cache-control":"no-store"}});

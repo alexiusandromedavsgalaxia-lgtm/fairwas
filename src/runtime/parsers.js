@@ -109,12 +109,22 @@ export function rewriteJavaScriptLocationRedirects(source) {
   for (const edit of filtered) output = output.slice(0, edit.start) + edit.value + output.slice(edit.end);
   return output;
 }
-export function transformHtmlDocument(source, { rewriteCss, rewriteJavaScript } = {}) {
+export function transformHtmlDocument(source, { rewriteCss, rewriteJavaScript, rewriteResource, rewriteSrcset } = {}) {
   const document = parseHtmlDocument(source);
   walkHtml(document, element => {
     const tag = String(element.tagName || "").toLowerCase();
-    for (const attr of element.attrs || []) {
-      if (attr.name.toLowerCase() === "style" && typeof rewriteCss === "function") attr.value = rewriteCss(attr.value);
+    const attrs = element.attrs || [];
+    for (const attr of attrs) {
+      const name = attr.name.toLowerCase();
+      if (name === "style" && typeof rewriteCss === "function") attr.value = rewriteCss(attr.value);
+      if (/^on[a-z]+$/i.test(name) && typeof rewriteJavaScript === "function") attr.value = rewriteJavaScript(attr.value);
+      if (name === "srcset" && typeof rewriteSrcset === "function") attr.value = rewriteSrcset(attr.value);
+      const resource = ["src", "poster", "data", "cite", "background", "xlink:href"].includes(name) ||
+        (name === "href" && ["link", "script", "image", "use", "feimage"].includes(String(element.tagName || "").toLowerCase()));
+      if (resource && typeof rewriteResource === "function") {
+        const next = rewriteResource(attr.value, String(element.tagName || "").toLowerCase(), name);
+        if (next) attr.value = next;
+      }
     }
     if (tag !== "style" && tag !== "script") return;
     const type = (element.attrs || []).find(attr => attr.name.toLowerCase() === "type")?.value || "";
