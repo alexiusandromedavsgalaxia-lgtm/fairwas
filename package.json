@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check:api": "node --check functions/api/resolve.js && node --check functions/api/proxy.js && node --check functions/api/migrate.js",
+    "check:api": "node --check functions/api/resolve.js && node --check functions/api/proxy.js && node --check functions/api/migrate.js && node --check functions/api/createpage.js && node --check functions/api/bookmarks.js && node --check functions/api/history.js",
     "check": "npm run check:api && node --test tests/*.test.js && npm run build"
   },
   "dependencies": {
