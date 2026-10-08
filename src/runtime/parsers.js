@@ -74,12 +74,17 @@ export function rewriteJavaScriptImports(source, resolveImport) {
   for (const edit of edits) output = output.slice(0, edit.start) + edit.value + output.slice(edit.end);
   return output;
 }
+function memberName(node) {
+  if (!node || node.type !== "MemberExpression") return null;
+  if (!node.computed && node.property?.type === "Identifier") return node.property.name;
+  if (node.computed && node.property?.type === "Literal" && typeof node.property.value === "string") return node.property.value;
+  return null;
+}
 function isLocation(node) {
   if (!node) return false;
   if (node.type === "Identifier" && node.name === "location") return true;
-  return node.type === "MemberExpression" && !node.computed &&
-    node.property?.type === "Identifier" && node.property.name === "location" &&
-    node.object?.type === "Identifier" && node.object.name === "window";
+  return node.type === "MemberExpression" && memberName(node) === "location" &&
+    node.object?.type === "Identifier" && ["window", "self", "globalThis", "document", "top", "parent"].includes(node.object.name);
 }
 export function rewriteJavaScriptLocationRedirects(source) {
   const text = String(source ?? "");
@@ -87,14 +92,13 @@ export function rewriteJavaScriptLocationRedirects(source) {
   if (!ast) return text;
   const edits = [];
   visitJavaScript(ast, node => {
-    if (node.type === "CallExpression" && node.callee?.type === "MemberExpression" && !node.callee.computed &&
-        ["assign", "replace"].includes(node.callee.property?.name) && isLocation(node.callee.object) && node.arguments.length === 1) {
+    if (node.type === "CallExpression" && node.callee?.type === "MemberExpression" &&
+        ["assign", "replace"].includes(memberName(node.callee)) && isLocation(node.callee.object) && node.arguments.length === 1) {
       const arg = node.arguments[0];
       edits.push({ start: node.start, end: node.end, value: "window.__fairwasNavigate(" + text.slice(arg.start, arg.end) + ")" });
     } else if (node.type === "AssignmentExpression" && node.operator === "=") {
       const left = node.left;
-      const redirect = isLocation(left) || (left?.type === "MemberExpression" && !left.computed &&
-        left.property?.type === "Identifier" && left.property.name === "href" && isLocation(left.object));
+      const redirect = isLocation(left) || (left?.type === "MemberExpression" && memberName(left) === "href" && isLocation(left.object));
       if (redirect) edits.push({ start: node.start, end: node.end, value: "window.__fairwasNavigate(" + text.slice(node.right.start, node.right.end) + ")" });
     }
   });
