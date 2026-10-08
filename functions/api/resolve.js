@@ -55,10 +55,21 @@ async function renderSiteHtml(siteId,html,env){
 }
 function extractHtmlRedirect(html){
  const source=String(html||"");
- const meta=source.match(/<meta\\s+[^>]*http-equiv=["']refresh["'][^>]*content=["'][^"']*url\\s*=\\s*([^"' >]+)[^"']*["'][^>]*>/i)||source.match(/<meta\\s+[^>]*content=["'][^"']*url\\s*=\\s*([^"']+)[^"']*[^>]*http-equiv=["']refresh["'][^>]*>/i);
- if(meta&&meta[1])return meta[1].trim();
- const js=source.match(/(?:window\\.)?location(?:\\.assign|\\.replace)\\s*\\(\\s*["']([^"']+)["']\\s*\\)/i)||source.match(/(?:window\\.)?location(?:\\.href)?\\s*=\\s*["']([^"']+)["']/i);
- return js&&js[1]?js[1].trim():null;
+ const metas=source.match(/<meta\b[^>]*>/gi)||[];
+ for(const tag of metas){
+  const equiv=tag.match(/http-equiv\s*=\s*["']?refresh["']?/i);
+  const content=tag.match(/content\s*=\s*["']([^"']+)["']/i)||tag.match(/content\s*=\s*([^\s>]+)/i);
+  if(equiv&&content&&content[1]){
+   const value=content[1].match(/(?:^|;)\s*\d*\s*;?\s*url\s*=\s*["']?(.+?)["']?\s*$/i);
+   if(value&&value[1])return value[1].trim();
+  }
+ }
+ const patterns=[
+  /(?:window\s*\.\s*)?location\s*\.\s*(?:assign|replace)\s*\(\s*["']([^"']+)["']\s*\)/i,
+  /(?:window\s*\.\s*)?location(?:\s*\.\s*href)?\s*=\s*["']([^"']+)["']/i
+ ];
+ for(const pattern of patterns){const match=source.match(pattern);if(match&&match[1])return match[1].trim()}
+ return null;
 }
 function resolveHtmlRedirect(target,base){
  if(!target)return null;
@@ -73,7 +84,7 @@ async function publishedDocument(parsed,env){
  const site=await env.pages.prepare("SELECT site_id,hostname,title,description,logo_url,framework,language,backend,runtime,database_type,status FROM sites WHERE site_id=? AND status='published'").bind(server.site_id).first();if(!site)return null;
  const path=parsed.pathname||"/";const requested=path==="/"||path==="/home"?"/index.html":path;
  let file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,requested).first();
- if(!file)file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
+ if(!file&&!/\.[a-z0-9]{1,12}$/i.test(requested))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
  const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
