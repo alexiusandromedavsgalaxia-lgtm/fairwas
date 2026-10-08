@@ -130,6 +130,11 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   return url?tag.replace(href,url):tag;
  });
  output=replaceResourceRefs(output,resourceBasePath);
+ output=output.replace(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi,(all,attrs,body)=>{
+  const type=(attrs.match(/\\btype\\s*=\\s*["']([^"']+)["']/i)||[])[1]||"";
+  if(type&&!/(?:java|ecma)script|module/i.test(type))return all;
+  return "<script"+attrs+">"+rewriteLocationRedirects(body)+"</script>";
+ });
  return output;
 }
 function extractHtmlRedirect(html){
@@ -154,18 +159,30 @@ function resolveHtmlRedirect(target,base){
  if(!target)return null;
  try{return new URL(target,base).toString()}catch{return null}
 }
+const STATIC_FILE_SUFFIX=/\.(?:html?|xhtml|css|js|mjs|cjs|json|map|xml|txt|csv|pdf|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp3|m4a|aac|flac|mid|midi|wav|ogg|mp4|m4v|mov|3gp|webm|wasm|webmanifest)$/i;
 export function documentPathCandidates(path){
  const raw=String(path||"/");
  const clean=raw.startsWith("/")?raw:"/"+raw;
  const pathname=clean.replace(/\/{2,}/g,"/");
  if(pathname==="/")return ["/index.html","/index.htm"];
- if(/\.[a-z0-9]{1,12}$/i.test(pathname))return [pathname];
+ if(STATIC_FILE_SUFFIX.test(pathname))return [pathname];
  const trailing=pathname.endsWith("/");
  const stem=pathname.replace(/\/+$/,"");
  const directory=stem+"/";
  const exact=trailing?null:stem;
  const candidates=[exact,directory+"index.html",directory+"index.htm",directory+"index.xhtml",stem+".html",stem+".htm"];
  return [...new Set(candidates.filter(Boolean))];
+}
+export function shouldFallbackToAppShell(path){
+ const pathname=String(path||"/");
+ return !STATIC_FILE_SUFFIX.test(pathname);
+}
+export function rewriteLocationRedirects(source){
+ return String(source||"")
+  .replace(/((?:window\s*\.\s*)?location\s*\.\s*(?:assign|replace)\s*\()\s*([^()]*?(?:\([^()]*\)[^()]*)?)\s*(\))/gi,
+   (all,prefix,target,suffix)=>"window.__fairwasNavigate("+target.trim()+")")
+  .replace(/((?:window\s*\.\s*)?location(?:\s*\.\s*href)?\s*=\s*)([^;\\n]+)(;?)/gi,
+   (all,prefix,target,ending)=>"window.__fairwasNavigate("+target.trim()+")"+ending);
 }
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
@@ -182,7 +199,7 @@ async function publishedDocument(parsed,env){
   if(file)break;
  }
  // Fall back to the app shell only when no concrete extensionless route exists.
- if(!file&&!/\.[a-z0-9]{1,12}$/i.test(requested))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
+ if(!file&&shouldFallbackToAppShell(requested))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
  const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
@@ -197,7 +214,7 @@ export async function onRequestGet({request,env}){
  if(!ALLOWED.has(parsed.protocol.slice(0,-1).toLowerCase()))return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
  const document=await publishedDocument(parsed,env);if(!document)return Response.json({ok:false,error:"site_not_found",host:parsed.hostname},{status:404});
  const assetPathRaw=req.searchParams.get("asset");const assetPath=assetPathRaw?("/"+assetPathRaw.replace(/^\/+/, "").replace(/\\/g,"/")):null;
- if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});let assetContent=asset.content;if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript")assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable","access-control-allow-origin":"*"}});
+ if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable"}});let assetContent=asset.content;if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript"){assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);assetContent=rewriteLocationRedirects(assetContent);}return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=31536000,immutable","access-control-allow-origin":"*"}});
  }
  if(document.redirect){return Response.json({ok:true,url:target,protocol:"httc",redirect:document.redirect,document},{status:200,headers:{"cache-control":"no-store"}});}
  let persisted=false;try{if(env.pages){await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,"httc",new Date().toISOString()).run();persisted=true}}catch{}
