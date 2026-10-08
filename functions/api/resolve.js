@@ -57,6 +57,10 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
    if(/^(?:data:|blob:|https?:|\/\/|#)/i.test(raw.trim()))return all;
    const value=assetUrl(raw.trim(),basePath);return value?"url("+q+value+q+")":all;
   });
+  result=result.replace(/(@import\s+(?:url\(\s*)?)(["'])([^"']+)\2(\s*\)?)/gi,(all,prefix,q,raw,suffix)=>{
+   if(/^(?:data:|https?:|\/\/|#)/i.test(raw.trim()))return all;
+   const value=assetUrl(raw.trim(),basePath);return value?prefix+q+value+q+suffix:all;
+  });
   return result;
  };
  let output=String(html||"");
