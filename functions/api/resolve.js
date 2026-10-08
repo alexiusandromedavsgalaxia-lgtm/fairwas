@@ -55,9 +55,9 @@ async function renderSiteHtml(siteId,html,env){
 }
 function extractHtmlRedirect(html){
  const source=String(html||"");
- const meta=source.match(/<meta\\s+[^>]*http-equiv=[\"']refresh[\"'][^>]*content=[\"'][^\"']*url=([^\"' >]+)[^\"']*[\"'][^>]*>/i)||source.match(/<meta\\s+[^>]*content=[\"'][^\"']*url=([^\"' >]+)[^\"']*[^>]*http-equiv=[\"']refresh[\"'][^>]*>/i);
+ const meta=source.match(/<meta\\s+[^>]*http-equiv=["']refresh["'][^>]*content=["'][^"']*url\\s*=\\s*([^"' >]+)[^"']*["'][^>]*>/i)||source.match(/<meta\\s+[^>]*content=["'][^"']*url\\s*=\\s*([^"']+)[^"']*[^>]*http-equiv=["']refresh["'][^>]*>/i);
  if(meta&&meta[1])return meta[1].trim();
- const js=source.match(/(?:window\\.)?location(?:\\.href)?\\s*=\\s*[\"']([^\"']+)[\"']/i);
+ const js=source.match(/(?:window\\.)?location(?:\\.assign|\\.replace)\\s*\\(\\s*["']([^"']+)["']\\s*\\)/i)||source.match(/(?:window\\.)?location(?:\\.href)?\\s*=\\s*["']([^"']+)["']/i);
  return js&&js[1]?js[1].trim():null;
 }
 function resolveHtmlRedirect(target,base){
