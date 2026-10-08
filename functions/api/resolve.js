@@ -13,14 +13,16 @@ async function ensurePagesSchema(env){
  const columns=await env.pages.prepare("PRAGMA table_info(site_files)").all();const names=new Set((columns.results||[]).map(x=>x.name));if(!names.has("encoding"))await env.pages.prepare("ALTER TABLE site_files ADD COLUMN encoding TEXT").run();
  return true;
 }
-export function assetEndpoint(hostname,path){
- return "/api/resolve?url="+encodeURIComponent("httc://"+hostname+(path.startsWith("/")?path:"/"+path))+"&asset="+encodeURIComponent(path);
+export function assetEndpoint(hostname,path,search=""){
+ const cleanPath=String(path||"/").startsWith("/")?String(path||"/"):"/"+String(path||"/");
+ const query=String(search||"").startsWith("?")?String(search||""):(search?"?"+search:"");
+ return "/api/resolve?url="+encodeURIComponent("httc://"+hostname+cleanPath+query)+"&asset="+encodeURIComponent(cleanPath);
 }
 export function moduleAssetUrl(hostname,raw,basePath){
  try{
   const url=new URL(raw,"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath));
   if(url.origin!=="https://fairwas.invalid")return null;
-  return assetEndpoint(hostname,url.pathname);
+  return assetEndpoint(hostname,url.pathname,url.search);
  }catch{return null}
 }
 export function rewriteModuleImports(source,hostname,basePath){
@@ -41,7 +43,10 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
  const assetUrl=(raw,basePath)=>{
   const path=normalizeAsset(raw,basePath);
   if(!path||!fileByPath.has(path))return null;
-  return binaryUrls.get(path)||assetEndpoint(hostname,path);
+  const binary=binaryUrls.get(path);
+  if(binary)return binary;
+  let search="";try{search=new URL(String(raw||""),"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath)).search}catch{}
+  return assetEndpoint(hostname,path,search);
  };
  const replaceResourceRefs=(text,basePath)=>{
   let result=String(text||"");
