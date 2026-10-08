@@ -79,7 +79,7 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
     const disabled=/\bdisabled(?:\s|=|\/?>)/i.test(tag);
     return "<style data-httc-asset=\""+path.replace(/"/g,"&quot;")+"\""+(media?" media=\""+media.replace(/"/g,"&quot;")+"\"":"")+(disabled?" disabled":"")+">"+content+"</style>";
    });
-  }else if(["text/javascript","application/javascript","text/ecmascript","application/ecmascript"].includes(type)){
+  }else if(["text/javascript","application/javascript","text/ecmascript","application/ecmascript","application/x-javascript","text/x-javascript"].includes(type)){
    output=output.replace(/<script\b([^>]*)>\s*<\/script>/gi,(tag,attrs)=>{
     const src=(attrs.match(/\bsrc\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
     if(!src||normalizeAsset(src,htmlPath)!==path)return tag;
