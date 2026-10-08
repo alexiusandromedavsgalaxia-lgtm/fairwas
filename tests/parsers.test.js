@@ -50,3 +50,9 @@ test("HTML5 parser rewrites resource attributes while preserving navigation link
   assert.match(result, /<a href="\/next">next<\/a>/);
   assert.match(result, /<script src="\/asset\/app\.js" defer(?:=""|)><\/script>/);
 });
+
+test("JavaScript redirects include document.location and computed location properties", () => {
+  const result = rewriteJavaScriptLocationRedirects('document.location.href = "/next"; location["assign"]("/other");');
+  assert.match(result, /window\.__fairwasNavigate\("\/next"\);/);
+  assert.match(result, /window\.__fairwasNavigate\("\/other"\);/);
+});
