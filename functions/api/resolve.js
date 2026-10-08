@@ -1,3 +1,4 @@
+import { rewriteCssUrls, rewriteJavaScriptImports, rewriteJavaScriptLocationRedirects, transformHtmlDocument } from "../../src/runtime/parsers.js";
 const ALLOWED=new Set(["httc"]);
 const DESCRIPTION="Fairwas global web protocol";
 function contentType(path){const p=String(path||"").toLowerCase(),ext=p.includes(".")?p.slice(p.lastIndexOf(".")):"";return ({".html":"text/html; charset=utf-8",".htm":"text/html; charset=utf-8",".css":"text/css; charset=utf-8",".js":"text/javascript; charset=utf-8",".mjs":"text/javascript; charset=utf-8",".cjs":"text/javascript; charset=utf-8",".json":"application/json; charset=utf-8",".csv":"text/csv; charset=utf-8",".pdf":"application/pdf",".svg":"image/svg+xml",".txt":"text/plain; charset=utf-8",".xml":"application/xml; charset=utf-8",".webmanifest":"application/manifest+json",".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",".gif":"image/gif",".webp":"image/webp",".avif":"image/avif",".ico":"image/x-icon",".bmp":"image/bmp",".woff":"font/woff",".woff2":"font/woff2",".ttf":"font/ttf",".otf":"font/otf",".eot":"application/vnd.ms-fontobject",".mp3":"audio/mpeg",".m4a":"audio/mp4",".aac":"audio/aac",".flac":"audio/flac",".mid":"audio/midi",".midi":"audio/midi",".wav":"audio/wav",".ogg":"audio/ogg",".mp4":"video/mp4",".m4v":"video/x-m4v",".mov":"video/quicktime",".3gp":"video/3gpp",".webm":"video/webm",".wasm":"application/wasm",".map":"application/json"}[ext]||"application/octet-stream");}
@@ -47,10 +48,7 @@ export function rewriteSrcset(value,rewrite){
  return output.join(", ");
 }
 export function rewriteModuleImports(source,hostname,basePath){
- return String(source||"").replace(/((?:\bimport\s*(?:[^'"]*?\sfrom\s*)?|\bexport\s+[^'"]*?\sfrom\s*|\bimport\s*\()\s*)(["'])(\.{1,2}\/[^"']+|\/[^"']+)\2/g,(all,prefix,q,raw)=>{
-  const url=moduleAssetUrl(hostname,raw,basePath);
-  return url?prefix+q+url+q:all;
- });
+ return rewriteJavaScriptImports(source,raw=>moduleAssetUrl(hostname,raw,basePath));
 }
 async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""){
  const rows=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=?").bind(siteId).all();
@@ -71,6 +69,10 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   return assetEndpoint(hostname,path,search);
  };
  const replaceResourceRefs=(text,basePath)=>{
+  if(/\.css(?:$|[?#])/i.test(String(basePath||"")))return rewriteCssUrls(text,raw=>{
+   if(/^(?:data:|blob:|https?:|\/\/|#)/i.test(String(raw||"").trim()))return null;
+   return assetUrl(String(raw||"").trim(),basePath);
+  });
   let result=String(text||"");
   result=result.replace(/((?:src|poster|data-src|xlink:href|data|cite|background)\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,raw,suffix)=>{
    if(/^(?:data:|blob:|javascript:|https?:|\/\/|#)/i.test(raw.trim()))return all;
@@ -135,6 +137,13 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   if(type&&!/(?:java|ecma)script|module/i.test(type))return all;
   return "<script"+attrs+">"+rewriteLocationRedirects(body)+"</script>";
  });
+ output=transformHtmlDocument(output,{
+  rewriteCss:css=>rewriteCssUrls(css,raw=>{
+   if(/^(?:data:|blob:|https?:|\/\/|#)/i.test(String(raw||"").trim()))return null;
+   return assetUrl(String(raw||"").trim(),resourceBasePath);
+  }),
+  rewriteJavaScript:rewriteLocationRedirects
+ });
  return output;
 }
 function extractHtmlRedirect(html){
@@ -177,11 +186,7 @@ export function shouldFallbackToAppShell(path){
  return !STATIC_FILE_SUFFIX.test(String(path||"/"));
 }
 export function rewriteLocationRedirects(source){
- return String(source||"")
-  .replace(/((?:window\s*\.\s*)?location\s*\.\s*(?:assign|replace)\s*\()\s*([^()]*?(?:\([^()]*\)[^()]*)?)\s*(\))/gi,
-   (all,prefix,target,suffix)=>"window.__fairwasNavigate("+target.trim()+")")
-  .replace(/((?:window\s*\.\s*)?location(?:\s*\.\s*href)?\s*=\s*)([^;\n]+)(;?)/gi,
-   (all,prefix,target,ending)=>"window.__fairwasNavigate("+target.trim()+")"+ending);
+ return rewriteJavaScriptLocationRedirects(source);
 }
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
