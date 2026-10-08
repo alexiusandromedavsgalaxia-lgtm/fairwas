@@ -16,7 +16,7 @@ test("moduleAssetUrl resolves relative imports against the module path", () => {
 test("rewriteModuleImports rewrites static and dynamic local imports", () => {
   const source = 'import { x } from "./util.js"; export { y } from "../shared/y.js"; const lazy = import("/chunks/lazy.js");';
   const result = rewriteModuleImports(source, "site.fair", "/scripts/app.js");
-  assert.match(result, /url=httc%3A%2F%2Fsite\.fair%2Fshared%2Futil\.js/);
+  assert.match(result, /url=httc%3A%2F%2Fsite\.fair%2Fscripts%2Futil\.js/);
   assert.match(result, /url=httc%3A%2F%2Fsite\.fair%2Fshared%2Fy\.js/);
   assert.match(result, /url=httc%3A%2F%2Fsite\.fair%2Fchunks%2Flazy\.js/);
 });
