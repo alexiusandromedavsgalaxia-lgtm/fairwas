@@ -160,9 +160,11 @@ export function documentPathCandidates(path){
  const pathname=clean.replace(/\/{2,}/g,"/");
  if(pathname==="/")return ["/index.html","/index.htm"];
  if(/\.[a-z0-9]{1,12}$/i.test(pathname))return [pathname];
- const directory=pathname.endsWith("/")?pathname:pathname+"/";
- const exact=pathname.endsWith("/")?null:pathname;
- const candidates=[exact,directory+"index.html",directory+"index.htm",directory+"index.xhtml",pathname+".html",pathname+".htm"];
+ const trailing=pathname.endsWith("/");
+ const stem=pathname.replace(/\/+$/,"");
+ const directory=stem+"/";
+ const exact=trailing?null:stem;
+ const candidates=[exact,directory+"index.html",directory+"index.htm",directory+"index.xhtml",stem+".html",stem+".htm"];
  return [...new Set(candidates.filter(Boolean))];
 }
 async function publishedDocument(parsed,env){
