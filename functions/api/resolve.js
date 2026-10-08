@@ -31,10 +31,10 @@ export function rewriteSrcset(value,rewrite){
   while(i<input.length&&(input[i]===","||/\s/.test(input[i])))i++;
   if(i>=input.length)break;
   const start=i;while(i<input.length&&!/\s/.test(input[i]))i++;
-  let url=input.slice(start,i),trailing="";
-  while(url.endsWith(",")){trailing=","+trailing;url=url.slice(0,-1)}
+  let url=input.slice(start,i),endedWithComma=false;
+  while(url.endsWith(",")){endedWithComma=true;url=url.slice(0,-1)}
   let descriptor="";
-  if(!trailing){
+  if(!endedWithComma){
    while(i<input.length&&/\s/.test(input[i]))i++;
    const descriptorStart=i;while(i<input.length&&input[i]!==",")i++;
    descriptor=input.slice(descriptorStart,i).trim();
@@ -42,7 +42,7 @@ export function rewriteSrcset(value,rewrite){
   }
   if(!url)continue;
   const rewritten=typeof rewrite==="function"?rewrite(url):null;
-  output.push((rewritten||url)+(descriptor?" "+descriptor:"")+trailing);
+  output.push((rewritten||url)+(descriptor?" "+descriptor:""));
  }
  return output.join(", ");
 }
