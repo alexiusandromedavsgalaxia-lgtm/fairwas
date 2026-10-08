@@ -36,6 +36,7 @@ export function rewriteCssUrls(source, rewrite) {
   const rewriteValue = value => {
     const parsed = valueParser(String(value));
     parsed.walk(node => {
+      if (node.type === "string" || node.type === "comment") return false;
       if (node.type !== "function" || node.value.toLowerCase() !== "url") return;
       const target = (node.nodes || []).find(child => child.type === "word" || child.type === "string");
       if (!target) return;

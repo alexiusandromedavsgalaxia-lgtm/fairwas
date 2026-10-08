@@ -20,6 +20,7 @@ export function assetEndpoint(hostname,path,search=""){
  return "/api/resolve?url="+encodeURIComponent("httc://"+hostname+cleanPath+query)+"&asset="+encodeURIComponent(cleanPath);
 }
 export function moduleAssetUrl(hostname,raw,basePath){
+ if(!/^(?:\.\.?\/|\/(?!\/))/.test(String(raw||"")))return null;
  try{
   const url=new URL(raw,"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath));
   if(url.origin!=="https://fairwas.invalid")return null;
