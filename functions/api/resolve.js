@@ -215,6 +215,17 @@ export async function onRequestGet({request,env}){
  const assetPathRaw=req.searchParams.get("asset");const assetPath=assetPathRaw?("/"+assetPathRaw.replace(/^\/+/, "").replace(/\\/g,"/")):null;
  if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=asset.content_type||contentType(asset.path);if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60"}});let assetContent=asset.content;if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript"){assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);assetContent=rewriteLocationRedirects(assetContent);}return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60","access-control-allow-origin":"*"}});
  }
+ if(req.searchParams.get("raw")==="1"&&document.type==="site"){
+  if(document.error||(document.path!=="/"&&document.path!==document.file?.path))return new Response("Not found",{status:404,headers:{"cache-control":"no-store"}});
+  const rawFile=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,document.file.path).first();
+  if(!rawFile)return new Response("Not found",{status:404});
+  const rawType=rawFile.content_type||contentType(rawFile.path);
+  const rawHeaders={"content-type":rawType,"cache-control":"no-store","access-control-allow-origin":"*","x-content-type-options":"nosniff"};
+  if(rawFile.encoding==="base64")return new Response(Uint8Array.from(atob(rawFile.content),(ch)=>ch.charCodeAt(0)),{headers:rawHeaders});
+  let rawContent=String(rawFile.content||"");
+  if(/(?:javascript|ecmascript)/i.test(rawType))rawContent=rewriteModuleImports(rawContent,document.server.hostname,rawFile.path);
+  return new Response(rawContent,{headers:rawHeaders});
+ }
  if(document.redirect){return Response.json({ok:true,url:target,protocol:"httc",redirect:document.redirect,document},{status:200,headers:{"cache-control":"no-store"}});}
  let persisted=false;try{if(env.pages){await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,"httc",new Date().toISOString()).run();persisted=true}}catch{}
  return Response.json({ok:true,url:target,protocol:"httc",host:parsed.hostname,path:parsed.pathname+(parsed.search||""),persisted,document});
