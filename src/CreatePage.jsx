@@ -29,7 +29,7 @@ async function api(action,options){
  let token=sessionStorage.getItem(keyName)||"";
  const ask=()=>{const value=window.prompt("Clave de administración de Fairwas (se guarda solo en esta sesión):");if(!value)throw new Error("Se necesita la clave de administración para continuar.");token=value;sessionStorage.setItem(keyName,token)};
  if(!token)ask();
- const send=()=>{const headers=new Headers(options?.headers||{});headers.set("Authorization","Bearer "+token);return fetch("/api/createpage?action="+encodeURIComponent(action),{...options,headers})};
+ const send=()=>{const [name,...extra]=String(action).split("&");const query=["action="+encodeURIComponent(name),...extra].join("&");const headers=new Headers(options?.headers||{});headers.set("Authorization","Bearer "+token);return fetch("/api/createpage?"+query,{...options,headers})};
  let r=await send();
  if(r.status===401){sessionStorage.removeItem(keyName);token="";ask();r=await send()}
  const d=await r.json().catch(()=>({}));
