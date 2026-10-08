@@ -28,14 +28,14 @@ export function moduleAssetUrl(hostname,raw,basePath){
 export function rewriteSrcset(value,rewrite){
  const input=String(value||"");let i=0;const output=[];
  while(i<input.length){
-  while(i<input.length&&(input[i]===","||/\\s/.test(input[i])))i++;
+  while(i<input.length&&(input[i]===","||/\s/.test(input[i])))i++;
   if(i>=input.length)break;
-  const start=i;while(i<input.length&&!/\\s/.test(input[i]))i++;
+  const start=i;while(i<input.length&&!/\s/.test(input[i]))i++;
   let url=input.slice(start,i),trailing="";
   while(url.endsWith(",")){trailing=","+trailing;url=url.slice(0,-1)}
   let descriptor="";
   if(!trailing){
-   while(i<input.length&&/\\s/.test(input[i]))i++;
+   while(i<input.length&&/\s/.test(input[i]))i++;
    const descriptorStart=i;while(i<input.length&&input[i]!==",")i++;
    descriptor=input.slice(descriptorStart,i).trim();
    if(i<input.length)i++;
@@ -76,7 +76,7 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
    if(/^(?:data:|blob:|javascript:|https?:|\/\/|#)/i.test(raw.trim()))return all;
    const value=assetUrl(raw,basePath);return value?prefix+value+suffix:all;
   });
-  result=result.replace(/(srcset\\s*=\\s*["'])([^"']+)(["'])/gi,(all,prefix,value,suffix)=>{
+  result=result.replace(/(srcset\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,value,suffix)=>{
    const rewritten=rewriteSrcset(value,raw=>/^(?:data:|blob:|https?:|\\/\\/|#)/i.test(raw)?null:assetUrl(raw,basePath));
    return prefix+rewritten+suffix;
   });
