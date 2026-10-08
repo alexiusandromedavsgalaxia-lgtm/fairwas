@@ -1,6 +1,6 @@
 const MAX_FILES=300;
 const MAX_BYTES=15*1024*1024;
-const TEXT=/^(text\/|application\/(?:json|javascript|xml|svg\+xml|manifest\+json))/i;
+const TEXT=/^(?:text\/|application\/(?:json|javascript|x-javascript|xml|svg\+xml|manifest\+json))/i;
 const STATIC_EXT=/\.(?:html?|css|js|mjs|cjs|json|svg|xml|txt|webmanifest|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|mp3|wav|ogg|mp4|webm|wasm|map)$/i;
 export function cleanPath(path){let p=String(path||"/").split("?")[0].split("#")[0].replace(/\\/g,"/");if(!p.startsWith("/"))p="/"+p;p=p.replace(/\/+/g,"/");return p==="/"?"/index.html":p}
 function sameOrigin(a,b){return a.protocol===b.protocol&&a.hostname===b.hostname&&a.port===b.port}
