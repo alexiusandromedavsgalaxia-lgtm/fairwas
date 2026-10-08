@@ -29,3 +29,18 @@ export const toFairwas=(input="")=>{
  if(domainPattern.test(value))return"httc://"+value;
  return"httc://search?q="+encodeURIComponent(value);
 };
+
+export const resolveAddressInput=(input="",currentUrl="httc://home")=>{
+ const value=String(input||"").trim();
+ if(!value)return "httc://home";
+ if(/^(?:\/(?!\/)|\.\.?\/|[?#])/.test(value)){
+  try{
+   const current=new URL(currentUrl);
+   if(current.protocol==="httc:"&&current.hostname&&current.hostname!=="home"){
+    const target=new URL(value,current.href);
+    return target.protocol==="httc:"?target.toString():toFairwas(value);
+   }
+  }catch{}
+ }
+ return toFairwas(value);
+};
