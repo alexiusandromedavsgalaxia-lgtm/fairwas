@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assetEndpoint, moduleAssetUrl, rewriteModuleImports, rewriteSrcset } from "../functions/api/resolve.js";
+import { assetEndpoint, moduleAssetUrl, rewriteModuleImports, rewriteSrcset, documentPathCandidates } from "../functions/api/resolve.js";
 
 test("assetEndpoint routes stored files through the HTTC resolver", () => {
   const url = assetEndpoint("site.fair", "/images/hero image.png");
@@ -44,4 +44,14 @@ test("rewriteSrcset preserves data URLs and image descriptors", () => {
 test("rewriteSrcset rewrites ordinary candidates without descriptors", () => {
   const result = rewriteSrcset("/a.png, /b.png", raw => "/asset" + raw);
   assert.equal(result, "/asset/a.png, /asset/b.png");
+});
+
+
+test("documentPathCandidates prefers real nested pages for clean URLs", () => {
+  assert.deepEqual(documentPathCandidates("/loqsea"), ["/loqsea", "/loqsea/index.html", "/loqsea/index.htm", "/loqsea/index.xhtml", "/loqsea.html", "/loqsea.htm"]);
+});
+
+test("documentPathCandidates handles directory URLs and keeps file extensions", () => {
+  assert.deepEqual(documentPathCandidates("/loqsea/"), ["/loqsea/index.html", "/loqsea/index.htm", "/loqsea/index.xhtml", "/loqsea.html", "/loqsea.htm"]);
+  assert.deepEqual(documentPathCandidates("/loqsea/page.html"), ["/loqsea/page.html"]);
 });
