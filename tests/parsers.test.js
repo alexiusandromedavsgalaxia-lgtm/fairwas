@@ -48,5 +48,5 @@ test("HTML5 parser rewrites resource attributes while preserving navigation link
   assert.match(result, /src="\/asset\/image\.png"/);
   assert.match(result, /srcset="\/asset\/small\.png 1x, \/asset\/large\.png 2x"/);
   assert.match(result, /<a href="\/next">next<\/a>/);
-  assert.match(result, /<script src="\/asset\/app\.js" defer><\/script>/);
+  assert.match(result, /<script src="\/asset\/app\.js" defer(?:=""|)><\/script>/);
 });
