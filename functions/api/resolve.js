@@ -13,17 +13,17 @@ async function ensurePagesSchema(env){
  const columns=await env.pages.prepare("PRAGMA table_info(site_files)").all();const names=new Set((columns.results||[]).map(x=>x.name));if(!names.has("encoding"))await env.pages.prepare("ALTER TABLE site_files ADD COLUMN encoding TEXT").run();
  return true;
 }
-function assetEndpoint(hostname,path){
+export function assetEndpoint(hostname,path){
  return "/api/resolve?url="+encodeURIComponent("httc://"+hostname+(path.startsWith("/")?path:"/"+path))+"&asset="+encodeURIComponent(path);
 }
-function moduleAssetUrl(hostname,raw,basePath){
+export function moduleAssetUrl(hostname,raw,basePath){
  try{
   const url=new URL(raw,"https://fairwas.invalid"+(basePath.startsWith("/")?basePath:"/"+basePath));
   if(url.origin!=="https://fairwas.invalid")return null;
-  return assetEndpoint(hostname,url.pathname)+ (url.search||"") + (url.hash||"");
+  return assetEndpoint(hostname,url.pathname);
  }catch{return null}
 }
-function rewriteModuleImports(source,hostname,basePath){
+export function rewriteModuleImports(source,hostname,basePath){
  return String(source||"").replace(/((?:\bimport\s*(?:[^'"]*?\sfrom\s*)?|\bexport\s+[^'"]*?\sfrom\s*|\bimport\s*\()\s*)(["'])(\.{1,2}\/[^"']+|\/[^"']+)\2/g,(all,prefix,q,raw)=>{
   const url=moduleAssetUrl(hostname,raw,basePath);
   return url?prefix+q+url+q:all;
