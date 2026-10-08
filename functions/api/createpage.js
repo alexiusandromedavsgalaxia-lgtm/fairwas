@@ -1,17 +1,5 @@
 function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store"}})}
 const now=()=>new Date().toISOString();
-function constantTimeEqual(a,b){
- const left=new TextEncoder().encode(String(a||"")),right=new TextEncoder().encode(String(b||""));
- let diff=left.length^right.length;const size=Math.max(left.length,right.length);
- for(let i=0;i<size;i++)diff|=(left[i]||0)^(right[i]||0);
- return diff===0;
-}
-export function hasValidAdminToken(request,env){
- const expected=String(env?.FAIRWAS_ADMIN_TOKEN||"");
- if(!expected)return false;
- const header=String(request?.headers?.get("authorization")||"");
- return /^Bearer\s+/i.test(header)&&constantTimeEqual(header.replace(/^Bearer\s+/i,""),expected);
-}
 const MAX_PUBLISH_FILES=300;
 const MAX_PUBLISH_BYTES=15*1024*1024;
 const MAX_REQUEST_BYTES=22*1024*1024;
@@ -94,8 +82,6 @@ export async function onRequest({request,env}){
  const u=new URL(request.url);
  const action=u.searchParams.get("action")||"sites";
  const method=request.method;
- if(!env.FAIRWAS_ADMIN_TOKEN)return json({ok:false,error:"admin_auth_not_configured",detail:"Configura el secreto FAIRWAS_ADMIN_TOKEN en Cloudflare Pages antes de usar CreatePage."},503);
- if(!hasValidAdminToken(request,env))return json({ok:false,error:"unauthorized",detail:"Clave de administración incorrecta o ausente."},401);
  if(!env.database||!env.pages||!env.server||!env.users)return json({ok:false,error:"d1_binding_missing",detail:"CreatePage requiere pages, server, database y users."},500);
 
  try{
