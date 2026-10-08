@@ -131,7 +131,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
  },[tab.id,tab.url]);
  if(!active)return null;
  return <div className="tab-view">
-  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError}/>:null}
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={tab} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate}/>:null}
  </div>
 }
 
@@ -158,17 +158,27 @@ function fairwasLinkBridge(html,baseUrl){
  return source.includes("</body>")?source.replace("</body>",bridge+"</body>"):bridge+source;
 }
 
-function RedirectPage({target,navigate}){useEffect(()=>{if(typeof target==="string"&&target){const raw=target.trim();let url=raw;try{const u=new URL(raw,location.href);url=(u.protocol==="http:"||u.protocol==="https:")?"httc://"+u.host+u.pathname+u.search+u.hash:u.toString()}catch{};if(url.startsWith("httc://"))navigate(url)}},[target,navigate]);if(resolved?.document?.redirect){const raw=resolved.document.redirect;let destination=raw;try{const u=new URL(raw,tab.url);destination=(u.protocol==="http:"||u.protocol==="https:")?"httc://"+u.host+u.pathname+u.search+u.hash:u.toString()}catch{};if(destination.startsWith("httc://")){setTimeout(()=>window.dispatchEvent(new CustomEvent("fairwas:navigate",{detail:destination})),0);return <section className="webpage"><div className="webpage-inner"><div className="state"><span className="status-dot"></span><div><b>Redirigiendo…</b><p>{destination}</p></div></div></div></section>}}
- return <section className="webpage"><div className="webpage-inner"><div className="state"><span className="status-dot"></span><div><b>Redirigiendo…</b><p>{target}</p></div></div></div></section>}
+function RedirectPage({target,navigate,baseUrl}){
+ useEffect(()=>{
+  if(typeof target!=="string"||!target.trim())return;
+  let destination=target.trim();
+  try{
+   const u=new URL(destination,baseUrl);
+   if(u.protocol==="http:"||u.protocol==="https:")destination="httc://"+u.host+u.pathname+u.search+u.hash;
+   else destination=u.toString();
+  }catch{}
+  if(destination.startsWith("httc://"))navigate(destination);
+ },[target,navigate,baseUrl]);
+ return <section className="webpage"><div className="webpage-inner"><div className="state"><span className="status-dot"></span><div><b>Redirigiendo…</b><p>{target}</p></div></div></div></section>;
+}
 
-function ProtocolPage({tab,scheme,resolved,resolveError}){
+function ProtocolPage({tab,scheme,resolved,resolveError,navigate}){
  if(resolved?.document?.type==="site"&&resolved.document.file?.content_type?.split(";")[0]==="text/html"&&resolved.document.file.content){
-  if(resolved?.document?.redirect){return <RedirectPage target={resolved.document.redirect} navigate={window.__fairwasNavigate||(()=>{})}/>}
+  if(resolved.document.redirect)return <RedirectPage target={resolved.document.redirect} navigate={navigate} baseUrl={tab.url}/>;
   return <section className="published-frame"><iframe title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms" srcDoc={fairwasLinkBridge(resolved.document.rendered||resolved.document.file.content,tab.url)}/></section>
  }
  return <section className="webpage">
   {resolveError?<div className="not-found"><div className="not-found-icon">⌕</div><h1>No se puede abrir la página</h1><p>{resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError}</p><code>{tab.url}</code></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Página lista":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
  </section>
 }
-
 createRoot(document.getElementById("root")).render(<App/>);
