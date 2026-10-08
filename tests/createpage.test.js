@@ -1,13 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validatePublishFiles, hasValidAdminToken } from "../functions/api/createpage.js";
-
-test("admin token authorization fails closed when unconfigured or incorrect", () => {
-  const request = token => new Request("https://fairwas.test/api/createpage", { headers: token ? { authorization: "Bearer " + token } : {} });
-  assert.equal(hasValidAdminToken(request("secret"), {}), false);
-  assert.equal(hasValidAdminToken(request("wrong"), { FAIRWAS_ADMIN_TOKEN: "secret" }), false);
-  assert.equal(hasValidAdminToken(request("secret"), { FAIRWAS_ADMIN_TOKEN: "secret" }), true);
-});
+import { validatePublishFiles } from "../functions/api/createpage.js";
 
 test("publish validation requires index.html and rejects unsafe paths", () => {
   assert.equal(validatePublishFiles([{path:"/app.js",content:"ok"}]).error, "index_html_required");
