@@ -25,6 +25,24 @@ export function moduleAssetUrl(hostname,raw,basePath){
   return assetEndpoint(hostname,url.pathname,url.search);
  }catch{return null}
 }
+export function rewriteSrcset(value,rewrite){
+ const input=String(value||"");let i=0;const output=[];
+ while(i<input.length){
+  while(i<input.length&&(input[i]===","||/\\s/.test(input[i])))i++;
+  if(i>=input.length)break;
+  const start=i;while(i<input.length&&!/\\s/.test(input[i]))i++;
+  let url=input.slice(start,i),trailing="";
+  while(url.endsWith(",")){trailing=","+trailing;url=url.slice(0,-1)}
+  while(i<input.length&&/\\s/.test(input[i]))i++;
+  const descriptorStart=i;while(i<input.length&&input[i]!==",")i++;
+  const descriptor=input.slice(descriptorStart,i).trim();
+  if(i<input.length)i++;
+  if(!url)continue;
+  const rewritten=typeof rewrite==="function"?rewrite(url):null;
+  output.push((rewritten||url)+(descriptor?" "+descriptor:"")+trailing);
+ }
+ return output.join(", ");
+}
 export function rewriteModuleImports(source,hostname,basePath){
  return String(source||"").replace(/((?:\bimport\s*(?:[^'"]*?\sfrom\s*)?|\bexport\s+[^'"]*?\sfrom\s*|\bimport\s*\()\s*)(["'])(\.{1,2}\/[^"']+|\/[^"']+)\2/g,(all,prefix,q,raw)=>{
   const url=moduleAssetUrl(hostname,raw,basePath);
@@ -55,8 +73,8 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
    if(/^(?:data:|blob:|javascript:|https?:|\/\/|#)/i.test(raw.trim()))return all;
    const value=assetUrl(raw,basePath);return value?prefix+value+suffix:all;
   });
-  result=result.replace(/(srcset\s*=\s*["'])([^"']+)(["'])/gi,(all,prefix,value,suffix)=>{
-   const rewritten=value.split(",").map(item=>{const parts=item.trim().split(/\s+/);if(parts[0]&&!/^(?:data:|https?:|\/\/)/i.test(parts[0])){const url=assetUrl(parts[0],basePath);if(url)parts[0]=url}return parts.join(" ")}).join(", ");
+  result=result.replace(/(srcset\\s*=\\s*["'])([^"']+)(["'])/gi,(all,prefix,value,suffix)=>{
+   const rewritten=rewriteSrcset(value,raw=>/^(?:data:|blob:|https?:|\\/\\/|#)/i.test(raw)?null:assetUrl(raw,basePath));
    return prefix+rewritten+suffix;
   });
   result=result.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi,(all,q,raw)=>{
