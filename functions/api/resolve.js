@@ -223,11 +223,12 @@ export async function onRequestGet({request,env}){
   if(document.error||(document.path!=="/"&&document.path!==document.file?.path))return new Response("Not found",{status:404,headers:{"cache-control":"no-store"}});
   const rawFile=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,document.file.path).first();
   if(!rawFile)return new Response("Not found",{status:404});
-  const rawType=rawFile.content_type||contentType(rawFile.path);
-  const rawHeaders={"content-type":rawType,"cache-control":"no-store","access-control-allow-origin":"*","x-content-type-options":"nosniff"};
+  const rawMime=rawFile.content_type||contentType(rawFile.path);
+  const rawType=String(rawMime).split(";")[0].trim().toLowerCase();
+  const rawHeaders={"content-type":rawMime,"cache-control":"no-store","access-control-allow-origin":"*","x-content-type-options":"nosniff"};
   if(rawFile.encoding==="base64")return new Response(Uint8Array.from(atob(rawFile.content),(ch)=>ch.charCodeAt(0)),{headers:rawHeaders});
   let rawContent=String(rawFile.content||"");
-  if(/(?:javascript|ecmascript)/i.test(rawType))rawContent=rewriteModuleImports(rawContent,document.server.hostname,rawFile.path);
+  if(/(?:javascript|ecmascript)/i.test(rawType)){rawContent=rewriteModuleImports(rawContent,document.server.hostname,rawFile.path);rawContent=rewriteLocationRedirects(rawContent)}
   return new Response(rawContent,{headers:rawHeaders});
  }
  if(document.redirect){return Response.json({ok:true,url:target,protocol:"httc",redirect:document.redirect,document},{status:200,headers:{"cache-control":"no-store"}});}
