@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assetEndpoint, moduleAssetUrl, rewriteModuleImports, rewriteSrcset, documentPathCandidates } from "../functions/api/resolve.js";
+import { assetEndpoint, moduleAssetUrl, rewriteModuleImports, rewriteSrcset, documentPathCandidates, shouldFallbackToAppShell, rewriteLocationRedirects } from "../functions/api/resolve.js";
 
 test("assetEndpoint routes stored files through the HTTC resolver", () => {
   const url = assetEndpoint("site.fair", "/images/hero image.png");
@@ -54,4 +54,17 @@ test("documentPathCandidates prefers real nested pages for clean URLs", () => {
 test("documentPathCandidates handles directory URLs and keeps file extensions", () => {
   assert.deepEqual(documentPathCandidates("/loqsea/"), ["/loqsea/index.html", "/loqsea/index.htm", "/loqsea/index.xhtml", "/loqsea.html", "/loqsea.htm"]);
   assert.deepEqual(documentPathCandidates("/loqsea/page.html"), ["/loqsea/page.html"]);
+});
+
+test("dotted SPA routes still get clean-route candidates", () => {
+  assert.deepEqual(documentPathCandidates("/users/john.doe"), ["/users/john.doe", "/users/john.doe/index.html", "/users/john.doe/index.htm", "/users/john.doe/index.xhtml", "/users/john.doe.html", "/users/john.doe.htm"]);
+  assert.equal(shouldFallbackToAppShell("/users/john.doe"), true);
+  assert.equal(shouldFallbackToAppShell("/assets/app.js"), false);
+  assert.equal(shouldFallbackToAppShell("/images/missing.png"), false);
+});
+
+test("rewriteLocationRedirects bridges runtime location redirects", () => {
+  assert.equal(rewriteLocationRedirects("location.href = destination;"), "window.__fairwasNavigate(destination)");
+  assert.equal(rewriteLocationRedirects("window.location.assign(nextUrl);"), "window.__fairwasNavigate(nextUrl)");
+  assert.equal(rewriteLocationRedirects("location.replace('/loqsea')"), "window.__fairwasNavigate('/loqsea')");
 });
