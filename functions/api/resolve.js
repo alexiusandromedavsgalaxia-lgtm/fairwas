@@ -130,8 +130,8 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
   return url?tag.replace(href,url):tag;
  });
  output=replaceResourceRefs(output,resourceBasePath);
- output=output.replace(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi,(all,attrs,body)=>{
-  const type=(attrs.match(/\\btype\\s*=\\s*["']([^"']+)["']/i)||[])[1]||"";
+ output=output.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi,(all,attrs,body)=>{
+  const type=(attrs.match(/\btype\s*=\s*["']([^"']+)["']/i)||[])[1]||"";
   if(type&&!/(?:java|ecma)script|module/i.test(type))return all;
   return "<script"+attrs+">"+rewriteLocationRedirects(body)+"</script>";
  });
@@ -174,14 +174,13 @@ export function documentPathCandidates(path){
  return [...new Set(candidates.filter(Boolean))];
 }
 export function shouldFallbackToAppShell(path){
- const pathname=String(path||"/");
- return !STATIC_FILE_SUFFIX.test(pathname);
+ return !STATIC_FILE_SUFFIX.test(String(path||"/"));
 }
 export function rewriteLocationRedirects(source){
  return String(source||"")
   .replace(/((?:window\s*\.\s*)?location\s*\.\s*(?:assign|replace)\s*\()\s*([^()]*?(?:\([^()]*\)[^()]*)?)\s*(\))/gi,
    (all,prefix,target,suffix)=>"window.__fairwasNavigate("+target.trim()+")")
-  .replace(/((?:window\s*\.\s*)?location(?:\s*\.\s*href)?\s*=\s*)([^;\\n]+)(;?)/gi,
+  .replace(/((?:window\s*\.\s*)?location(?:\s*\.\s*href)?\s*=\s*)([^;\n]+)(;?)/gi,
    (all,prefix,target,ending)=>"window.__fairwasNavigate("+target.trim()+")"+ending);
 }
 async function publishedDocument(parsed,env){
