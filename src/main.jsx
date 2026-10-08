@@ -162,7 +162,7 @@ function Home({navigate,history,bookmarks}){
 }
 
 function fairwasLinkBridge(html,baseUrl){
- const source=String(html||"");
+ const source=String(html||"").replace(/<meta\b[^>]*>/gi,tag=>/\bhttp-equiv\s*=\s*["']?content-security-policy["']?/i.test(tag)?"":tag);
  let host="home";
  try{host=new URL(baseUrl||"httc://home").hostname||"home"}catch{}
  let saved={};
