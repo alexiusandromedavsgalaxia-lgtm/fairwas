@@ -25,7 +25,13 @@ const privateRoutes=[
 ];
 
 async function api(action,options){
- const r=await fetch("/api/createpage?action="+encodeURIComponent(action),options);
+ const keyName="fairwas_admin_token";
+ let token=sessionStorage.getItem(keyName)||"";
+ const ask=()=>{const value=window.prompt("Clave de administración de Fairwas (se guarda solo en esta sesión):");if(!value)throw new Error("Se necesita la clave de administración para continuar.");token=value;sessionStorage.setItem(keyName,token)};
+ if(!token)ask();
+ const send=()=>{const headers=new Headers(options?.headers||{});headers.set("Authorization","Bearer "+token);return fetch("/api/createpage?action="+encodeURIComponent(action),{...options,headers})};
+ let r=await send();
+ if(r.status===401){sessionStorage.removeItem(keyName);token="";ask();r=await send()}
  const d=await r.json().catch(()=>({}));
  if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"request_failed");
  return d;
@@ -117,7 +123,7 @@ function Editor({siteId=""}){
  const currentFiles=()=>files.map(file=>file.path===selected?{...file,content:code}:file);
  const normalizePath=raw=>{let path=String(raw||"").trim().replace(/\\/g,"/");if(!path.startsWith("/"))path="/"+path;path=path.replace(/\/+/g,"/");return path.length>1?path.replace(/\/$/,""):path};
  const pick=path=>{const file=files.find(item=>item.path===path);if(!file)return;setSelected(path);setCode(file.content)};
- useEffect(()=>{if(!siteId)return;let cancelled=false;(async()=>{setStatus("Cargando página…");try{const r=await fetch("/api/createpage?action=site&site_id="+encodeURIComponent(siteId));const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"No se pudo cargar la página");if(cancelled)return;const imported=d.files||[];setFiles(imported.length?imported:[{path:"/index.html",content:""}]);const first=imported[0]||{path:"/index.html",content:""};setSelected(first.path);setCode(first.content||"");setSite({site_id:siteId,hostname:d.site?.hostname||d.project?.hostname||"",title:d.site?.title||d.project?.title||"Mi sitio"});setBuild({root:d.project?.build_root||"/",output:d.project?.build_output||"/dist",command:d.project?.build_command||"npm run build"});setStatus("Página cargada.");setLoaded(true)}catch(error){setStatus(error instanceof Error?error.message:"No se pudo cargar la página.")}})();return()=>{cancelled=true}},[siteId]);
+ useEffect(()=>{if(!siteId)return;let cancelled=false;(async()=>{setStatus("Cargando página…");try{const d=await api("site&site_id="+encodeURIComponent(siteId));if(cancelled)return;const imported=d.files||[];setFiles(imported.length?imported:[{path:"/index.html",content:""}]);const first=imported[0]||{path:"/index.html",content:""};setSelected(first.path);setCode(first.content||"");setSite({site_id:siteId,hostname:d.site?.hostname||d.project?.hostname||"",title:d.site?.title||d.project?.title||"Mi sitio"});setBuild({root:d.project?.build_root||"/",output:d.project?.build_output||"/dist",command:d.project?.build_command||"npm run build"});setStatus("Página cargada.");setLoaded(true)}catch(error){setStatus(error instanceof Error?error.message:"No se pudo cargar la página.")}})();return()=>{cancelled=true}},[siteId]);
  const addFile=()=>{const raw=window.prompt("Ruta del archivo","/src/app.js");if(!raw)return;const path=normalizePath(raw);if(path.endsWith("/")){setStatus("Usa + Carpeta para crear directorios.");return}if(files.some(file=>file.path===path)){setStatus("Ese archivo ya existe.");return}const next=[...currentFiles(),{path,content:""}];setFiles(next);setSelected(path);setCode("");setStatus("Archivo creado.")};
  const addFolder=()=>{const raw=window.prompt("Ruta de la carpeta","/src/components");if(!raw)return;const path=normalizePath(raw).replace(/\/$/,"");if(files.some(file=>file.path.startsWith(path+"/"))){setStatus("Esa carpeta ya existe.");return}const marker=path+"/.gitkeep";const next=[...currentFiles(),{path:marker,content:""}];setFiles(next);setSelected(marker);setCode("");setStatus("Carpeta creada.")};
  const remove=()=>{if(!selected)return;const file=files.find(item=>item.path===selected);if(!file)return;if(!window.confirm("¿Eliminar "+file.path+"?"))return;const next=files.filter(item=>item.path!==selected);if(!next.length){setStatus("El proyecto necesita al menos un archivo.");return}setFiles(next);const target=next[0];setSelected(target.path);setCode(target.content);setStatus("Archivo eliminado.")};
