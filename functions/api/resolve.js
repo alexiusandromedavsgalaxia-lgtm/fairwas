@@ -200,7 +200,7 @@ async function publishedDocument(parsed,env){
  // Resolve each published IDE route to its own HTML document.
  const routeName=requested.split("/").filter(Boolean).join("/");
  const routeCandidates=requested==="/"
-  ?["/routes/mainpage/index.html"]
+  ?["/routes/mainpage/index.html","/routes/mainpage/index.htm","/index.html","/index.htm"]
   :(!STATIC_FILE_SUFFIX.test(requested)
    ?[
      "/routes/"+routeName+"/index.html",
@@ -208,9 +208,11 @@ async function publishedDocument(parsed,env){
      "/routes/"+routeName+".html",
      "/routes/"+routeName+".htm"
     ]
-   :[]);
- // A route must resolve to its own file. Never silently replace a missing route
- // with the main page, because that makes every broken route look like "/".
+   :((requested==="/index.html"||requested==="/index.htm")
+    ?["/routes/mainpage/index.html","/routes/mainpage/index.htm"]
+    :[]));
+ // Resolve the requested HTML first, while treating /index.html as an alias
+ // for the main-page file when the project stores its homepage under /routes.
  for(const candidate of [...routeCandidates,...documentPathCandidates(requested)]){
   file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
   if(file)break;
