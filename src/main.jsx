@@ -147,13 +147,14 @@ function App(){
 function TabView({tab,active,navigate,history,bookmarks}){
  const[resolved,setResolved]=useState(null);
  const[resolveError,setResolveError]=useState(null);
- const scheme=protocolFor(tab.url);
+ const documentUrl=tab.documentUrl||tab.url;
+  const scheme=protocolFor(tab.url);
  const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
  useEffect(()=>{
   let cancelled=false;
   setResolved(null);setResolveError(null);
-  if(tab.url===home||!protocolFor(tab.url))return;
-  fetch("/api/resolve?url="+encodeURIComponent(tab.url))
+  if(documentUrl===home||!protocolFor(documentUrl))return;
+  fetch("/api/resolve?url="+encodeURIComponent(documentUrl))
    .then(async r=>{const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.error||"resolve_failed");return data})
    .then(data=>{if(!cancelled)setResolved(data)})
    .catch(e=>{if(!cancelled)setResolveError(e.message||"resolve_failed")});
