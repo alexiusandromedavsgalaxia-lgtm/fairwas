@@ -43,7 +43,7 @@ function App(){
    if(data?.type==="fairwas:newtab"&&typeof data.url==="string"&&data.url.startsWith("httc://"))newTab(data.url);
    else if(data?.type==="fairwas:navigate"&&typeof data.url==="string"&&data.url.startsWith("httc://"))navigate(data.url);
     else if(data?.type==="fairwas:route"&&typeof data.url==="string"&&data.url.startsWith("httc://")){
-     setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,url:data.url,documentUrl:x.documentUrl||x.url,title:hostOf(data.url),back:data.replace?x.back:[...x.back,x.url],forward:data.replace?x.forward:[]}:x));
+     setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,url:data.url,documentUrl:data.document?(data.url):(x.documentUrl||x.url),title:hostOf(data.url),back:data.replace?x.back:[...x.back,x.url],forward:data.replace?x.forward:[]}:x));
      if(!data.replace)setHistory(h=>[{url:data.url,title:hostOf(data.url),time:new Date().toISOString()},...h.filter(x=>x.url!==data.url)].slice(0,100));
     }
    else if(data?.type==="fairwas:submit"&&typeof data.url==="string"&&data.url.startsWith("httc://")&&["POST","PUT","PATCH","DELETE"].includes(String(data.method||"POST").toUpperCase())){
