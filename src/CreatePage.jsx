@@ -112,7 +112,7 @@ function readIdeDraft(siteId){try{const value=JSON.parse(localStorage.getItem("f
 function Editor({siteId=""}){
   const draft=readIdeDraft(siteId);
   const draftKey="fairwas:ide-draft:"+(siteId||"new");
- const[files,setFiles]=useState(()=>Array.isArray(draft?.files)&&draft.files.length?draft.files:[{path:"/routes/mainpage/index.html",content:"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"},{path:"/routes/tataltal/index.html",content:"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Tataltal</title></head>\n<body><h1>Hola desde Tataltal</h1><p>Esta página corresponde a /tataltal</p></body>\n</html>"}]);
+ const[files,setFiles]=useState(()=>Array.isArray(draft?.files)&&draft.files.length?draft.files:[{path:"/routes/mainpage/index.html",content:"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"}]);
  const[folders,setFolders]=useState(()=>Array.isArray(draft?.folders)?draft.folders:[]);
   const[selected,setSelected]=useState(()=>draft?.selected||"/routes/mainpage/index.html");
  const[code,setCode]=useState(()=>(draft?.code??draft?.files?.find(file=>file.path===draft?.selected)?.content) || "<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>");
