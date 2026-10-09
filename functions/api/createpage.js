@@ -39,7 +39,7 @@ export function validatePublishFiles(input){
   if(totalBytes>MAX_PUBLISH_BYTES)return{ok:false,error:"publish_too_large",max_bytes:MAX_PUBLISH_BYTES};
   files.push({...item,path,content,encoding,content_type:String(item.content_type||contentType(path))});
  }
- if(!paths.has("/index.html"))return{ok:false,error:"index_html_required"};
+ if(!paths.has("/index.html")&&!paths.has("/routes/mainpage/index.html"))return{ok:false,error:"index_html_required"};
  return{ok:true,files,totalBytes};
 }
 
