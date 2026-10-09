@@ -199,14 +199,22 @@ async function publishedDocument(parsed,env){
  let file=null;
  // Resolve each published IDE route to its own HTML document.
  const routeName=requested.split("/").filter(Boolean).join("/");
- const routeCandidates=requested==="/"?["/routes/mainpage/index.html"]:(!STATIC_FILE_SUFFIX.test(requested)?["/routes/"+routeName+"/index.html"]:[]);
+ const routeCandidates=requested==="/"
+  ?["/routes/mainpage/index.html"]
+  :(!STATIC_FILE_SUFFIX.test(requested)
+   ?[
+     "/routes/"+routeName+"/index.html",
+     "/routes/"+routeName+"/index.htm",
+     "/routes/"+routeName+".html",
+     "/routes/"+routeName+".htm"
+    ]
+   :[]);
+ // A route must resolve to its own file. Never silently replace a missing route
+ // with the main page, because that makes every broken route look like "/".
  for(const candidate of [...routeCandidates,...documentPathCandidates(requested)]){
   file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
   if(file)break;
  }
- // Fall back to the app shell only when no concrete extensionless route exists.
- if(!file&&shouldFallbackToAppShell(requested))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/routes/mainpage/index.html'").bind(site.site_id).first();
- if(!file&&shouldFallbackToAppShell(requested))file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path='/index.html'").bind(site.site_id).first();
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
  const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
