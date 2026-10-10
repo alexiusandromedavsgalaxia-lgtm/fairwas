@@ -105,14 +105,14 @@ export async function onRequest({request,env}){
   return result.meta?.changes?json({ok:true}):json({ok:false,error:"key_not_found_or_revoked"},404);
  }
  if(action==="route-create"){
-  const method=clean(b.method||"GET",10).toUpperCase(),path=clean(b.path,180),status=Number(b.status_code||200),raw=typeof b.response_json==="string"?b.response_json:JSON.stringify(b.response_json??{ok:true});
-  if(!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method)||!path.startsWith("/")||path.length<2||path.includes("?")||path.includes("#")||path.includes("//")||path.split("/").some(x=>x===".."||x===".")||raw.length>900000||!Number.isInteger(status)||status<200||status>599)return json({ok:false,error:"invalid_route",detail:"Revisa método, ruta, código y JSON de respuesta."},400);
+  const methods=[...new Set((Array.isArray(b.methods)?b.methods:[b.method||"GET"]).map(value=>clean(value,10).toUpperCase()))],path=clean(b.path,180),status=Number(b.status_code||200),raw=typeof b.response_json==="string"?b.response_json:JSON.stringify(b.response_json??{ok:true});
+  if(!methods.length||methods.some(method=>!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method))||methods.length>6||!path.startsWith("/")||path.length<2||path.includes("?")||path.includes("#")||path.includes("//")||path.split("/").some(x=>x===".."||x===".")||raw.length>900000||!Number.isInteger(status)||status<200||status>599)return json({ok:false,error:"invalid_route",detail:"Revisa métodos, ruta, código y JSON de respuesta."},400);
   let routeConfig;try{routeConfig=JSON.parse(raw)}catch{return json({ok:false,error:"invalid_response_json"},400)}
   if(routeConfig?.__operation&&routeConfig.__operation.type==="collection"&&!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(String(routeConfig.__operation.collection||"")))return json({ok:false,error:"invalid_collection_name",detail:"Usa un nombre de colección como products o user_profiles."},400)
-  const id=crypto.randomUUID();
-  try{await env.database.prepare("INSERT INTO fw_platform_routes(id,service_id,method,path,status_code,response_json,auth_required,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,serviceId,method,path,status,raw,b.auth_required?1:0,stamp,stamp).run()}
-  catch{return json({ok:false,error:"route_exists"},409)}
-  return json({ok:true,route:{id,service_id:serviceId,method,path,status_code:status,response_json:raw,auth_required:Boolean(b.auth_required),created_at:stamp}},201);
+  const routes=methods.map(method=>({id:crypto.randomUUID(),service_id:serviceId,method,path,status_code:status,response_json:raw,auth_required:Boolean(b.auth_required),created_at:stamp}));
+  try{await env.database.batch(routes.map(route=>env.database.prepare("INSERT INTO fw_platform_routes(id,service_id,method,path,status_code,response_json,auth_required,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(route.id,serviceId,route.method,path,status,raw,b.auth_required?1:0,stamp,stamp)))}
+  catch{return json({ok:false,error:"route_exists",detail:"Ya existe una de estas combinaciones de método y ruta. Elige otra o elimina la existente."},409)}
+  return json({ok:true,route:routes[0],routes},201);
  }
  if(action==="route-delete"){
   const result=await env.database.prepare("DELETE FROM fw_platform_routes WHERE id=? AND service_id=?").bind(clean(b.id,80),serviceId).run();
