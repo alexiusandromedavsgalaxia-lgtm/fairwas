@@ -8,3 +8,31 @@
 @media(max-width:1050px){.cp-studio-workspace{grid-template-columns:180px minmax(220px,1fr) 235px}.cp-studio-top{padding:0 12px}.cp-save-status{display:none}.cp-studio-left{padding:12px 8px}.cp-studio-right{padding:0 10px}.cp-inspector-tabs{margin-left:-10px;margin-right:-10px;gap:13px;padding:0 10px}}
 @media(max-width:760px){.cp-welcome{grid-template-columns:1fr;padding:27px 22px}.cp-welcome-art{display:none}.cp-grid.three{grid-template-columns:1fr}.cp-studio{position:relative;height:auto;min-height:calc(100vh - 101px);inset:auto}.cp-studio-top{height:auto;min-height:65px;align-items:flex-start;padding:12px;flex-wrap:wrap}.cp-studio-top-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}.cp-studio-top-actions .cp-save-status{display:none}.cp-studio-workspace{grid-template-columns:1fr;display:flex;flex-direction:column}.cp-studio-left{border-right:0;border-bottom:1px solid #ffffff12;overflow:visible}.cp-section-list{grid-template-columns:repeat(2,minmax(0,1fr))}.cp-add-section{grid-template-columns:repeat(2,minmax(0,1fr))}.cp-left-footer{display:none}.cp-canvas-wrap{min-height:540px;order:2}.cp-studio-right{order:3;border-left:0;border-top:1px solid #ffffff12;overflow:visible;padding:0 14px}.cp-preview iframe{min-height:650px}.cp-inspector-tabs{margin-left:-14px;margin-right:-14px;padding:0 14px}.cp-welcome h1{font-size:35px}.cp-section-heading{margin-top:23px}}
 @media(max-width:440px){.cp-studio-top-actions .cp-secondary{display:none}.cp-studio-top-actions .cp-primary{padding:10px}.cp-studio-brand small{max-width:150px}.cp-preview.is-mobile{width:100%}}
+
+/* Per-site SQLite workspace */
+.cp-db-panel{margin-top:22px;padding:clamp(16px,2.5vw,26px);min-width:0}
+.cp-db-panel .cp-section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin:0 0 18px}
+.cp-db-panel .cp-section-heading h2{margin:6px 0;font-size:22px;letter-spacing:-.035em}
+.cp-db-panel .cp-section-heading p{margin:5px 0 0;color:var(--cp-muted,#858b9a);font-size:13px;line-height:1.55}
+.cp-db-create{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap}
+.cp-db-create input,.cp-db-label select{min-width:0;flex:1;background:var(--cp-input,#11151d);color:inherit;border:1px solid var(--cp-border,#303746);border-radius:10px;padding:11px 12px}
+.cp-db-create button,.cp-db-actions button{border:0;border-radius:10px;padding:11px 15px;background:var(--cp-accent,#b8f36b);color:#15190f;font-weight:750;cursor:pointer}
+.cp-db-create button:disabled,.cp-db-actions button:disabled{opacity:.5;cursor:not-allowed}
+.cp-db-list{display:grid;gap:8px;margin:12px 0 18px}
+.cp-db-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--cp-border,#303746);border-radius:12px}
+.cp-db-item>button:first-child{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:transparent;border:0;color:inherit;padding:4px;min-width:0}
+.cp-db-item>button:first-child.active b{color:var(--cp-accent,#b8f36b)}
+.cp-db-item small{color:var(--cp-muted,#858b9a);font-size:11px}
+.cp-db-delete{border:1px solid var(--cp-border,#303746);border-radius:8px;background:transparent;color:inherit;padding:7px 10px}
+.cp-db-label{display:grid;gap:7px;margin:12px 0;font-size:12px;font-weight:700}
+.cp-db-sql{width:100%;min-height:130px;resize:vertical;border:1px solid var(--cp-border,#303746);border-radius:10px;padding:13px;background:var(--cp-editor-bg,#10131a);color:inherit;font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace}
+.cp-db-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cp-db-actions span{font-size:11px;color:var(--cp-muted,#858b9a)}
+.cp-db-message{margin-top:12px;border-radius:10px;padding:10px 12px;background:var(--cp-soft,#1c222d);font-size:12px;overflow-wrap:anywhere}
+.cp-db-result{margin-top:14px;border:1px solid var(--cp-border,#303746);border-radius:12px;padding:12px;min-width:0}
+.cp-db-result pre,.cp-db-docs pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto;font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+.cp-db-docs{margin-top:16px;border-top:1px solid var(--cp-border,#303746);padding-top:13px;font-size:12px}
+.cp-db-docs summary{cursor:pointer;font-weight:750}
+.cp-db-docs p{color:var(--cp-muted,#858b9a);line-height:1.65}
+.cp-db-docs pre{padding:12px;border-radius:9px;background:var(--cp-editor-bg,#10131a)}
+@media(max-width:520px){.cp-db-create{flex-direction:column}.cp-db-create button{width:100%}.cp-db-panel .cp-section-heading{align-items:flex-start}}
