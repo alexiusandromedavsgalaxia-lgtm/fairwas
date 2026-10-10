@@ -80,6 +80,8 @@ export async function onRequest({request,env}){
  if(action==="domain-create"){
   const hostname=clean(b.hostname,253).toLowerCase(),kind=clean(b.kind||"api",20);
   if(!hostOk(hostname)||!["api","auth","storage","app","custom"].includes(kind))return json({ok:false,error:"invalid_domain",detail:"Usa un hostname como api.mi-servicio.aploscabluchel."},400);
+  const project=service.site_id?await env.database.prepare("SELECT hostname FROM cp_projects WHERE site_id=? LIMIT 1").bind(service.site_id).first():null;
+  if(!project||!(hostname===project.hostname||hostname.endsWith("."+project.hostname)))return json({ok:false,error:"domain_outside_project",detail:"El dominio API debe ser el dominio de esta página o un subdominio suyo, por ejemplo api."+ (project?.hostname||"tu-dominio")},400);
   const existing=await env.database.prepare("SELECT id FROM fw_platform_domains WHERE hostname=? LIMIT 1").bind(hostname).first();
   const published=env.pages?await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' LIMIT 1").bind(hostname).first():null;
   let serverDomain=null;try{serverDomain=env.server?await env.server.prepare("SELECT id FROM servers WHERE hostname=? AND protocol='httc' LIMIT 1").bind(hostname).first():null}catch{}
