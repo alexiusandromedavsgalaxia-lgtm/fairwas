@@ -1,7 +1,7 @@
 import React,{useEffect,useState}from"react";
 import{createRoot}from"react-dom/client";
 import"./styles.css";
-import{protocolFor,resolveAddressInput}from"./protocols";
+import{protocolFor,resolveAddressInput,wwwCounterpart}from"./protocols";
 import{load,save}from"./storage";
 import CreatePage from"./CreatePage";
 
@@ -155,10 +155,25 @@ function TabView({tab,active,navigate,history,bookmarks}){
   let cancelled=false;
   setResolved(null);setResolveError(null);
   if(documentUrl===home||!protocolFor(documentUrl))return;
-  fetch("/api/resolve?url="+encodeURIComponent(documentUrl))
-   .then(async r=>{const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.error||"resolve_failed");return data})
-   .then(data=>{if(!cancelled)setResolved(data)})
-   .catch(e=>{if(!cancelled)setResolveError(e.message||"resolve_failed")});
+  (async()=>{
+   const requestResolve=async url=>{
+    const response=await fetch("/api/resolve?url="+encodeURIComponent(url));
+    const data=await response.json().catch(()=>({}));
+    return{ok:response.ok&&data.ok,data,error:data.error||"resolve_failed"};
+   };
+   try{
+    let result=await requestResolve(documentUrl);
+    if(!result.ok&&result.error==="site_not_found"){
+     const alternate=wwwCounterpart(documentUrl);
+     if(alternate&&alternate!==documentUrl){
+      const matched=await requestResolve(alternate);
+      if(matched.ok)result=matched;
+     }
+    }
+    if(!result.ok)throw new Error(result.error);
+    if(!cancelled)setResolved(result.data);
+   }catch(e){if(!cancelled)setResolveError(e.message||"resolve_failed")}
+  })();
   return()=>{cancelled=true};
  },[tab.id,documentUrl,tab.reloadToken]);
  if(!active)return null;
