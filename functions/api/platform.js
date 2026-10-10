@@ -43,7 +43,7 @@ export async function onRequest({request,env}){
     const connections=await env.database.prepare("SELECT id,target_service_id,label,scopes_json,status,created_at FROM fw_platform_connections WHERE service_id=? ORDER BY created_at DESC").bind(s.id).all();
     items.push({...s,domains:domains.results||[],keys:keys.results||[],routes:routes.results||[],redirects:redirects.results||[],connections:connections.results||[]});
    }
-   return json({ok:true,items});
+   return json({ok:true,items:items.map(s=>({...s,domains:(s.domains||[]).map(d=>({...d,runtime_url:"httc://"+d.hostname,registered:true}))}))});
   }
   return json({ok:false,error:"unknown_action"},400);
  }
@@ -88,7 +88,7 @@ export async function onRequest({request,env}){
   if(existing||published||serverDomain)return json({ok:false,error:"domain_taken",detail:"Ese hostname ya está ocupado en Fairwas."},409);
   const id=crypto.randomUUID();
   await env.database.prepare("INSERT INTO fw_platform_domains(id,service_id,hostname,kind,created_at) VALUES(?,?,?,?,?)").bind(id,serviceId,hostname,kind,stamp).run();
-  return json({ok:true,domain:{id,service_id:serviceId,hostname,kind,created_at:stamp}},201);
+  return json({ok:true,domain:{id,service_id:serviceId,hostname,kind,created_at:stamp,runtime_url:"httc://"+hostname,registered:true,runtime:"Fairwas HTTC"}},201);
  }
  if(action==="domain-delete"){
   const result=await env.database.prepare("DELETE FROM fw_platform_domains WHERE id=? AND service_id=?").bind(clean(b.id,80),serviceId).run();
