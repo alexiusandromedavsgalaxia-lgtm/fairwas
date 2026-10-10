@@ -226,9 +226,70 @@ async function publishedDocument(parsed,env){
  const redirect=rendered?resolveHtmlRedirect(extractHtmlRedirect(rendered),parsed.href):null;
  return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered,redirect};
 }
+
+function apiCors(){return {"access-control-allow-origin":"*","access-control-allow-methods":"GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS","access-control-allow-headers":"content-type, authorization","access-control-max-age":"86400"}}
+function routeMatch(pattern,path){
+ const a=String(pattern).split("/").filter(Boolean),b=String(path).split("/").filter(Boolean);
+ if(a.length!==b.length)return null;
+ const out={};
+ for(let i=0;i<a.length;i++){
+  if(a[i].startsWith(":")){if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(a[i].slice(1)))return null;try{out[a[i].slice(1)]=decodeURIComponent(b[i])}catch{return null}}
+  else if(a[i]!==b[i])return null;
+ }
+ return out;
+}
+function expandApiTemplate(value,ctx){
+ if(typeof value==="string")return value.replace(/\{\{\s*(params|query|body)\.([A-Za-z0-9_]+)\s*\}\}/g,(all,source,key)=>ctx[source]?.[key]==null?"":String(ctx[source][key]));
+ if(Array.isArray(value))return value.map(v=>expandApiTemplate(v,ctx));
+ if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,expandApiTemplate(v,ctx)]));
+ return value;
+}
+async function handleSiteApi(request,parsed,env){
+ if(!parsed.pathname.startsWith("/api/"))return null;
+ const method=request.method.toUpperCase();
+ if(method==="OPTIONS")return new Response(null,{status:204,headers:apiCors()});
+ if(!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method))return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
+ if(!env.database||!env.pages)return Response.json({ok:false,error:"api_binding_missing"},{status:500,headers:apiCors()});
+ const hostname=parsed.hostname.toLowerCase();
+ const site=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' AND status='published' LIMIT 1").bind(hostname).first();
+ if(!site)return null;
+ let rows;
+ try{
+  rows=await env.database.prepare("SELECT id,path,method,response_status,response_json FROM fw_api_endpoints WHERE site_id=? AND hostname=? AND enabled=1 AND method=?").bind(site.site_id,hostname,method).all();
+ }catch{return null}
+ let endpoint=null,params={};
+ for(const row of rows.results||[]){const matched=routeMatch(row.path,parsed.pathname);if(matched){endpoint=row;params=matched;break}}
+ if(!endpoint)return null;
+ let body={};
+ if(!["GET","HEAD"].includes(method)){
+  const raw=await request.text();
+  if(raw.length>1024*1024)return Response.json({ok:false,error:"request_too_large"},{status:413,headers:apiCors()});
+  if(raw){try{body=JSON.parse(raw)}catch{return Response.json({ok:false,error:"invalid_json_body"},{status:400,headers:apiCors()})}}
+ }
+ const query=Object.fromEntries(parsed.searchParams.entries());
+ let template;try{template=JSON.parse(endpoint.response_json)}catch{return Response.json({ok:false,error:"invalid_endpoint_configuration"},{status:500,headers:apiCors()})}
+ const output=expandApiTemplate(template,{params,query,body});
+ const status=Number(endpoint.response_status)||200;
+ if(status===204||status===205||status===304)return new Response(null,{status,headers:apiCors()});
+ return Response.json(output,{status,headers:{"cache-control":"no-store",...apiCors()}});
+}
+async function onSiteApiMethod({request,env}){
+ let target;try{target=new URL(request.url).searchParams.get("url")||""}catch{}
+ let parsed;try{parsed=new URL(target)}catch{return Response.json({ok:false,error:"invalid_url"},{status:400})}
+ if(parsed.protocol!=="httc:")return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
+ const response=await handleSiteApi(request,parsed,env);
+ return response||Response.json({ok:false,error:"endpoint_not_found",path:parsed.pathname,method:request.method},{status:404,headers:apiCors()});
+}
+export async function onRequestPost(context){return onSiteApiMethod(context)}
+export async function onRequestPut(context){return onSiteApiMethod(context)}
+export async function onRequestPatch(context){return onSiteApiMethod(context)}
+export async function onRequestDelete(context){return onSiteApiMethod(context)}
+export async function onRequestOptions(context){return onSiteApiMethod(context)}
+
 export async function onRequestGet({request,env}){
  const req=new URL(request.url),target=req.searchParams.get("url")||"";let parsed;try{parsed=new URL(target)}catch{return Response.json({ok:false,error:"invalid_url"},{status:400})}
  if(!ALLOWED.has(parsed.protocol.slice(0,-1).toLowerCase()))return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
+ const apiResponse=await handleSiteApi(request,parsed,env);if(apiResponse)return apiResponse;
  const document=await publishedDocument(parsed,env);if(!document)return Response.json({ok:false,error:"site_not_found",host:parsed.hostname},{status:404});
  const assetPathRaw=req.searchParams.get("asset");const assetPath=assetPathRaw?("/"+assetPathRaw.replace(/^\/+/, "").replace(/\\/g,"/")):null;
  if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=String(asset.content_type||contentType(asset.path)).split(";")[0].trim().toLowerCase();if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60"}});let assetContent=asset.content;if(type==="text/css")assetContent=rewriteCssUrls(assetContent,raw=>{const value=String(raw||"").trim();if(!value||/^(?:data:|blob:|https?:|\/\/|#)/i.test(value))return null;try{const u=new URL(value,"https://fairwas.invalid"+(String(asset.path||"/").startsWith("/")?asset.path:"/"+asset.path));if(u.origin!=="https://fairwas.invalid")return null;return assetEndpoint(document.server.hostname,u.pathname,u.search)}catch{return null}});if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript"){assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);assetContent=rewriteLocationRedirects(assetContent);}return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60","access-control-allow-origin":"*"}});
