@@ -445,7 +445,7 @@ async function authorizePlatformKey(env,serviceId,request,scope){
 async function handleMediaApi(request,parsed,env,serviceId,hostname){
  const cors=apiCors(),method=request.method.toUpperCase(),path=parsed.pathname||"/";
  if(!path.startsWith("/media/"))return null;
- if(!env.media)return Response.json({ok:false,error:"media_storage_not_configured",detail:"Configura el bucket R2 de Fairwas antes de subir archivos."},{status:503,headers:cors});
+ if(!env.media)return Response.json({ok:false,error:"media_storage_not_configured",detail:"Configura el bucket R2 de Fairwas con el binding `media` antes de subir archivos."},{status:503,headers:cors});
  if(method==="OPTIONS")return new Response(null,{status:204,headers:cors});
  const segments=path.split("/").filter(Boolean);
  const encodeKey=key=>String(key||"").split("/").map(encodeURIComponent).join("/");
