@@ -403,13 +403,13 @@ async function handlePlatformServiceApi(request,parsed,env){
  let domain;
  try{domain=await env.database.prepare("SELECT d.service_id,d.kind,s.status,s.service_type FROM fw_platform_domains d JOIN fw_platform_services s ON s.id=d.service_id WHERE d.hostname=? LIMIT 1").bind(parsed.hostname.toLowerCase()).first()}catch{return null}
  if(!domain)return null;
- const cors=apiCors(),method=request.method.toUpperCase(),path=parsed.pathname||"/";
+ const cors=apiCors(),method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method,path=parsed.pathname||"/";
  if(domain.status!=="active")return Response.json({ok:false,error:"service_paused"},{status:503,headers:cors});
  if(domain.kind==="auth"||domain.service_type==="identity"){const identityResponse=await handlePlatformIdentity(request,parsed,env,domain.service_id);if(identityResponse)return identityResponse}
  const redirect=await env.database.prepare("SELECT target_uri,status_code FROM fw_platform_redirects WHERE service_id=? AND source_uri=? LIMIT 1").bind(domain.service_id,path).first();
  if(redirect)return new Response(null,{status:Number(redirect.status_code)||302,headers:{...cors,location:redirect.target_uri,"cache-control":"no-store"}});
  if(method==="OPTIONS")return new Response(null,{status:204,headers:cors});
- let rows;try{rows=await env.database.prepare("SELECT id,method,path,status_code,response_json,auth_required FROM fw_platform_routes WHERE service_id=? AND method=? ORDER BY path").bind(domain.service_id,method).all()}catch{return Response.json({ok:false,error:"service_not_ready"},{status:503,headers:cors})}
+ let rows;try{rows=await env.database.prepare("SELECT id,method,path,status_code,response_json,auth_required FROM fw_platform_routes WHERE service_id=? AND method IN (?,?) ORDER BY CASE WHEN method=? THEN 0 ELSE 1 END,path").bind(domain.service_id,method,lookupMethod,method).all()}catch{return Response.json({ok:false,error:"service_not_ready"},{status:503,headers:cors})}
  let route=null,params={};
  for(const row of rows.results||[]){const matched=routeMatch(row.path,path);if(matched){route=row;params=matched;break}}
  if(!route)return Response.json({ok:false,error:"route_not_found",path,method},{status:404,headers:cors});
