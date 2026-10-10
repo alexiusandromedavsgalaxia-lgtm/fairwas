@@ -257,7 +257,7 @@ async function platformIdentitySchema(db){
  ]);
 }
 async function handlePlatformIdentity(request,parsed,env,serviceId){
- const path=parsed.pathname.replace(/\\/+$/,"")||"/",method=request.method.toUpperCase();
+ const path=parsed.pathname.replace(/\/+$/,"")||"/",method=request.method.toUpperCase();
  if(!["/auth/register","/auth/login","/auth/me","/auth/logout","/register","/login","/me","/logout"].includes(path))return null;
  const action=path.split("/").pop();
  await platformIdentitySchema(env.database);
@@ -265,7 +265,7 @@ async function handlePlatformIdentity(request,parsed,env,serviceId){
   if(method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
   let body;try{body=await request.json()}catch{return Response.json({ok:false,error:"invalid_json"},{status:400,headers:apiCors()})}
   const email=String(body.email||"").trim().toLowerCase(),password=String(body.password||""),displayName=String(body.display_name||body.name||"").trim().slice(0,80);
-  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return Response.json({ok:false,error:"invalid_email"},{status:400,headers:apiCors()});
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return Response.json({ok:false,error:"invalid_email"},{status:400,headers:apiCors()});
   if(password.length<10||password.length>128)return Response.json({ok:false,error:"password_length",detail:"La contraseña debe tener entre 10 y 128 caracteres."},{status:400,headers:apiCors()});
   const ip=String(request.headers.get("cf-connecting-ip")||"unknown"),ipKey=await platformDigest(serviceId+"|"+ip),emailKey=await platformDigest(email);
   await env.database.prepare("CREATE TABLE IF NOT EXISTS fw_platform_identity_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,service_id TEXT NOT NULL,ip_key TEXT NOT NULL,email_key TEXT NOT NULL,created_at TEXT NOT NULL)").run();
@@ -291,7 +291,7 @@ async function handlePlatformIdentity(request,parsed,env,serviceId){
   await env.database.prepare("INSERT INTO fw_platform_identity_sessions(token_hash,service_id,user_id,expires_at,created_at) VALUES(?,?,?,?,?)").bind(await platformDigest(token),serviceId,account.id,expires_at,created_at).run();
   return Response.json({ok:true,user:{id:account.id,email:account.email,display_name:account.display_name,created_at:account.created_at},token,expires_at},{headers:{"cache-control":"no-store",...apiCors()}});
  }
- const authorization=String(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i)?.[1]||"";
+ const authorization=String(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i)?.[1]||"";
  if(!authorization)return Response.json({ok:false,error:"session_required"},{status:401,headers:apiCors()});
  const tokenHash=await platformDigest(authorization),session=await env.database.prepare("SELECT s.token_hash,s.expires_at,a.id,a.email,a.display_name,a.created_at FROM fw_platform_identity_sessions s JOIN fw_platform_identity_accounts a ON a.id=s.user_id AND a.service_id=s.service_id WHERE s.service_id=? AND s.token_hash=? LIMIT 1").bind(serviceId,tokenHash).first();
  if(!session||session.expires_at<=new Date().toISOString()){if(session)await env.database.prepare("DELETE FROM fw_platform_identity_sessions WHERE token_hash=?").bind(tokenHash).run();return Response.json({ok:false,error:"invalid_session"},{status:401,headers:apiCors()})}
@@ -306,7 +306,7 @@ async function handlePlatformIdentity(request,parsed,env,serviceId){
 async function handlePlatformServiceApi(request,parsed,env){
  if(!env.database)return null;
  let domain;
- try{domain=await env.database.prepare("SELECT d.service_id,d.kind,s.status FROM fw_platform_domains d JOIN fw_platform_services s ON s.id=d.service_id WHERE d.hostname=? LIMIT 1").bind(parsed.hostname.toLowerCase()).first()}catch{return null}
+ try{domain=await env.database.prepare("SELECT d.service_id,d.kind,s.status,s.service_type FROM fw_platform_domains d JOIN fw_platform_services s ON s.id=d.service_id WHERE d.hostname=? LIMIT 1").bind(parsed.hostname.toLowerCase()).first()}catch{return null}
  if(!domain)return null;
  const cors=apiCors(),method=request.method.toUpperCase(),path=parsed.pathname||"/";
  if(domain.status!=="active")return Response.json({ok:false,error:"service_paused"},{status:503,headers:cors});
