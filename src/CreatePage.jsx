@@ -19,7 +19,6 @@ const privateRoutes=[
  ["/my/profile","Mi perfil"],
  ["/my/databases","Mis bases de datos"],
  ["/my/servers","Mis servidores"],
- ["/my/apis","APIs y endpoints"],
  ["/init","Crear sitio"],
  ["/editor","Estudio web"],
  ["/ide","Editor de código"],
@@ -88,7 +87,6 @@ function Workspace({path,onNavigate}){
   effectivePath==="/my/sites"?<Sites sites={sites} onNavigate={onNavigate} onRefresh={reload}/>:
   effectivePath==="/my/databases"?<Databases dbs={dbs}/>:
   effectivePath==="/my/servers"?<Servers servers={servers}/>:
-  effectivePath==="/my/apis"?<ApiEndpoints sites={sites}/>:
   effectivePath==="/registry"?<Registry data={registry}/>:
   effectivePath==="/landscape"?<Landscape data={registry}/>:
   effectivePath==="/workers"?<Workers workers={workers}/>:
@@ -275,8 +273,8 @@ function PlatformServices({siteId="",siteHostname=""}){
  const[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const selectedService=items.find(x=>x.id===selected)||items[0];
  const request=async(action,body={},method="POST")=>{const r=await fetch("/api/platform?action="+encodeURIComponent(action),{method,headers:{"content-type":"application/json"},...(method==="GET"?{}:{body:JSON.stringify(body)})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"platform_request_failed");return d};
- const refresh=async(keep)=>{setBusy(true);setError("");try{const d=await request("list"+(siteId?"&site_id="+encodeURIComponent(siteId):""),{},"GET");setItems(d.items||[]);const id=keep||selected||d.items?.[0]?.id||"";setSelected((d.items||[]).some(x=>x.id===id)?id:(d.items?.[0]?.id||""))}catch(e){setError(e.message)}finally{setBusy(false)}};
- useEffect(()=>{refresh("")},[]);
+ const refresh=async(keep)=>{if(!siteId){setItems([]);setSelected("");return}setBusy(true);setError("");try{const d=await request("list&site_id="+encodeURIComponent(siteId),{},"GET");setItems(d.items||[]);const id=keep||selected||d.items?.[0]?.id||"";setSelected((d.items||[]).some(x=>x.id===id)?id:(d.items?.[0]?.id||""))}catch(e){setError(e.message)}finally{setBusy(false)}};
+ useEffect(()=>{refresh("")},[siteId]);
  const run=async(fn,msg)=>{setBusy(true);setError("");setNotice("");try{const d=await fn();if(d?.key?.secret)setSecret(d.key.secret);setNotice(msg);await refresh(selected);return d}catch(e){setError(e.message)}finally{setBusy(false)}};
  const createService=()=>run(()=>request("create",{site_id:siteId,name,slug,service_type:type,description}),"Backend creado y vinculado a esta página.");
  const createDomain=()=>run(()=>request("domain-create",{service_id:selectedService?.id,hostname:domain,kind:domainKind}),"Dominio de servicio registrado.");
