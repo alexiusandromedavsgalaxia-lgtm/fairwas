@@ -42,3 +42,7 @@ npm run build
 ## CreatePage
 
 CreatePage y la migración estática no solicitan una clave de administración. La API conserva límites de tamaño, cantidad de archivos y validación de rutas al publicar.
+
+## Cloud y servicios
+
+La plataforma de servicios, dominios HTTC, rutas API, claves, almacenamiento y servicios de identidad está documentada en [`docs/PLATFORM.md`](docs/PLATFORM.md).
