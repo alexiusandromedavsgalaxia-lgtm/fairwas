@@ -30,9 +30,9 @@ export async function onRequest({request,env}){
   const status=Number(body.response_status||200),raw=typeof body.response_json==="string"?body.response_json:JSON.stringify(body.response_json??{ok:true});
   if(!name)return json({ok:false,error:"endpoint_name_required"},400);
   if(!validPath(path)||path==="/")return json({ok:false,error:"invalid_endpoint_path",detail:"La ruta debe empezar por / y no incluir query, fragmentos ni segmentos .."} ,400);
-  if(!["GET","POST","PUT","PATCH","DELETE"].includes(method))return json({ok:false,error:"invalid_method"},400);
+  if(!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method))return json({ok:false,error:"invalid_method"},400);
   if(!Number.isInteger(status)||status<200||status>599)return json({ok:false,error:"invalid_status"},400);
-  if(raw.length>16000)return json({ok:false,error:"response_too_large"},413);
+  if(raw.length>900000)return json({ok:false,error:"response_too_large",detail:"La respuesta supera 900 KB. Para archivos grandes, sube el archivo al sitio y sírvelo como recurso estático."},413);
   try{JSON.parse(raw)}catch{return json({ok:false,error:"invalid_response_json"},400)}
   const id=crypto.randomUUID(),time=stamp();
   try{await env.database.prepare("INSERT INTO fw_api_endpoints(id,site_id,hostname,name,path,method,response_status,response_json,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?, ?,1,?,?)").bind(id,siteId,project.hostname,name,path,method,status,raw,time,time).run()}
