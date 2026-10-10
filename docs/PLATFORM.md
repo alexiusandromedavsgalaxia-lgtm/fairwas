@@ -1,6 +1,6 @@
 # Plataforma de servicios de Fairwas
 
-El panel **Cloud y servicios** crea recursos de plataforma bajo el protocolo HTTC. No es una cuenta de proveedor externo ni un clon de OAuth: son servicios que viven en el espacio de nombres de Fairwas.
+La infraestructura se configura **dentro del IDE de cada página**. Abre una página en CreatePage, pulsa **APIs / Backend** y crea el backend vinculado a ese proyecto. Cada página administra sus propios servicios, subdominios, rutas, claves, cuentas y almacenamiento. No es un panel global independiente ni un clon de OAuth de Google.
 
 ## Recursos que puedes crear
 
@@ -14,7 +14,7 @@ El panel **Cloud y servicios** crea recursos de plataforma bajo el protocolo HTT
 
 ## Ejemplo de llamada
 
-Una vez que registras el dominio y la ruta `GET /api/status`, una aplicación dentro de Fairwas puede usar:
+Una vez que creas el backend del proyecto, registras el subdominio `api.miempresa.aploscabluchel` y defines la ruta `GET /api/status`, otra aplicación dentro de Fairwas puede usar:
 
 ```js
 const response = await fetch("httc://api.mi-servicio.aploscabluchel/api/status");
@@ -33,7 +33,7 @@ No incluyas claves secretas en HTML, JavaScript enviado al navegador, repositori
 
 ## Servicio de identidad propio
 
-Crea un servicio de tipo **Identidad y cuentas** y asígnale un dominio de función **Cuentas / identidad**. Ese dominio ofrece rutas independientes por servicio:
+Dentro del IDE de la página, crea un backend de tipo **Identidad y cuentas** y asígnale un subdominio de esa misma página, por ejemplo `cuentas.miempresa.aploscabluchel`. Ese dominio ofrece rutas independientes por servicio:
 
 - `POST /auth/register` con `{ "email", "password", "display_name" }`
 - `POST /auth/login` con `{ "email", "password" }`
@@ -58,7 +58,7 @@ Cada servicio de identidad tiene su propia tabla de usuarios. Las contraseñas s
 
 ## API de administración
 
-La interfaz utiliza `/api/platform` con `action=list` por GET y acciones POST como `create`, `domain-create`, `key-create`, `route-create`, `redirect-create`, `connection-create` y `storage-set/get/delete`. Las acciones de administración requieren la cuenta de desarrollador de CreatePage.
+El panel integrado del IDE utiliza `/api/platform` para administrar el backend asociado al `site_id` del proyecto, con `action=list` por GET y acciones POST como `create`, `domain-create`, `key-create`, `route-create`, `redirect-create`, `connection-create` y `storage-set/get/delete`. Las acciones de administración requieren la cuenta de desarrollador de CreatePage.
 
 ## Límites importantes
 
