@@ -31,6 +31,31 @@ const response = await fetch("httc://api.mi-servicio.aploscabluchel/api/private"
 
 No incluyas claves secretas en HTML, JavaScript enviado al navegador, repositorios públicos ni almacenamiento local del cliente.
 
+## Servicio de identidad propio
+
+Crea un servicio de tipo **Identidad y cuentas** y asígnale un dominio de función **Cuentas / identidad**. Ese dominio ofrece rutas independientes por servicio:
+
+- `POST /auth/register` con `{ "email", "password", "display_name" }`
+- `POST /auth/login` con `{ "email", "password" }`
+- `GET /auth/me` con `Authorization: Bearer <token>`
+- `POST /auth/logout` con `Authorization: Bearer <token>`
+
+Ejemplo de registro desde otra aplicación Fairwas:
+
+```js
+const result = await fetch("httc://cuentas.mi-servicio.aploscabluchel/auth/register", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    email: "usuario@example.com",
+    password: "una contraseña larga",
+    display_name: "Usuario"
+  })
+}).then(r => r.json());
+```
+
+Cada servicio de identidad tiene su propia tabla de usuarios. Las contraseñas se derivan con PBKDF2-SHA-256 y sal individual; los tokens de sesión se guardan como hashes, caducan a los 30 días y existe un límite básico de intentos. El token devuelto es un secreto: no lo expongas en logs ni lo compartas entre aplicaciones sin consentimiento.
+
 ## API de administración
 
 La interfaz utiliza `/api/platform` con `action=list` por GET y acciones POST como `create`, `domain-create`, `key-create`, `route-create`, `redirect-create`, `connection-create` y `storage-set/get/delete`. Las acciones de administración requieren la cuenta de desarrollador de CreatePage.
