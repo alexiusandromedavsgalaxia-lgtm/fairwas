@@ -191,7 +191,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
  },[tab.id,documentUrl,tab.reloadToken]);
  if(!active)return null;
  return <div className="tab-view">
-  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate}/>:null}
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate} retry={()=>setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1}:x))}/>:null}
  </div>
 }
 
@@ -240,7 +240,7 @@ function RedirectPage({target,navigate,baseUrl}){
  return <section className="webpage"><div className="webpage-inner"><div className="state"><span className="status-dot"></span><div><b>Redirigiendo…</b><p>{target}</p></div></div></div></section>;
 }
 
-function ProtocolPage({tab,scheme,resolved,resolveError,navigate}){
+function ProtocolPage({tab,scheme,resolved,resolveError,navigate,retry}){
  if(tab.runtimeResponse?.html)return <section className="published-frame"><iframe key={"runtime-"+(tab.reloadToken||0)+"-"+tab.runtimeResponse.status} title={tab.title+" response"} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(tab.runtimeResponse.html,tab.documentUrl||tab.url)}/></section>;
  if(resolved?.document?.type==="site"&&resolved.document.file&&typeof resolved.document.file.content==="string"&&( /^(text\/html|application\/xhtml\+xml)$/i.test(String(resolved.document.file.content_type||"").split(";")[0].trim()) || /\.(html?|xhtml)$/i.test(String(resolved.document.file.path||"")) || /^\s*(<!doctype\s+html|<html(\s|>)|<head(\s|>)|<body(\s|>))/i.test(String(resolved.document.file.content)))){
   if(resolved.document.redirect)return <RedirectPage target={resolved.document.redirect} navigate={navigate} baseUrl={tab.url}/>;
@@ -248,7 +248,7 @@ function ProtocolPage({tab,scheme,resolved,resolveError,navigate}){
  }
  const missingFile=resolved?.document?.type==="site"&&resolved.document.error==="file_not_found";
  return <section className="webpage">
-  {resolveError||missingFile?<div className="not-found"><div className="not-found-icon">⌕</div><h1>{missingFile?"No existe el HTML de esta ruta":"No se puede abrir la página"}</h1><p>{missingFile?"Fairwas no encontró un archivo HTML publicado para esta dirección. Comprueba que el archivo esté guardado y publicado con su ruta exacta.":resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError==="resolve_timeout"?"El runtime de Fairwas no respondió en 12 segundos. Comprueba el despliegue de Cloudflare Pages y sus bindings D1.":resolveError}</p><code>{tab.url}</code><p><button type="button" onClick={()=>window.dispatchEvent(new CustomEvent("fairwas:retry-resolve",{detail:tab.url}))}>Reintentar</button></p></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Respuesta recibida":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
+  {resolveError||missingFile?<div className="not-found"><div className="not-found-icon">⌕</div><h1>{missingFile?"No existe el HTML de esta ruta":"No se puede abrir la página"}</h1><p>{missingFile?"Fairwas no encontró un archivo HTML publicado para esta dirección. Comprueba que el archivo esté guardado y publicado con su ruta exacta.":resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError==="resolve_timeout"?"El runtime de Fairwas no respondió en 12 segundos. Comprueba el despliegue de Cloudflare Pages y sus bindings D1.":resolveError}</p><code>{tab.url}</code><p><button type="button" onClick={retry}>Reintentar</button></p></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Respuesta recibida":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
  </section>
 }
 createRoot(document.getElementById("root")).render(<App/>);
