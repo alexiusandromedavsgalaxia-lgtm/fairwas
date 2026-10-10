@@ -66,3 +66,9 @@
 .cp-visits-list>div{display:grid;gap:4px;padding:9px 0;border-bottom:1px solid var(--cp-border,#303746);min-width:0}
 .cp-visits-list span{font-size:11px;overflow-wrap:anywhere}
 @media(max-width:520px){.cp-visits-metrics{grid-template-columns:1fr}.cp-site-actions button{flex:1}}
+
+/* CreatePage API endpoint manager */
+.cp-api-preview{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;background:var(--cp-soft,#1c222d);border:1px solid var(--cp-border,#303746);border-radius:9px;padding:12px;font-size:11px;line-height:1.5;color:var(--cp-muted,#aab1c0);margin:10px 0}
+.cp-form select,.cp-form textarea{width:100%;box-sizing:border-box;border:1px solid var(--cp-border,#303746);border-radius:9px;background:var(--cp-soft,#1c222d);color:inherit;padding:10px 11px;font:inherit;min-width:0}
+.cp-form textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+.cp-form label{min-width:0}
