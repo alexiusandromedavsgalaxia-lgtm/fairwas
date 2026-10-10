@@ -20,6 +20,7 @@ const privateRoutes=[
  ["/my/databases","Mis bases de datos"],
  ["/my/servers","Mis servidores"],
  ["/my/apis","APIs y endpoints"],
+ ["/my/platform","Cloud y servicios"],
  ["/init","Crear sitio"],
  ["/editor","Estudio web"],
  ["/ide","Editor de código"],
@@ -89,6 +90,7 @@ function Workspace({path,onNavigate}){
   effectivePath==="/my/databases"?<Databases dbs={dbs}/>:
   effectivePath==="/my/servers"?<Servers servers={servers}/>:
   effectivePath==="/my/apis"?<ApiEndpoints sites={sites}/>:
+  effectivePath==="/my/platform"?<PlatformServices/>:
   effectivePath==="/registry"?<Registry data={registry}/>:
   effectivePath==="/landscape"?<Landscape data={registry}/>:
   effectivePath==="/workers"?<Workers workers={workers}/>:
@@ -259,3 +261,43 @@ function Studio({onNavigate,onDone}){
 function DocsPage({path}){return <section className="cp-docs"><small>CREATEPAGE DOCS</small><h1>Documentación</h1><p>HTTC, publicación, Pages, Database y Server.</p><div className="cp-card"><h2>{path}</h2><p>La documentación de CreatePage se sirve bajo <b>docs.createpage.fair</b>.</p></div></section>}
 function Empty({text}){return <div className="cp-card cp-empty">{text}</div>}
 function NotFound(){return <><Head eyebrow="404" title="Ruta no encontrada"/><Empty text="Esta dirección de CreatePage no existe."/></>}
+
+
+function PlatformServices(){
+ const[items,setItems]=useState([]),[selected,setSelected]=useState("");
+ const[name,setName]=useState("Mi servicio"),[slug,setSlug]=useState("mi-servicio"),[type,setType]=useState("api"),[description,setDescription]=useState("");
+ const[domain,setDomain]=useState("api.mi-servicio.aploscabluchel"),[domainKind,setDomainKind]=useState("api");
+ const[keyLabel,setKeyLabel]=useState("Clave de producción"),[secret,setSecret]=useState("");
+ const[routePath,setRoutePath]=useState("/api/status"),[routeMethod,setRouteMethod]=useState("GET"),[routeStatus,setRouteStatus]=useState("200"),[routeAuth,setRouteAuth]=useState(false),[routeJson,setRouteJson]=useState(JSON.stringify({ok:true,service:"{{params.name}}",message:"Fairwas service online"},null,2));
+ const[redirectSource,setRedirectSource]=useState("/old"),[redirectTarget,setRedirectTarget]=useState("httc://home"),[redirectStatus,setRedirectStatus]=useState("302");
+ const[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ const selectedService=items.find(x=>x.id===selected)||items[0];
+ const request=async(action,body={},method="POST")=>{const r=await fetch("/api/platform?action="+encodeURIComponent(action),{method,headers:{"content-type":"application/json"},...(method==="GET"?{}:{body:JSON.stringify(body)})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"platform_request_failed");return d};
+ const refresh=async(keep)=>{setBusy(true);setError("");try{const d=await request("list",{},"GET");setItems(d.items||[]);const id=keep||selected||d.items?.[0]?.id||"";setSelected((d.items||[]).some(x=>x.id===id)?id:(d.items?.[0]?.id||""))}catch(e){setError(e.message)}finally{setBusy(false)}};
+ useEffect(()=>{refresh("")},[]);
+ const run=async(fn,msg)=>{setBusy(true);setError("");setNotice("");try{const d=await fn();if(d?.key?.secret)setSecret(d.key.secret);setNotice(msg);await refresh(selected);return d}catch(e){setError(e.message)}finally{setBusy(false)}};
+ const createService=()=>run(()=>request("create",{name,slug,service_type:type,description}),"Servicio creado.");
+ const createDomain=()=>run(()=>request("domain-create",{service_id:selectedService?.id,hostname:domain,kind:domainKind}),"Dominio de servicio registrado.");
+ const createKey=()=>run(()=>request("key-create",{service_id:selectedService?.id,label:keyLabel,scopes:["api:read","api:write"]}),"Clave generada. Cópiala ahora: no se vuelve a mostrar.");
+ const revokeKey=id=>{if(window.confirm("¿Revocar esta clave? Las peticiones que la usen dejarán de funcionar."))run(()=>request("key-revoke",{service_id:selectedService?.id,id}),"Clave revocada.")};
+ const createRoute=()=>{let parsed;try{parsed=JSON.parse(routeJson)}catch{setError("La respuesta de la ruta debe ser JSON válido.");return}return run(()=>request("route-create",{service_id:selectedService?.id,path:routePath,method:routeMethod,status_code:Number(routeStatus),response_json:parsed,auth_required:routeAuth}),"Ruta API creada.")};
+ const createRedirect=()=>run(()=>request("redirect-create",{service_id:selectedService?.id,source_uri:redirectSource,target_uri:redirectTarget,status_code:Number(redirectStatus)}),"Redirección creada.");
+ const remove=(action,id,msg)=>run(()=>request(action,{service_id:selectedService?.id,id}),msg);
+ return <><Head eyebrow="PLATFORM / CLOUD" title="Cloud y servicios" text="Crea servicios propios, dominios HTTC, rutas API, claves, conexiones y redirecciones dentro de la infraestructura de Fairwas."/>
+  <div className="cp-grid two">
+   <div className="cp-card cp-form"><h3>＋ Crear un servicio</h3><label>Nombre<input value={name} onChange={e=>setName(e.target.value)} maxLength={80}/></label><label>Identificador<input value={slug} onChange={e=>setSlug(e.target.value)} maxLength={64}/></label><label>Tipo<select value={type} onChange={e=>setType(e.target.value)}>{[["api","API"],["cloud","Cloud / backend"],["identity","Identidad y cuentas"],["storage","Almacenamiento"],["gateway","Gateway / conexiones"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label><label>Descripción<input value={description} onChange={e=>setDescription(e.target.value)} maxLength={500}/></label><button className="cp-primary" disabled={busy} onClick={createService}>Crear servicio</button></div>
+   <div className="cp-card cp-form"><div className="cp-row"><h3>Servicios creados</h3><button onClick={()=>refresh(selected)} disabled={busy}>↻</button></div><label>Servicio activo<select value={selectedService?.id||""} onChange={e=>{setSelected(e.target.value);setSecret("");setNotice("");}}>{items.map(s=><option key={s.id} value={s.id}>{s.name} · {s.service_type}</option>)}</select></label>{selectedService?<><p className="cp-line"><b>Estado</b><span>{selectedService.status}</span></p><p className="cp-line"><b>Slug</b><span>{selectedService.slug}</span></p><p className="cp-line"><b>ID</b><span>{selectedService.id}</span></p><p className="cp-empty">Este ID es la referencia del servicio dentro de Fairwas. Los dominios registrados son URIs HTTC del espacio de nombres Fairwas.</p><button className="cp-site-danger" disabled={busy} onClick={()=>{if(window.confirm("¿Eliminar el servicio y todas sus claves, rutas, dominios y datos almacenados?"))run(()=>request("delete",{service_id:selectedService.id}),"Servicio eliminado.")}}>Eliminar servicio</button></>:<p className="cp-empty">Crea tu primer servicio para configurar la infraestructura.</p>}</div>
+  </div>
+  {selectedService&&<><div className="cp-grid two">
+   <div className="cp-card cp-form"><h3>Dominios y subdominios</h3><label>Hostname<input value={domain} onChange={e=>setDomain(e.target.value)} placeholder="api.miapp.aploscabluchel"/></label><label>Función<select value={domainKind} onChange={e=>setDomainKind(e.target.value)}>{[["api","API"],["auth","Cuentas / identidad"],["storage","Almacenamiento"],["app","Aplicación"],["custom","Personalizado"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><button disabled={busy} onClick={createDomain}>＋ Registrar dominio</button><div className="cp-list">{(selectedService.domains||[]).map(d=><div className="cp-line" key={d.id}><span><b>{d.hostname}</b><small>{d.kind}</small></span><button className="cp-site-danger" disabled={busy} onClick={()=>remove("domain-delete",d.id,"Dominio eliminado.")}>Eliminar</button></div>)}</div></div>
+   <div className="cp-card cp-form"><h3>Claves API</h3><label>Etiqueta<input value={keyLabel} onChange={e=>setKeyLabel(e.target.value)} maxLength={80}/></label><button disabled={busy} onClick={createKey}>Generar clave secreta</button>{secret&&<div className="cp-key-secret"><b>Guárdala ahora. Solo se muestra una vez.</b><textarea rows={3} readOnly value={secret}/><button onClick={()=>{navigator.clipboard?.writeText(secret);setNotice("Clave copiada si el navegador permite el portapapeles.")}}>Copiar clave</button></div>}<div className="cp-list">{(selectedService.keys||[]).map(k=><div className="cp-line" key={k.id}><span><b>{k.label}</b><small>{k.key_prefix}… · {k.revoked_at?"Revocada":"Activa"}</small></span>{!k.revoked_at&&<button className="cp-site-danger" disabled={busy} onClick={()=>revokeKey(k.id)}>Revocar</button>}</div>)}</div></div>
+  </div>
+  <div className="cp-grid two">
+   <div className="cp-card cp-form"><h3>Rutas de API</h3><div className="cp-grid two"><label>Método<select value={routeMethod} onChange={e=>setRouteMethod(e.target.value)}>{["GET","POST","PUT","PATCH","DELETE"].map(v=><option key={v}>{v}</option>)}</select></label><label>Estado HTTP<select value={routeStatus} onChange={e=>setRouteStatus(e.target.value)}>{[200,201,400,401,403,404,409,422,429,500,503].map(v=><option key={v}>{v}</option>)}</select></label></div><label>Ruta<input value={routePath} onChange={e=>setRoutePath(e.target.value)} placeholder="/api/users/:id"/></label><label>Respuesta JSON<textarea rows={5} value={routeJson} onChange={e=>setRouteJson(e.target.value)} spellCheck={false}/></label><label><input type="checkbox" checked={routeAuth} onChange={e=>setRouteAuth(e.target.checked)}/> Exigir clave API (Bearer)</label><small>Variables: {"{{params.id}}"}, {"{{query.search}}"}, {"{{body.name}}"}.</small><button className="cp-primary" disabled={busy} onClick={createRoute}>＋ Crear ruta</button><div className="cp-list">{(selectedService.routes||[]).map(x=><div className="cp-card" key={x.id}><div className="cp-line"><span><b>{x.method} {x.path}</b><small>HTTP {x.status_code} · {x.auth_required?"Con clave":"Pública"}</small></span><button className="cp-site-danger" disabled={busy} onClick={()=>remove("route-delete",x.id,"Ruta eliminada.")}>Eliminar</button></div>{(selectedService.domains||[]).length>0&&<small>httc://{selectedService.domains[0].hostname}{x.path}</small>}</div>)}</div></div>
+   <div className="cp-card cp-form"><h3>URIs y redirecciones</h3><label>Ruta origen<input value={redirectSource} onChange={e=>setRedirectSource(e.target.value)} placeholder="/old-path"/></label><label>Destino HTTC<input value={redirectTarget} onChange={e=>setRedirectTarget(e.target.value)} placeholder="httc://otro-servicio.aploscabluchel/nueva-ruta"/></label><label>Código<select value={redirectStatus} onChange={e=>setRedirectStatus(e.target.value)}>{[301,302,307,308].map(v=><option key={v}>{v}</option>)}</select></label><button disabled={busy} onClick={createRedirect}>＋ Crear redirección</button><div className="cp-list">{(selectedService.redirects||[]).map(x=><div className="cp-card" key={x.id}><b>{x.source_uri} → {x.target_uri}</b><small>HTTP {x.status_code}</small><button className="cp-site-danger" disabled={busy} onClick={()=>remove("redirect-delete",x.id,"Redirección eliminada.")}>Eliminar</button></div>)}</div><p className="cp-empty">Las rutas configuradas se sirven en los dominios del servicio. Las redirecciones usan URIs HTTC propias.</p></div>
+  </div>
+  <div className="cp-card cp-form"><h3>Almacenamiento del servicio</h3><p>El almacenamiento clave/valor del servicio usa el backend compartido de Fairwas. Para escribir o leer desde el panel aún se está trabajando en el SDK público y sus permisos por clave.</p><p className="cp-empty">No guardes contraseñas ni secretos de usuarios en este almacenamiento experimental.</p></div>
+  </>}
+  {error&&<div className="cp-error">{error}</div>}{notice&&<div className="cp-card">{notice}</div>}
+ </>;
+}
