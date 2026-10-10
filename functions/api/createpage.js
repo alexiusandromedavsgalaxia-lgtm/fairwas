@@ -131,7 +131,7 @@ export async function onRequest({request,env}){
    const items=[];
    for(const db of r.results||[]){
     const prefix="fwdb_"+project.site_id.replace(/[^a-zA-Z0-9]/g,"")+"_"+db.id.replace(/[^a-zA-Z0-9]/g,"")+"_";
-    const t=await env.database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ORDER BY name").bind(prefix+"%").all();
+    const t=await env.database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND substr(name,1,?)=? ORDER BY name").bind(prefix.length,prefix).all();
     items.push({...db,tables:(t.results||[]).map(x=>x.name.slice(prefix.length))});
    }
    return json({ok:true,items});
@@ -165,7 +165,7 @@ export async function onRequest({request,env}){
    const db=await env.database.prepare("SELECT * FROM cp_page_databases WHERE id=? AND site_id=?").bind(databaseId,siteId).first();
    if(!db)return json({ok:false,error:"database_not_found"},404);
    const prefix="fwdb_"+siteId.replace(/[^a-zA-Z0-9]/g,"")+"_"+databaseId.replace(/[^a-zA-Z0-9]/g,"")+"_";
-   const tables=await env.database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?").bind(prefix+"%").all();
+   const tables=await env.database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND substr(name,1,?)=?").bind(prefix+"%").all();
    if((tables.results||[]).length)await env.database.batch(tables.results.map(t=>env.database.prepare('DROP TABLE IF EXISTS "'+t.name.replace(/"/g,'""')+'"')));
    await env.database.prepare("DELETE FROM cp_page_databases WHERE id=? AND site_id=?").bind(databaseId,siteId).run();
    return json({ok:true,deleted:databaseId});
