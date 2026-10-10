@@ -18,6 +18,7 @@ async function schema(db){
   db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_kv(service_id TEXT NOT NULL,key TEXT NOT NULL,value_json TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(service_id,key))")
  ]);
 }
+ try{await db.prepare("ALTER TABLE fw_platform_services ADD COLUMN site_id TEXT").run()}catch{}
 async function owner(db,serviceId,developerId){
  const row=await db.prepare("SELECT id,developer_id,name,slug,service_type,description,status,created_at,updated_at FROM fw_platform_services WHERE id=? AND developer_id=? LIMIT 1").bind(serviceId,developerId).first();
  return row||null;
