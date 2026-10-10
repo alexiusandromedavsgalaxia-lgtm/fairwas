@@ -442,12 +442,21 @@ async function authorizePlatformKey(env,serviceId,request,scope){
  if(!Array.isArray(scopes)||(!scopes.includes(scope)&&!scopes.includes("*")))return{ok:false,status:403,error:"insufficient_api_key_scope",required:scope};
  return{ok:true,key_id:key.id};
 }
+async function ensureSongSaveMediaSchema(db){
+ await db.batch([
+  db.prepare("CREATE TABLE IF NOT EXISTS media_uploads(upload_id TEXT PRIMARY KEY,media_key TEXT NOT NULL UNIQUE,service_id TEXT NOT NULL,name TEXT NOT NULL,content_type TEXT NOT NULL,expected_size INTEGER NOT NULL,created_at TEXT NOT NULL,completed INTEGER NOT NULL DEFAULT 0)"),
+  db.prepare("CREATE TABLE IF NOT EXISTS media_chunks(upload_id TEXT NOT NULL,part_number INTEGER NOT NULL,data BLOB NOT NULL,size INTEGER NOT NULL,etag TEXT NOT NULL,PRIMARY KEY(upload_id,part_number))"),
+  db.prepare("CREATE INDEX IF NOT EXISTS idx_media_chunks_upload ON media_chunks(upload_id,part_number)"),
+  db.prepare("CREATE TABLE IF NOT EXISTS media_files(media_key TEXT PRIMARY KEY,upload_id TEXT NOT NULL UNIQUE,service_id TEXT NOT NULL,name TEXT NOT NULL,content_type TEXT NOT NULL,size INTEGER NOT NULL,created_at TEXT NOT NULL)")
+ ]);
+}
 async function handleMediaApi(request,parsed,env,serviceId,hostname){
  const cors=apiCors(),method=request.method.toUpperCase(),path=parsed.pathname||"/";
  if(!path.startsWith("/media/"))return null;
- if(!env.media)return Response.json({ok:false,error:"media_storage_not_configured",detail:"Configura el bucket R2 de Fairwas con el binding `media` antes de subir archivos."},{status:503,headers:cors});
  if(method==="OPTIONS")return new Response(null,{status:204,headers:cors});
- const segments=path.split("/").filter(Boolean);
+ if(!env.songsave)return Response.json({ok:false,error:"songsave_binding_missing",detail:"Configura env.songsave como binding D1 de la base de datos songsave."},{status:503,headers:cors});
+ const db=env.songsave,segments=path.split("/").filter(Boolean),PART_SIZE=1024*1024,MAX_SIZE=500*1024*1024;
+ try{await ensureSongSaveMediaSchema(db)}catch(e){return Response.json({ok:false,error:"media_database_unavailable",detail:String(e?.message||"D1 error").slice(0,180)},{status:503,headers:cors})}
  const encodeKey=key=>String(key||"").split("/").map(encodeURIComponent).join("/");
  if(segments[1]==="uploads"&&segments[2]==="init"){
   if(method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:cors});
@@ -456,63 +465,101 @@ async function handleMediaApi(request,parsed,env,serviceId,hostname){
   let body;try{body=await request.json()}catch{return Response.json({ok:false,error:"invalid_json"},{status:400,headers:cors})}
   const size=Number(body.size),name=String(body.name||"video").replace(/[\/\\\u0000-\u001f]/g,"_").slice(0,180)||"media";
   const type=String(body.content_type||"application/octet-stream").trim().slice(0,160);
-  if(!Number.isSafeInteger(size)||size<1||size>500*1024*1024)return Response.json({ok:false,error:"invalid_media_size",detail:"El archivo debe ocupar entre 1 byte y 500 MB."},{status:413,headers:cors});
+  if(!Number.isSafeInteger(size)||size<1||size>MAX_SIZE)return Response.json({ok:false,error:"invalid_media_size",detail:"El archivo debe ocupar entre 1 byte y 500 MB."},{status:413,headers:cors});
   const typeParts=type.split("/");
   const isMimeToken=value=>value.length>0&&Array.from(value).every(ch=>{const n=ch.charCodeAt(0);return (n>=48&&n<=57)||(n>=65&&n<=90)||(n>=97&&n<=122)||"!#$&^_.+-".includes(ch)});
   if(typeParts.length!==2||!isMimeToken(typeParts[0])||!isMimeToken(typeParts[1]))return Response.json({ok:false,error:"invalid_content_type"},{status:400,headers:cors});
-  const key=serviceId+"/"+crypto.randomUUID()+"/"+name;
+  const uploadId=crypto.randomUUID(),key=serviceId+"/"+crypto.randomUUID()+"/"+name,stamp=new Date().toISOString();
   try{
-   const upload=await env.media.createMultipartUpload(key,{httpMetadata:{contentType:type,contentDisposition:"inline; filename*=UTF-8''"+encodeURIComponent(name)}});
-   return Response.json({ok:true,key,upload_id:upload.uploadId,max_bytes:500*1024*1024,part_size:8*1024*1024,upload_url:"/media/uploads/part",complete_url:"/media/uploads/complete"},{status:201,headers:{"cache-control":"no-store",...cors}});
-  }catch(e){return Response.json({ok:false,error:"media_upload_init_failed",detail:String(e?.message||"R2 error").slice(0,180)},{status:500,headers:cors})}
+   await db.prepare("INSERT INTO media_uploads(upload_id,media_key,service_id,name,content_type,expected_size,created_at,completed) VALUES(?,?,?,?,?,?,?,0)").bind(uploadId,key,serviceId,name,type,size,stamp).run();
+   return Response.json({ok:true,key,upload_id:uploadId,max_bytes:MAX_SIZE,part_size:PART_SIZE,upload_url:"/media/uploads/part",complete_url:"/media/uploads/complete"},{status:201,headers:{"cache-control":"no-store",...cors}});
+  }catch(e){return Response.json({ok:false,error:"media_upload_init_failed",detail:String(e?.message||"D1 error").slice(0,180)},{status:500,headers:cors})}
  }
  if(segments[1]==="uploads"&&(segments[2]==="part"||segments[2]==="complete"||segments[2]==="abort")){
   if(method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:cors});
   const auth=await authorizePlatformKey(env,serviceId,request,"api:write");
   if(!auth.ok)return Response.json({ok:false,error:auth.error,...(auth.required?{required:auth.required}:{})},{status:auth.status,headers:cors});
   const key=String(parsed.searchParams.get("key")||""),uploadId=String(parsed.searchParams.get("upload_id")||"");
-  if(!key.startsWith(serviceId+"/")||key.length>800||key.includes("..")||!uploadId||uploadId.length>500)return Response.json({ok:false,error:"invalid_upload_reference"},{status:400,headers:cors});
-  let upload;try{upload=env.media.resumeMultipartUpload(key,uploadId)}catch{return Response.json({ok:false,error:"upload_not_found"},{status:404,headers:cors})}
+  if(!key.startsWith(serviceId+"/")||key.length>800||key.includes("..")||!uploadId||uploadId.length>100)return Response.json({ok:false,error:"invalid_upload_reference"},{status:400,headers:cors});
+  const upload=await db.prepare("SELECT upload_id,media_key,service_id,name,content_type,expected_size,created_at,completed FROM media_uploads WHERE upload_id=? AND media_key=? AND service_id=? LIMIT 1").bind(uploadId,key,serviceId).first();
+  if(!upload)return Response.json({ok:false,error:"upload_not_found"},{status:404,headers:cors});
   try{
    if(segments[2]==="part"){
-    const partNumber=Number(parsed.searchParams.get("part_number")),length=Number(request.headers.get("content-length")||0);
-    if(!Number.isInteger(partNumber)||partNumber<1||partNumber>10000||length>16*1024*1024||!request.body)return Response.json({ok:false,error:"invalid_upload_part",detail:"Usa fragmentos binarios de hasta 16 MiB y números del 1 al 10000."},{status:400,headers:cors});
-    const part=await upload.uploadPart(partNumber,request.body);
-    return Response.json({ok:true,part:{partNumber:part.partNumber,etag:part.etag}},{headers:{"cache-control":"no-store",...cors}});
+    if(upload.completed)return Response.json({ok:false,error:"upload_already_completed"},{status:409,headers:cors});
+    const partNumber=Number(parsed.searchParams.get("part_number"));
+    if(!Number.isInteger(partNumber)||partNumber<1||partNumber>Math.ceil(upload.expected_size/PART_SIZE)||!request.body)return Response.json({ok:false,error:"invalid_upload_part",detail:"Usa fragmentos binarios de hasta 1 MiB y números consecutivos desde 1."},{status:400,headers:cors});
+    const bytes=new Uint8Array(await request.arrayBuffer()),expected=Math.min(PART_SIZE,upload.expected_size-(partNumber-1)*PART_SIZE);
+    if(bytes.byteLength<1||bytes.byteLength>PART_SIZE||bytes.byteLength!==expected)return Response.json({ok:false,error:"invalid_upload_part_size",detail:"El fragmento debe medir exactamente "+expected+" bytes."},{status:413,headers:cors});
+    const digest=await crypto.subtle.digest("SHA-256",bytes),etag=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+    await db.prepare("INSERT INTO media_chunks(upload_id,part_number,data,size,etag) VALUES(?,?,?,?,?) ON CONFLICT(upload_id,part_number) DO UPDATE SET data=excluded.data,size=excluded.size,etag=excluded.etag").bind(uploadId,partNumber,bytes,bytes.byteLength,etag).run();
+    return Response.json({ok:true,part:{partNumber,etag}},{headers:{"cache-control":"no-store",...cors}});
    }
    if(segments[2]==="abort"){
-    await upload.abort();return Response.json({ok:true,aborted:true},{headers:cors});
+    if(upload.completed)return Response.json({ok:false,error:"upload_already_completed"},{status:409,headers:cors});
+    await db.batch([db.prepare("DELETE FROM media_chunks WHERE upload_id=?").bind(uploadId),db.prepare("DELETE FROM media_uploads WHERE upload_id=? AND service_id=?").bind(uploadId,serviceId)]);
+    return Response.json({ok:true,aborted:true},{headers:cors});
+   }
+   if(upload.completed){
+    const existing=await db.prepare("SELECT media_key,size,content_type FROM media_files WHERE media_key=? AND service_id=?").bind(key,serviceId).first();
+    if(existing)return Response.json({ok:true,key,url:"httc://"+hostname+"/media/files/"+encodeKey(key),size:existing.size,content_type:existing.content_type},{status:200,headers:{"cache-control":"no-store",...cors}});
+    return Response.json({ok:false,error:"upload_already_completed"},{status:409,headers:cors});
    }
    let body;try{body=await request.json()}catch{return Response.json({ok:false,error:"invalid_json"},{status:400,headers:cors})}
-   if(!Array.isArray(body.parts)||!body.parts.length||body.parts.length>10000)return Response.json({ok:false,error:"invalid_upload_parts"},{status:400,headers:cors});
+   if(!Array.isArray(body.parts)||!body.parts.length||body.parts.length>Math.ceil(MAX_SIZE/PART_SIZE))return Response.json({ok:false,error:"invalid_upload_parts"},{status:400,headers:cors});
    const parts=body.parts.map(p=>({partNumber:Number(p.partNumber),etag:String(p.etag||"")})).sort((a,b)=>a.partNumber-b.partNumber);
-   if(parts.some((p,i)=>!Number.isInteger(p.partNumber)||p.partNumber!==i+1||!p.etag))return Response.json({ok:false,error:"invalid_upload_parts",detail:"Los fragmentos deben incluir números consecutivos y sus ETag."},{status:400,headers:cors});
-   const object=await upload.complete(parts);
-   const url="/media/files/"+encodeKey(key);
-   return Response.json({ok:true,key,url:"httc://"+hostname+url,size:object.size,etag:object.httpEtag||object.etag,content_type:object.httpMetadata?.contentType||"application/octet-stream"},{status:201,headers:{"cache-control":"no-store",...cors}});
-  }catch(e){return Response.json({ok:false,error:"media_upload_failed",detail:String(e?.message||"R2 upload error").slice(0,180)},{status:500,headers:cors})}
+   if(parts.some((p,i)=>!Number.isInteger(p.partNumber)||p.partNumber!==i+1||!p.etag))return Response.json({ok:false,error:"invalid_upload_parts",detail:"Los fragmentos deben incluir números consecutivos y su ETag."},{status:400,headers:cors});
+   const saved=await db.prepare("SELECT part_number,size,etag FROM media_chunks WHERE upload_id=? ORDER BY part_number").bind(uploadId).all(),stored=saved.results||[];
+   if(stored.length!==parts.length||stored.some((p,i)=>p.part_number!==parts[i].partNumber||p.etag!==parts[i].etag))return Response.json({ok:false,error:"upload_parts_mismatch",detail:"Faltan fragmentos o sus ETag no coinciden."},{status:400,headers:cors});
+   const total=stored.reduce((sum,p)=>sum+Number(p.size||0),0);
+   if(total!==upload.expected_size)return Response.json({ok:false,error:"upload_size_mismatch",detail:"El tamaño recibido no coincide con el archivo anunciado."},{status:400,headers:cors});
+   await db.batch([
+    db.prepare("INSERT INTO media_files(media_key,upload_id,service_id,name,content_type,size,created_at) VALUES(?,?,?,?,?,?,?)").bind(key,uploadId,serviceId,upload.name,upload.content_type,total,upload.created_at),
+    db.prepare("UPDATE media_uploads SET completed=1 WHERE upload_id=? AND service_id=?").bind(uploadId,serviceId)
+   ]);
+   return Response.json({ok:true,key,url:"httc://"+hostname+"/media/files/"+encodeKey(key),size:total,etag:parts.map(p=>p.etag).join("-"),content_type:upload.content_type},{status:201,headers:{"cache-control":"no-store",...cors}});
+  }catch(e){return Response.json({ok:false,error:"media_upload_failed",detail:String(e?.message||"D1 upload error").slice(0,180)},{status:500,headers:cors})}
  }
  if(segments[1]==="files"&&(method==="GET"||method==="HEAD")){
   let key;try{key=decodeURIComponent(segments.slice(2).join("/"))}catch{return Response.json({ok:false,error:"invalid_media_key"},{status:400,headers:cors})}
   if(!key.startsWith(serviceId+"/")||key.includes(".."))return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-  const rangeHeader=request.headers.get("range");
-  let object,totalSize=null,rangeInfo=null;
-  try{
-   if(rangeHeader){
-    const meta=await env.media.head(key);if(!meta)return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-    totalSize=meta.size;
-    const match=rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
-    if(!match)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+totalSize}});
-    let start=match[1]?Number(match[1]):null,end=match[2]?Number(match[2]):null;
-    if(start===null){const suffix=end||0;start=Math.max(0,totalSize-suffix);end=totalSize-1}else if(end===null)end=totalSize-1;
-    if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start||start>=totalSize)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+totalSize}});
-    end=Math.min(end,totalSize-1);rangeInfo={offset:start,length:end-start+1};object=await env.media.get(key,{range:rangeInfo});
-   }else object=await (method==="HEAD"?env.media.head(key):env.media.get(key));
-  }catch{return Response.json({ok:false,error:"media_read_failed"},{status:500,headers:cors})}
-  if(!object)return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-  const headers={"content-type":object.httpMetadata?.contentType||"application/octet-stream","content-length":String(rangeInfo?.length??object.size),"accept-ranges":"bytes","cache-control":"public, max-age=31536000, immutable","x-content-type-options":"nosniff",etag:object.httpEtag||object.etag,...cors};
-  if(rangeInfo)headers["content-range"]="bytes "+rangeInfo.offset+"-"+(rangeInfo.offset+rangeInfo.length-1)+"/"+totalSize;
-  return new Response(method==="HEAD"?null:object.body,{status:rangeInfo?206:200,headers});
+  let meta;try{meta=await db.prepare("SELECT media_key,upload_id,service_id,name,content_type,size FROM media_files WHERE media_key=? AND service_id=? LIMIT 1").bind(key,serviceId).first()}catch{return Response.json({ok:false,error:"media_read_failed"},{status:500,headers:cors})}
+  if(!meta)return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
+  const rangeHeader=request.headers.get("range");let start=0,end=meta.size-1,status=200;
+  if(rangeHeader){
+   const match=rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+   if(!match)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+meta.size}});
+   if(!match[1]&&!match[2])return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+meta.size}});
+   if(!match[1]){const suffix=Number(match[2]);if(!Number.isSafeInteger(suffix)||suffix<1)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+meta.size}});start=Math.max(0,meta.size-suffix)}
+   else start=Number(match[1]);
+   end=match[2]&&match[1]?Number(match[2]):(match[2]&&!match[1]?meta.size-1:meta.size-1);
+   if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start||start>=meta.size)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+meta.size}});
+   end=Math.min(end,meta.size-1);status=206;
+  }
+  const length=end-start+1,firstPart=Math.floor(start/PART_SIZE)+1,lastPart=Math.floor(end/PART_SIZE)+1;
+  const headers={"content-type":meta.content_type||"application/octet-stream","content-length":String(length),"accept-ranges":"bytes","cache-control":"public, max-age=31536000, immutable","x-content-type-options":"nosniff","etag":"\""+meta.upload_id+"-"+meta.size+"\"",...cors};
+  if(status===206)headers["content-range"]="bytes "+start+"-"+end+"/"+meta.size;
+  if(method==="HEAD")return new Response(null,{status,headers});
+  let nextPart=firstPart;
+  const stream=new ReadableStream({
+   async pull(controller){
+    try{
+     if(nextPart>lastPart){controller.close();return}
+     const batchParts=[];
+     for(let n=nextPart;n<=lastPart&&batchParts.length<4;n++)batchParts.push(n);
+     const placeholders=batchParts.map(()=>"?").join(",");
+     const result=await db.prepare("SELECT part_number,data FROM media_chunks WHERE upload_id=? AND part_number IN ("+placeholders+") ORDER BY part_number").bind(meta.upload_id,...batchParts).all();
+     const rows=result.results||[];
+     if(rows.length!==batchParts.length)throw new Error("Faltan fragmentos almacenados");
+     for(const row of rows){
+      const bytes=row.data instanceof Uint8Array?row.data:new Uint8Array(row.data);
+      const chunkStart=(row.part_number-1)*PART_SIZE,from=Math.max(0,start-chunkStart),to=Math.min(bytes.byteLength,end-chunkStart+1);
+      if(to>from)controller.enqueue(bytes.subarray(from,to));
+     }
+     nextPart+=batchParts.length;
+    }catch(error){controller.error(error)}
+   }
+  });
+  return new Response(stream,{status,headers});
  }
  return Response.json({ok:false,error:"media_endpoint_not_found",detail:"Usa POST /media/uploads/init, /media/uploads/part y /media/uploads/complete; los archivos se sirven desde /media/files/."},{status:404,headers:cors});
 }
