@@ -262,12 +262,17 @@ function routeMatch(pattern,path){
   }else{if(b[j]!==segment)return null;j++}
  }
  if(j!==b.length)return null;
- // A route may name its only path parameter differently (for example
- // /things/:thingId) while response templates still use :id or
- // {{params.id}}. Expose that single captured value under the conventional
- // id alias as well, without changing routes that define multiple params.
+ // Response templates commonly use :id even when the route parameter
+ // has a resource-specific name such as :userId or :recordId. Preserve every
+ // named parameter, but expose the most ID-like parameter as "id" too.
+ // If none is ID-like, use the last dynamic segment as the conventional ID.
  const dynamicKeys=Object.keys(out);
- if(!Object.prototype.hasOwnProperty.call(out,"id")&&dynamicKeys.length===1)out.id=out[dynamicKeys[0]];
+ if(!Object.prototype.hasOwnProperty.call(out,"id")&&dynamicKeys.length){
+  const idKey=dynamicKeys.find(key=>/(?:^|_)id$/i.test(key))||
+   dynamicKeys.find(key=>/id$/i.test(key))||
+   dynamicKeys[dynamicKeys.length-1];
+  out.id=out[idKey];
+ }
  return out;
 }
 function expandApiTemplate(value,ctx){
