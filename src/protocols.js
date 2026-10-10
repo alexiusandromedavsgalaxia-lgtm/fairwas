@@ -10,7 +10,7 @@ export const PROTOCOLS=Object.freeze({
 export const FAIRWAS_SCHEMES=Object.freeze(["httc"]);
 
 const protocolPattern=/^([a-z][a-z0-9+.-]*):\/\//i;
-const domainPattern=/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:[/?#].*)?$/i;
+const domainPattern=/^(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?\.)+[a-z0-9_-]{2,63}(?::\d{1,5})?(?:[/?#].*)?$/i;
 const directProtocolPattern=/^httc:\/\//i;
 
 export const protocolFor=(url="")=>{
