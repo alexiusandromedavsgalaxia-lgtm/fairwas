@@ -579,7 +579,7 @@ export async function onRequestPatch(context){return onSiteApiMethod(context)}
 export async function onRequestDelete(context){return onSiteApiMethod(context)}
 export async function onRequestOptions(context){return onSiteApiMethod(context)}
 
-export async function onRequestGet({request,env}){
+async function resolveGet({request,env}){
  const req=new URL(request.url),target=req.searchParams.get("url")||"";let parsed;try{parsed=new URL(target)}catch{return Response.json({ok:false,error:"invalid_url"},{status:400})}
  if(!ALLOWED.has(parsed.protocol.slice(0,-1).toLowerCase()))return Response.json({ok:false,error:"unsupported_protocol"},{status:400});
  const apiResponse=await handleSiteApi(request,parsed,env);if(apiResponse)return apiResponse;
@@ -604,4 +604,11 @@ export async function onRequestGet({request,env}){
  return Response.json({ok:true,url:target,protocol:"httc",host:parsed.hostname,path:parsed.pathname+(parsed.search||""),persisted,document});
 }
 
+export async function onRequestGet(context){
+ let timer;
+ const timeout=new Promise(resolve=>{timer=setTimeout(()=>resolve(Response.json({ok:false,error:"resolve_timeout",detail:"El runtime de Fairwas agotó el tiempo al resolver la dirección."},{status:504,headers:{"cache-control":"no-store","retry-after":"2"}})),10000)});
+ try{return await Promise.race([resolveGet(context),timeout])}
+ catch(error){return Response.json({ok:false,error:"resolve_internal_error",detail:String(error&&error.message||error)},{status:500,headers:{"cache-control":"no-store"}})}
+ finally{clearTimeout(timer)}
+}
 export async function onRequestHead(context){return onRequestGet(context)}
