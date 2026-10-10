@@ -244,9 +244,43 @@ function expandApiTemplate(value,ctx){
  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,expandApiTemplate(v,ctx)]));
  return value;
 }
+async function handlePlatformServiceApi(request,parsed,env){
+ if(!env.database)return null;
+ let domain;
+ try{domain=await env.database.prepare("SELECT d.service_id,d.kind,s.status FROM fw_platform_domains d JOIN fw_platform_services s ON s.id=d.service_id WHERE d.hostname=? LIMIT 1").bind(parsed.hostname.toLowerCase()).first()}catch{return null}
+ if(!domain)return null;
+ const cors=apiCors(),method=request.method.toUpperCase(),path=parsed.pathname||"/";
+ if(domain.status!=="active")return Response.json({ok:false,error:"service_paused"},{status:503,headers:cors});
+ const redirect=await env.database.prepare("SELECT target_uri,status_code FROM fw_platform_redirects WHERE service_id=? AND source_uri=? LIMIT 1").bind(domain.service_id,path).first();
+ if(redirect)return new Response(null,{status:Number(redirect.status_code)||302,headers:{...cors,location:redirect.target_uri,"cache-control":"no-store"}});
+ if(method==="OPTIONS")return new Response(null,{status:204,headers:cors});
+ let rows;try{rows=await env.database.prepare("SELECT id,method,path,status_code,response_json,auth_required FROM fw_platform_routes WHERE service_id=? AND method=? ORDER BY path").bind(domain.service_id,method).all()}catch{return Response.json({ok:false,error:"service_not_ready"},{status:503,headers:cors})}
+ let route=null,params={};
+ for(const row of rows.results||[]){const matched=routeMatch(row.path,path);if(matched){route=row;params=matched;break}}
+ if(!route)return Response.json({ok:false,error:"route_not_found",path,method},{status:404,headers:cors});
+ if(route.auth_required){
+  const bearer=String(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i)?.[1]||"";
+  if(!bearer)return Response.json({ok:false,error:"api_key_required"},{status:401,headers:cors});
+  const keyHash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(bearer));
+  const keyHex=Array.from(new Uint8Array(keyHash),b=>b.toString(16).padStart(2,"0")).join("");
+  const key=await env.database.prepare("SELECT id FROM fw_platform_keys WHERE service_id=? AND key_hash=? AND revoked_at IS NULL LIMIT 1").bind(domain.service_id,keyHex).first();
+  if(!key)return Response.json({ok:false,error:"invalid_api_key"},{status:403,headers:cors});
+ }
+ let body={};
+ if(!["GET","HEAD"].includes(method)){
+  const raw=await request.text();if(raw.length>1024*1024)return Response.json({ok:false,error:"request_too_large"},{status:413,headers:cors});
+  if(raw){try{body=JSON.parse(raw)}catch{return Response.json({ok:false,error:"invalid_json_body"},{status:400,headers:cors})}}
+ }
+ const query=Object.fromEntries(parsed.searchParams.entries());
+ let template;try{template=JSON.parse(route.response_json)}catch{return Response.json({ok:false,error:"invalid_route_configuration"},{status:500,headers:cors})}
+ const output=expandApiTemplate(template,{params,query,body}),status=Number(route.status_code)||200;
+ if([204,205,304].includes(status))return new Response(null,{status,headers:cors});
+ return Response.json(output,{status,headers:{"cache-control":"no-store",...cors}});
+}
 async function handleSiteApi(request,parsed,env){
- if(!parsed.pathname.startsWith("/api/"))return null;
  const method=request.method.toUpperCase();
+ const serviceResponse=await handlePlatformServiceApi(request,parsed,env);if(serviceResponse)return serviceResponse;
+ if(!parsed.pathname.startsWith("/api/"))return null;
  if(method==="OPTIONS")return new Response(null,{status:204,headers:apiCors()});
  if(!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method))return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
  if(!env.database||!env.pages)return Response.json({ok:false,error:"api_binding_missing"},{status:500,headers:apiCors()});
