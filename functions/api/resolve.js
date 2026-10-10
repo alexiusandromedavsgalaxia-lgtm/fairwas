@@ -514,63 +514,6 @@ async function handleMediaApi(request,parsed,env,serviceId,hostname){
  }
  return Response.json({ok:false,error:"media_endpoint_not_found",detail:"Usa POST /media/uploads/init, /media/uploads/part y /media/uploads/complete; los archivos se sirven desde /media/files/."},{status:404,headers:cors});
 }
-async function handlePlatformServiceApi(request,parsed,env){^_.+-]+\\/[\\w!#async function handlePlatformServiceApi(request,parsed,env){^_.+-]+$/.test(type))return Response.json({ok:false,error:"invalid_content_type"},{status:400,headers:cors});
-  const key=serviceId+"/"+crypto.randomUUID()+"/"+name;
-  try{
-   const upload=await env.media.createMultipartUpload(key,{httpMetadata:{contentType:type,contentDisposition:"inline; filename*=UTF-8''"+encodeURIComponent(name)}})
-   return Response.json({ok:true,key,upload_id:upload.uploadId,max_bytes:500*1024*1024,part_size:8*1024*1024,upload_url:"/media/uploads/part",complete_url:"/media/uploads/complete"},{status:201,headers:{"cache-control":"no-store",...cors}});
-  }catch(e){return Response.json({ok:false,error:"media_upload_init_failed",detail:String(e?.message||"R2 error").slice(0,180)},{status:500,headers:cors})}
- }
- if(segments[1]==="uploads"&&(segments[2]==="part"||segments[2]==="complete"||segments[2]==="abort")){
-  if(method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:cors});
-  const auth=await authorizePlatformKey(env,serviceId,request,"api:write");
-  if(!auth.ok)return Response.json({ok:false,error:auth.error,...(auth.required?{required:auth.required}:{})},{status:auth.status,headers:cors});
-  const key=String(parsed.searchParams.get("key")||""),uploadId=String(parsed.searchParams.get("upload_id")||"");
-  if(!key.startsWith(serviceId+"/")||key.length>800||key.includes("..")||!uploadId||uploadId.length>500)return Response.json({ok:false,error:"invalid_upload_reference"},{status:400,headers:cors});
-  let upload;try{upload=env.media.resumeMultipartUpload(key,uploadId)}catch{return Response.json({ok:false,error:"upload_not_found"},{status:404,headers:cors})}
-  try{
-   if(segments[2]==="part"){
-    const partNumber=Number(parsed.searchParams.get("part_number")),length=Number(request.headers.get("content-length")||0);
-    if(!Number.isInteger(partNumber)||partNumber<1||partNumber>10000||length>16*1024*1024||!request.body)return Response.json({ok:false,error:"invalid_upload_part",detail:"Usa fragmentos binarios de hasta 16 MiB y números del 1 al 10000."},{status:400,headers:cors});
-    const part=await upload.uploadPart(partNumber,request.body);
-    return Response.json({ok:true,part:{partNumber:part.partNumber,etag:part.etag}},{headers:{"cache-control":"no-store",...cors}});
-   }
-   if(segments[2]==="abort"){
-    await upload.abort();return Response.json({ok:true,aborted:true},{headers:cors});
-   }
-   let body;try{body=await request.json()}catch{return Response.json({ok:false,error:"invalid_json"},{status:400,headers:cors})}
-   if(!Array.isArray(body.parts)||!body.parts.length||body.parts.length>10000)return Response.json({ok:false,error:"invalid_upload_parts"},{status:400,headers:cors});
-   const parts=body.parts.map(p=>({partNumber:Number(p.partNumber),etag:String(p.etag||"")})).sort((a,b)=>a.partNumber-b.partNumber);
-   if(parts.some((p,i)=>!Number.isInteger(p.partNumber)||p.partNumber!==i+1||!p.etag))return Response.json({ok:false,error:"invalid_upload_parts",detail:"Los fragmentos deben incluir números consecutivos y sus ETag."},{status:400,headers:cors});
-   const object=await upload.complete(parts);
-   const url="/media/files/"+encodeKey(key);
-   return Response.json({ok:true,key,url:"httc://"+hostname+url,size:object.size,etag:object.httpEtag||object.etag,content_type:object.httpMetadata?.contentType||"application/octet-stream"},{status:201,headers:{"cache-control":"no-store",...cors}});
-  }catch(e){return Response.json({ok:false,error:"media_upload_failed",detail:String(e?.message||"R2 upload error").slice(0,180)},{status:500,headers:cors})}
- }
- if(segments[1]==="files"&&(method==="GET"||method==="HEAD")){
-  let key;try{key=decodeURIComponent(segments.slice(2).join("/"))}catch{return Response.json({ok:false,error:"invalid_media_key"},{status:400,headers:cors})}
-  if(!key.startsWith(serviceId+"/")||key.includes(".."))return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-  const rangeHeader=request.headers.get("range");
-  let object,totalSize=null,rangeInfo=null;
-  try{
-   if(rangeHeader){
-    const meta=await env.media.head(key);if(!meta)return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-    totalSize=meta.size;
-    const match=rangeHeader.match(/^bytes=(\\d*)-(\\d*)$/);
-    if(!match)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+totalSize}});
-    let start=match[1]?Number(match[1]):null,end=match[2]?Number(match[2]):null;
-    if(start===null){const suffix=end||0;start=Math.max(0,totalSize-suffix);end=totalSize-1}else if(end===null)end=totalSize-1;
-    if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start||start>=totalSize)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+totalSize}});
-    end=Math.min(end,totalSize-1);rangeInfo={offset:start,length:end-start+1};object=await env.media.get(key,{range:rangeInfo});
-   }else object=await (method==="HEAD"?env.media.head(key):env.media.get(key));
-  }catch{return Response.json({ok:false,error:"media_read_failed"},{status:500,headers:cors})}
-  if(!object)return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-  const headers={"content-type":object.httpMetadata?.contentType||"application/octet-stream","content-length":String(rangeInfo?.length??object.size),"accept-ranges":"bytes","cache-control":"public, max-age=31536000, immutable","x-content-type-options":"nosniff",etag:object.httpEtag||object.etag,...cors};
-  if(rangeInfo)headers["content-range"]="bytes "+rangeInfo.offset+"-"+(rangeInfo.offset+rangeInfo.length-1)+"/"+totalSize;
-  return new Response(method==="HEAD"?null:object.body,{status:rangeInfo?206:200,headers});
- }
- return Response.json({ok:false,error:"media_endpoint_not_found",detail:"Usa POST /media/uploads/init, /media/uploads/part y /media/uploads/complete; los archivos se sirven desde /media/files/."},{status:404,headers:cors});
-}
 async function handlePlatformServiceApi(request,parsed,env){
  if(!env.database)return null;
  let domain;
