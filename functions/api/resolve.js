@@ -244,6 +244,56 @@ function expandApiTemplate(value,ctx){
  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,expandApiTemplate(v,ctx)]));
  return value;
 }
+function apiResponseFromConfig(value,{status=200,requestMethod="GET",cors={},defaultHeaders={}}={}){
+ const envelope=value&&typeof value==="object"&&!Array.isArray(value)?(value.__response||value.$response||null):null;
+ if(!envelope)return Response.json(value,{status,headers:{"cache-control":"no-store",...cors,...defaultHeaders}});
+ const type=String(envelope.type||"json").toLowerCase();
+ const body=envelope.body??(type==="json"?{}:"");
+ const headers={...cors,...defaultHeaders};
+ const allowedHeader=/^(content-type|content-disposition|content-language|cache-control|access-control-allow-origin|access-control-allow-headers|access-control-allow-methods|access-control-expose-headers|x-content-type-options|x-robots-tag|vary)$/i;
+ if(envelope.headers&&typeof envelope.headers==="object"&&!Array.isArray(envelope.headers)){
+  for(const [key,val] of Object.entries(envelope.headers)){if(allowedHeader.test(key)&&typeof val==="string"&&val.length<=2000&&!/[\r\n]/.test(val))headers[key.toLowerCase()]=val}
+ }
+ const types={json:"application/json; charset=utf-8",text:"text/plain; charset=utf-8",html:"text/html; charset=utf-8",xml:"application/xml; charset=utf-8",svg:"image/svg+xml",css:"text/css; charset=utf-8",javascript:"text/javascript; charset=utf-8",csv:"text/csv; charset=utf-8",binary:"application/octet-stream",base64:"application/octet-stream"};
+ if(envelope.content_type&&typeof envelope.content_type==="string"&&envelope.content_type.length<=160&&!/[\r\n]/.test(envelope.content_type))headers["content-type"]=envelope.content_type;
+ else headers["content-type"]=types[type]||"application/octet-stream";
+ headers["cache-control"]=headers["cache-control"]||"no-store";
+ if(type==="redirect"){
+  const target=String(envelope.location||body||"").trim();
+  if(!target||/[\r\n]/.test(target))return Response.json({ok:false,error:"invalid_redirect_target"},{status:500,headers:cors});
+  headers.location=target;
+  return new Response(null,{status:[301,302,303,307,308].includes(status)?status:302,headers});
+ }
+ if([204,205,304].includes(status))return new Response(null,{status,headers});
+ let payload;
+ if(type==="json"){
+  return Response.json(body,{status,headers});
+ }else if(type==="base64"||type==="binary"){
+  try{const encoded=String(body).replace(/^data:[^,]*;base64,/i,"").replace(/\s/g,"");const raw=atob(encoded);const bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);payload=bytes}
+  catch{return Response.json({ok:false,error:"invalid_base64_response"},{status:500,headers:cors})}
+ }else{
+  payload=typeof body==="string"?body:JSON.stringify(body);
+ }
+ return new Response(requestMethod==="HEAD"?null:payload,{status,headers});
+}
+function binaryRangeResponse(request,bytes,type,extraHeaders={}){
+ const headers={"content-type":type,"accept-ranges":"bytes","cache-control":"public, max-age=300, stale-while-revalidate=60","x-content-type-options":"nosniff",...extraHeaders};
+ const range=request.headers.get("range");
+ if(range){
+  const match=range.match(/^bytes=(\d*)-(\d*)$/);
+  if(!match)return new Response(null,{status:416,headers:{...headers,"content-range":"bytes */"+bytes.length}});
+  let start=match[1]?Number(match[1]):null,end=match[2]?Number(match[2]):null;
+  if(start===null){const suffix=end||0;start=Math.max(0,bytes.length-suffix);end=bytes.length-1}
+  else if(end===null)end=bytes.length-1;
+  if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start||start>=bytes.length)return new Response(null,{status:416,headers:{...headers,"content-range":"bytes */"+bytes.length}});
+  end=Math.min(end,bytes.length-1);
+  headers["content-range"]="bytes "+start+"-"+end+"/"+bytes.length;
+  headers["content-length"]=String(end-start+1);
+  return new Response(request.method==="HEAD"?null:bytes.slice(start,end+1),{status:206,headers});
+ }
+ headers["content-length"]=String(bytes.length);
+ return new Response(request.method==="HEAD"?null:bytes,{status:200,headers});
+}
 const platformEncoder=new TextEncoder();
 async function platformDigest(value){const result=await crypto.subtle.digest("SHA-256",platformEncoder.encode(String(value)));return Array.from(new Uint8Array(result),b=>b.toString(16).padStart(2,"0")).join("")}
 function platformToken(bytes=32){return Array.from(crypto.getRandomValues(new Uint8Array(bytes)),b=>b.toString(16).padStart(2,"0")).join("")}
@@ -334,11 +384,10 @@ async function handlePlatformServiceApi(request,parsed,env){
  const query=Object.fromEntries(parsed.searchParams.entries());
  let template;try{template=JSON.parse(route.response_json)}catch{return Response.json({ok:false,error:"invalid_route_configuration"},{status:500,headers:cors})}
  const output=expandApiTemplate(template,{params,query,body}),status=Number(route.status_code)||200;
- if([204,205,304].includes(status))return new Response(null,{status,headers:cors});
- return Response.json(output,{status,headers:{"cache-control":"no-store",...cors}});
+ return apiResponseFromConfig(output,{status,requestMethod:method,cors});
 }
 async function handleSiteApi(request,parsed,env){
- const method=request.method.toUpperCase();
+ const method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method;
  const serviceResponse=await handlePlatformServiceApi(request,parsed,env);if(serviceResponse)return serviceResponse;
  if(!parsed.pathname.startsWith("/api/"))return null;
  if(method==="OPTIONS")return new Response(null,{status:204,headers:apiCors()});
@@ -349,7 +398,7 @@ async function handleSiteApi(request,parsed,env){
  if(!site)return null;
  let rows;
  try{
-  rows=await env.database.prepare("SELECT id,path,method,response_status,response_json FROM fw_api_endpoints WHERE site_id=? AND hostname=? AND enabled=1 AND method=?").bind(site.site_id,hostname,method).all();
+  rows=await env.database.prepare("SELECT id,path,method,response_status,response_json FROM fw_api_endpoints WHERE site_id=? AND hostname=? AND enabled=1 AND method=?").bind(site.site_id,hostname,lookupMethod).all();
  }catch{return null}
  let endpoint=null,params={};
  for(const row of rows.results||[]){const matched=routeMatch(row.path,parsed.pathname);if(matched){endpoint=row;params=matched;break}}
@@ -364,8 +413,7 @@ async function handleSiteApi(request,parsed,env){
  let template;try{template=JSON.parse(endpoint.response_json)}catch{return Response.json({ok:false,error:"invalid_endpoint_configuration"},{status:500,headers:apiCors()})}
  const output=expandApiTemplate(template,{params,query,body});
  const status=Number(endpoint.response_status)||200;
- if(status===204||status===205||status===304)return new Response(null,{status,headers:apiCors()});
- return Response.json(output,{status,headers:{"cache-control":"no-store",...apiCors()}});
+ return apiResponseFromConfig(output,{status,requestMethod:method,cors:apiCors()});
 }
 async function onSiteApiMethod({request,env}){
  let target;try{target=new URL(request.url).searchParams.get("url")||""}catch{}
@@ -386,7 +434,7 @@ export async function onRequestGet({request,env}){
  const apiResponse=await handleSiteApi(request,parsed,env);if(apiResponse)return apiResponse;
  const document=await publishedDocument(parsed,env);if(!document)return Response.json({ok:false,error:"site_not_found",host:parsed.hostname},{status:404});
  const assetPathRaw=req.searchParams.get("asset");const assetPath=assetPathRaw?("/"+assetPathRaw.replace(/^\/+/, "").replace(/\\/g,"/")):null;
- if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=String(asset.content_type||contentType(asset.path)).split(";")[0].trim().toLowerCase();if(asset.encoding==="base64")return new Response(Uint8Array.from(atob(asset.content),(c)=>c.charCodeAt(0)),{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60"}});let assetContent=asset.content;if(type==="text/css")assetContent=rewriteCssUrls(assetContent,raw=>{const value=String(raw||"").trim();if(!value||/^(?:data:|blob:|https?:|\/\/|#)/i.test(value))return null;try{const u=new URL(value,"https://fairwas.invalid"+(String(asset.path||"/").startsWith("/")?asset.path:"/"+asset.path));if(u.origin!=="https://fairwas.invalid")return null;return assetEndpoint(document.server.hostname,u.pathname,u.search)}catch{return null}});if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript"){assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);assetContent=rewriteLocationRedirects(assetContent);}return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60","access-control-allow-origin":"*"}});
+ if(assetPath&&document.type==="site"){const asset=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(document.site.site_id,assetPath).first();if(!asset)return new Response("Not found",{status:404});const type=String(asset.content_type||contentType(asset.path)).split(";")[0].trim().toLowerCase();if(asset.encoding==="base64"){let bytes;try{const raw=atob(asset.content);bytes=Uint8Array.from(raw,ch=>ch.charCodeAt(0))}catch{return new Response("Invalid binary asset",{status:500})}return binaryRangeResponse(request,bytes,type,{"access-control-allow-origin":"*"});}let assetContent=asset.content;if(type==="text/css")assetContent=rewriteCssUrls(assetContent,raw=>{const value=String(raw||"").trim();if(!value||/^(?:data:|blob:|https?:|\/\/|#)/i.test(value))return null;try{const u=new URL(value,"https://fairwas.invalid"+(String(asset.path||"/").startsWith("/")?asset.path:"/"+asset.path));if(u.origin!=="https://fairwas.invalid")return null;return assetEndpoint(document.server.hostname,u.pathname,u.search)}catch{return null}});if(type==="text/javascript"||type==="application/javascript"||type==="text/ecmascript"||type==="application/ecmascript"||type==="application/x-javascript"||type==="text/x-javascript"){assetContent=rewriteModuleImports(assetContent,document.server.hostname,asset.path);assetContent=rewriteLocationRedirects(assetContent);}return new Response(assetContent,{headers:{"content-type":type,"cache-control":"public,max-age=300,stale-while-revalidate=60","access-control-allow-origin":"*"}});
  }
  if(req.searchParams.get("raw")==="1"&&document.type==="site"){
   if(document.error||(document.path!=="/"&&document.path!==document.file?.path))return new Response("Not found",{status:404,headers:{"cache-control":"no-store"}});
@@ -395,7 +443,7 @@ export async function onRequestGet({request,env}){
   const rawMime=rawFile.content_type||contentType(rawFile.path);
   const rawType=String(rawMime).split(";")[0].trim().toLowerCase();
   const rawHeaders={"content-type":rawMime,"cache-control":"no-store","access-control-allow-origin":"*","x-content-type-options":"nosniff"};
-  if(rawFile.encoding==="base64")return new Response(Uint8Array.from(atob(rawFile.content),(ch)=>ch.charCodeAt(0)),{headers:rawHeaders});
+  if(rawFile.encoding==="base64"){let bytes;try{const raw=atob(rawFile.content);bytes=Uint8Array.from(raw,ch=>ch.charCodeAt(0))}catch{return new Response("Invalid binary asset",{status:500})}return binaryRangeResponse(request,bytes,rawMime,rawHeaders);}
   let rawContent=String(rawFile.content||"");
   if(/(?:javascript|ecmascript)/i.test(rawType)){rawContent=rewriteModuleImports(rawContent,document.server.hostname,rawFile.path);rawContent=rewriteLocationRedirects(rawContent)}
   return new Response(rawContent,{headers:rawHeaders});
