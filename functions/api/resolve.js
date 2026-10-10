@@ -452,3 +452,5 @@ export async function onRequestGet({request,env}){
  let persisted=false;try{if(env.pages){await env.pages.prepare("INSERT INTO visits(url,protocol,visited_at) VALUES(?,?,?)").bind(target,"httc",new Date().toISOString()).run();persisted=true}}catch{}
  return Response.json({ok:true,url:target,protocol:"httc",host:parsed.hostname,path:parsed.pathname+(parsed.search||""),persisted,document});
 }
+
+export async function onRequestHead(context){return onRequestGet(context)}
