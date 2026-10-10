@@ -259,7 +259,7 @@ async function handleSiteApi(request,parsed,env){
  }catch{return null}
  let endpoint=null,params={};
  for(const row of rows.results||[]){const matched=routeMatch(row.path,parsed.pathname);if(matched){endpoint=row;params=matched;break}}
- if(!endpoint)return null;
+ if(!endpoint)return Response.json({ok:false,error:"endpoint_not_found",path:parsed.pathname,method},{status:404,headers:apiCors()});
  let body={};
  if(!["GET","HEAD"].includes(method)){
   const raw=await request.text();
