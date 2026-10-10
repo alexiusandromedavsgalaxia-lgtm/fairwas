@@ -412,6 +412,17 @@ async function handlePlatformIdentity(request,parsed,env,serviceId){
  if(method!=="GET"&&method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
  return Response.json({ok:true,user:{id:session.id,email:session.email,display_name:session.display_name,created_at:session.created_at,expires_at:session.expires_at}},{headers:{"cache-control":"no-store",...apiCors()}});
 }
+async function authorizePlatformKey(env,serviceId,request,scope){
+ const bearer=String(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i)?.[1]||"";
+ if(!bearer)return{ok:false,status:401,error:"api_key_required"};
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(bearer));
+ const keyHash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+ const key=await env.database.prepare("SELECT id,scopes_json FROM fw_platform_keys WHERE service_id=? AND key_hash=? AND revoked_at IS NULL LIMIT 1").bind(serviceId,keyHash).first();
+ if(!key)return{ok:false,status:403,error:"invalid_api_key"};
+ let scopes=[];try{scopes=JSON.parse(key.scopes_json||"[]")}catch{}
+ if(!Array.isArray(scopes)||(!scopes.includes(scope)&&!scopes.includes("*")))return{ok:false,status:403,error:"insufficient_api_key_scope",required:scope};
+ return{ok:true,key_id:key.id};
+}
 async function handlePlatformServiceApi(request,parsed,env){
  if(!env.database)return null;
  let domain;
@@ -420,6 +431,42 @@ async function handlePlatformServiceApi(request,parsed,env){
  const cors=apiCors(),method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method,path=parsed.pathname||"/";
  if(domain.status!=="active")return Response.json({ok:false,error:"service_paused"},{status:503,headers:cors});
  if(domain.kind==="auth"||domain.service_type==="identity"){const identityResponse=await handlePlatformIdentity(request,parsed,env,domain.service_id);if(identityResponse)return identityResponse}
+ if(domain.kind==="storage"){
+  const storageMatch=(parsed.pathname||"/").match(/^\/(?:kv|storage)(?:\/(.*))?\/?$/);
+  if(storageMatch){
+   const method=request.method.toUpperCase(),rawKey=storageMatch[1]||parsed.searchParams.get("key")||"";
+   let key="";try{key=decodeURIComponent(rawKey)}catch{return Response.json({ok:false,error:"invalid_storage_key"},{status:400,headers:cors})}
+   if(key&&(key.length>180||key.includes("..")||key.startsWith("_system/")||/[\\u0000-\\u001f]/.test(key)))return Response.json({ok:false,error:"invalid_storage_key"},{status:400,headers:cors});
+   if(!["GET","HEAD","POST","PUT","DELETE","OPTIONS"].includes(method))return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:cors});
+   if(method==="OPTIONS")return new Response(null,{status:204,headers:cors});
+   const needed=method==="GET"||method==="HEAD"?"api:read":"api:write";
+   const auth=await authorizePlatformKey(env,domain.service_id,request,needed);
+   if(!auth.ok)return Response.json({ok:false,error:auth.error,...(auth.required?{required:auth.required}:{})},{status:auth.status,headers:cors});
+   if(method==="GET"||method==="HEAD"){
+    if(!key){
+     const rows=await env.database.prepare("SELECT key,updated_at FROM fw_platform_kv WHERE service_id=? ORDER BY key LIMIT 100").bind(domain.service_id).all();
+     return Response.json({ok:true,items:rows.results||[]},{headers:{"cache-control":"no-store",...cors}});
+    }
+    const row=await env.database.prepare("SELECT value_json,updated_at FROM fw_platform_kv WHERE service_id=? AND key=?").bind(domain.service_id,key).first();
+    if(!row)return Response.json({ok:false,error:"key_not_found"},{status:404,headers:cors});
+    let value;try{value=JSON.parse(row.value_json)}catch{value=null}
+    return Response.json({ok:true,key,value,updated_at:row.updated_at},{headers:{"cache-control":"no-store",...cors}});
+   }
+   if(method==="DELETE"){
+    if(!key)return Response.json({ok:false,error:"storage_key_required"},{status:400,headers:cors});
+    const deleted=await env.database.prepare("DELETE FROM fw_platform_kv WHERE service_id=? AND key=?").bind(domain.service_id,key).run();
+    return deleted.meta?.changes?Response.json({ok:true,key,deleted:true},{headers:cors}):Response.json({ok:false,error:"key_not_found"},{status:404,headers:cors});
+   }
+   if(!key)return Response.json({ok:false,error:"storage_key_required"},{status:400,headers:cors});
+   const parsedBody=await readApiBody(request,method);if(!parsedBody.ok)return Response.json({ok:false,error:parsedBody.error},{status:parsedBody.status,headers:cors});
+   const body=parsedBody.body||{},value=Object.prototype.hasOwnProperty.call(body,"value")?body.value:body;
+   const valueJson=JSON.stringify(value);
+   if(valueJson===undefined||valueJson.length>256000)return Response.json({ok:false,error:"value_too_large"},{status:413,headers:cors});
+   const stamp=new Date().toISOString();
+   await env.database.prepare("INSERT INTO fw_platform_kv(service_id,key,value_json,updated_at) VALUES(?,?,?,?) ON CONFLICT(service_id,key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at").bind(domain.service_id,key,valueJson,stamp).run();
+   return Response.json({ok:true,key,value,updated_at:stamp},{status:method==="POST"?201:200,headers:{"cache-control":"no-store",...cors}});
+  }
+ }
  const redirect=await env.database.prepare("SELECT target_uri,status_code FROM fw_platform_redirects WHERE service_id=? AND source_uri=? LIMIT 1").bind(domain.service_id,path).first();
  if(redirect)return new Response(null,{status:Number(redirect.status_code)||302,headers:{...cors,location:redirect.target_uri,"cache-control":"no-store"}});
  if(method==="OPTIONS")return new Response(null,{status:204,headers:cors});
@@ -428,12 +475,9 @@ async function handlePlatformServiceApi(request,parsed,env){
  for(const row of rows.results||[]){const matched=routeMatch(row.path,path);if(matched){route=row;params=matched;break}}
  if(!route)return Response.json({ok:false,error:"route_not_found",path,method},{status:404,headers:cors});
  if(route.auth_required){
-  const bearer=String(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i)?.[1]||"";
-  if(!bearer)return Response.json({ok:false,error:"api_key_required"},{status:401,headers:cors});
-  const keyHash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(bearer));
-  const keyHex=Array.from(new Uint8Array(keyHash),b=>b.toString(16).padStart(2,"0")).join("");
-  const key=await env.database.prepare("SELECT id FROM fw_platform_keys WHERE service_id=? AND key_hash=? AND revoked_at IS NULL LIMIT 1").bind(domain.service_id,keyHex).first();
-  if(!key)return Response.json({ok:false,error:"invalid_api_key"},{status:403,headers:cors});
+  const needed=method==="GET"||method==="HEAD"?"api:read":"api:write";
+  const auth=await authorizePlatformKey(env,domain.service_id,request,needed);
+  if(!auth.ok)return Response.json({ok:false,error:auth.error,...(auth.required?{required:auth.required}:{})},{status:auth.status,headers:cors});
  }
  const parsedBody=await readApiBody(request,method);if(!parsedBody.ok)return Response.json({ok:false,error:parsedBody.error},{status:parsedBody.status,headers:cors});
  const body=parsedBody.body;
