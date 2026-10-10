@@ -10,7 +10,7 @@ export const PROTOCOLS=Object.freeze({
 export const FAIRWAS_SCHEMES=Object.freeze(["httc"]);
 
 const protocolPattern=/^([a-z][a-z0-9+.-]*):\/\//i;
-const domainPattern=/^(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?\.)+[a-z0-9_-]{2,63}(?::\d{1,5})?(?:[/?#].*)?$/i;
+const hostnamePattern=/^(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?\.)+[a-z0-9_-]{2,63}$/i;
 const directProtocolPattern=/^httc:\/\//i;
 
 export const protocolFor=(url="")=>{
@@ -26,7 +26,15 @@ export const toFairwas=(input="")=>{
  if(!value)return"httc://home";
  if(directProtocolPattern.test(value))return value;
  if(/^[a-z][a-z0-9+.-]*:\/\//i.test(value))return value;
- if(domainPattern.test(value))return"httc://"+value;
+ // Parse the host separately from the route, query string and fragment.
+ // This prevents characters after the first slash or ? from being treated
+ // as part of the hostname.
+ try{
+  const candidate=new URL("httc://"+value);
+  if(hostnamePattern.test(candidate.hostname)&&!candidate.username&&!candidate.password){
+   return candidate.toString();
+  }
+ }catch{}
  return"httc://search?q="+encodeURIComponent(value);
 };
 
