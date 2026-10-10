@@ -111,11 +111,19 @@ export async function onRequest({request,env}){
   if(routeConfig?.__operation&&routeConfig.__operation.type==="collection"&&!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(String(routeConfig.__operation.collection||"")))return json({ok:false,error:"invalid_collection_name",detail:"Usa un nombre de colección como products o user_profiles."},400)
   const routes=methods.map(method=>({id:crypto.randomUUID(),service_id:serviceId,method,path,status_code:status,response_json:raw,auth_required:Boolean(b.auth_required),created_at:stamp}));
   try{
-   await env.database.batch(routes.map(route=>env.database.prepare("INSERT INTO fw_platform_routes(id,service_id,method,path,status_code,response_json,auth_required,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(service_id,method,path) DO UPDATE SET status_code=excluded.status_code,response_json=excluded.response_json,auth_required=excluded.auth_required,updated_at=excluded.updated_at").bind(route.id,serviceId,route.method,path,status,raw,b.auth_required?1:0,stamp,stamp)));
-  }catch(e){return json({ok:false,error:"route_save_failed",detail:"No se pudo guardar la ruta en la base de datos. Inténtalo otra vez."},500)}
-  const saved=await env.database.prepare("SELECT id,service_id,method,path,status_code,auth_required,created_at FROM fw_platform_routes WHERE service_id=? AND path=? ORDER BY method").bind(serviceId,path).all();
-  const savedRoutes=(saved.results||[]).filter(route=>methods.includes(route.method));
-  return json({ok:true,route:savedRoutes[0]||routes[0],routes:savedRoutes},200);
+   const savedRoutes=[];
+   for(const route of routes){
+    const existing=await env.database.prepare("SELECT id,created_at FROM fw_platform_routes WHERE service_id=? AND method=? AND path=? LIMIT 1").bind(serviceId,route.method,path).first();
+    if(existing){
+     await env.database.prepare("UPDATE fw_platform_routes SET status_code=?,response_json=?,auth_required=?,updated_at=? WHERE id=? AND service_id=?").bind(status,raw,b.auth_required?1:0,stamp,existing.id,serviceId).run();
+     savedRoutes.push({...route,id:existing.id,created_at:existing.created_at});
+    }else{
+     await env.database.prepare("INSERT INTO fw_platform_routes(id,service_id,method,path,status_code,response_json,auth_required,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(route.id,serviceId,route.method,path,status,raw,b.auth_required?1:0,stamp,stamp).run();
+     savedRoutes.push(route);
+    }
+   }
+   return json({ok:true,route:savedRoutes[0],routes:savedRoutes},201);
+  }catch(e){return json({ok:false,error:"route_save_failed",detail:"No se pudo guardar la ruta: "+clean(e?.message||"error de base de datos",180)},500)}
  }
  if(action==="route-delete"){
   const result=await env.database.prepare("DELETE FROM fw_platform_routes WHERE id=? AND service_id=?").bind(clean(b.id,80),serviceId).run();
