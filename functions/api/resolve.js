@@ -246,7 +246,7 @@ function expandApiTemplate(value,ctx){
 }
 function apiResponseFromConfig(value,{status=200,requestMethod="GET",cors={},defaultHeaders={}}={}){
  const envelope=value&&typeof value==="object"&&!Array.isArray(value)?(value.__response||value.$response||null):null;
- if(!envelope){const headers={"cache-control":"no-store",...cors,...defaultHeaders};if(requestMethod==="HEAD")return new Response(null,{status,headers:{"content-type":"application/json; charset=utf-8",...headers}});return Response.json(value,{status,headers})}
+ if(!envelope){const headers={"content-type":"application/json; charset=utf-8","cache-control":"no-store",...cors,...defaultHeaders};if([204,205,304].includes(status)||requestMethod==="HEAD")return new Response(null,{status,headers});return Response.json(value,{status,headers})}
  const type=String(envelope.type||"json").toLowerCase();
  const body=envelope.body??(type==="json"?{}:"");
  const headers={...cors,...defaultHeaders};
@@ -275,6 +275,33 @@ function apiResponseFromConfig(value,{status=200,requestMethod="GET",cors={},def
   payload=typeof body==="string"?body:JSON.stringify(body);
  }
  return new Response(requestMethod==="HEAD"?null:payload,{status,headers});
+}
+async function readApiBody(request,method){
+ if(["GET","HEAD"].includes(method))return {ok:true,body:{}};
+ const contentType=String(request.headers.get("content-type")||"").toLowerCase();
+ const declared=Number(request.headers.get("content-length")||0);
+ if(declared>1024*1024)return {ok:false,status:413,error:"request_too_large"};
+ if(contentType.includes("multipart/form-data")){
+  let form;try{form=await request.formData()}catch{return {ok:false,status:400,error:"invalid_form_data"}}
+  const body={};let total=0;
+  for(const [key,value] of form.entries()){
+   if(typeof value==="string"){body[key]=value;total+=value.length}
+   else{total+=value.size;body[key]={name:value.name,type:value.type,size:value.size}}
+   if(total>1024*1024)return {ok:false,status:413,error:"request_too_large"};
+  }
+  return {ok:true,body};
+ }
+ let raw;try{raw=await request.text()}catch{return {ok:false,status:400,error:"invalid_request_body"}}
+ if(new TextEncoder().encode(raw).byteLength>1024*1024)return {ok:false,status:413,error:"request_too_large"};
+ if(!raw)return {ok:true,body:{}};
+ if(contentType.includes("application/json")||contentType.includes("+json")){
+  try{return {ok:true,body:JSON.parse(raw)}}catch{return {ok:false,status:400,error:"invalid_json_body"}}
+ }
+ if(contentType.includes("application/x-www-form-urlencoded"))return {ok:true,body:Object.fromEntries(new URLSearchParams(raw).entries())};
+ if(contentType.startsWith("text/")||contentType.includes("xml")||contentType.includes("javascript")){
+  return {ok:true,body:{text:raw,raw}};
+ }
+ return {ok:true,body:{text:raw,raw}};
 }
 function binaryRangeResponse(request,bytes,type,extraHeaders={}){
  const headers={"content-type":type,"accept-ranges":"bytes","cache-control":"public, max-age=300, stale-while-revalidate=60","x-content-type-options":"nosniff",...extraHeaders};
@@ -376,11 +403,8 @@ async function handlePlatformServiceApi(request,parsed,env){
   const key=await env.database.prepare("SELECT id FROM fw_platform_keys WHERE service_id=? AND key_hash=? AND revoked_at IS NULL LIMIT 1").bind(domain.service_id,keyHex).first();
   if(!key)return Response.json({ok:false,error:"invalid_api_key"},{status:403,headers:cors});
  }
- let body={};
- if(!["GET","HEAD"].includes(method)){
-  const raw=await request.text();if(raw.length>1024*1024)return Response.json({ok:false,error:"request_too_large"},{status:413,headers:cors});
-  if(raw){try{body=JSON.parse(raw)}catch{return Response.json({ok:false,error:"invalid_json_body"},{status:400,headers:cors})}}
- }
+ const parsedBody=await readApiBody(request,method);if(!parsedBody.ok)return Response.json({ok:false,error:parsedBody.error},{status:parsedBody.status,headers:cors});
+ const body=parsedBody.body;
  const query=Object.fromEntries(parsed.searchParams.entries());
  let template;try{template=JSON.parse(route.response_json)}catch{return Response.json({ok:false,error:"invalid_route_configuration"},{status:500,headers:cors})}
  const output=expandApiTemplate(template,{params,query,body}),status=Number(route.status_code)||200;
@@ -403,12 +427,8 @@ async function handleSiteApi(request,parsed,env){
  let endpoint=null,params={};
  for(const row of rows.results||[]){const matched=routeMatch(row.path,parsed.pathname);if(matched){endpoint=row;params=matched;break}}
  if(!endpoint)return isApiPath?Response.json({ok:false,error:"endpoint_not_found",path:parsed.pathname,method},{status:404,headers:apiCors()}):null;
- let body={};
- if(!["GET","HEAD"].includes(method)){
-  const raw=await request.text();
-  if(raw.length>1024*1024)return Response.json({ok:false,error:"request_too_large"},{status:413,headers:apiCors()});
-  if(raw){try{body=JSON.parse(raw)}catch{return Response.json({ok:false,error:"invalid_json_body"},{status:400,headers:apiCors()})}}
- }
+ const parsedBody=await readApiBody(request,method);if(!parsedBody.ok)return Response.json({ok:false,error:parsedBody.error},{status:parsedBody.status,headers:apiCors()});
+ const body=parsedBody.body;
  const query=Object.fromEntries(parsed.searchParams.entries());
  let template;try{template=JSON.parse(endpoint.response_json)}catch{return Response.json({ok:false,error:"invalid_endpoint_configuration"},{status:500,headers:apiCors()})}
  const output=expandApiTemplate(template,{params,query,body});
