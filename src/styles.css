@@ -84,3 +84,40 @@
 .cp-form .cp-line>span{min-width:0;overflow-wrap:anywhere}
 .cp-form .cp-line small{display:block;margin-top:4px;color:var(--cp-muted,#858b9a);font-size:11px}
 @media(max-width:650px){.cp-grid.two{grid-template-columns:minmax(0,1fr)}.cp-site-actions{flex-wrap:wrap}.cp-site-actions button{flex:1 1 auto}}
+
+/* IDE cleanup: compact toolbar, calmer hierarchy, responsive project settings */
+.cp-ide{inset:0;overflow:auto;background:#0b0d10}
+.cp-ide-top{position:sticky;top:0;z-index:8;flex-wrap:wrap;padding:14px clamp(14px,2.5vw,28px);background:rgba(13,15,19,.94);backdrop-filter:blur(18px);gap:12px}
+.cp-ide-heading{min-width:180px;display:grid;gap:3px}
+.cp-ide-heading>small{font-size:9px;letter-spacing:.15em;color:#a6b1c2}
+.cp-ide-heading h1{font-size:20px;letter-spacing:-.04em}
+.cp-ide-heading p{margin:0;color:#8e96a4;font-size:11px;max-width:38vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-ide-actions{align-items:center;justify-content:flex-end;gap:6px}
+.cp-ide-actions button,.cp-ide-actions .cp-button{padding:8px 10px;font-size:11px;border-radius:8px;white-space:nowrap}
+.cp-ide-actions .cp-ide-publish{background:#c5f77b;color:#151910;border-color:#c5f77b;font-weight:750}
+.cp-ide-project-settings{padding:0 clamp(14px,2.5vw,28px);border-bottom:1px solid #ffffff10;background:#101216}
+.cp-ide-project-settings>summary{padding:11px 0;cursor:pointer;color:#c8cdd6;font-size:11px;list-style-position:inside}
+.cp-ide-project-settings>summary span{margin-left:8px;color:#7f8794;font-size:10px}
+.cp-ide-settings-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;padding:4px 0 14px;align-items:end}
+.cp-ide-settings-grid label{display:grid;gap:5px;min-width:0;color:#9da5b2;font-size:10px}
+.cp-ide-settings-grid input{width:100%;min-width:0;background:#171a20;border:1px solid #ffffff14;color:#eef0f4;border-radius:8px;padding:9px 10px;font:inherit;font-size:11px;outline:none}
+.cp-ide-settings-grid input:focus{border-color:#a9d96c80}
+.cp-ide-settings-grid button{border:1px solid #ffffff18;background:#242830;color:#e8ebf1;border-radius:8px;padding:9px;font-size:11px}
+.cp-ide-body{grid-template-columns:minmax(160px,220px) minmax(0,1fr);min-height:52vh;flex:1}
+.cp-files{background:#101216;padding:10px 8px}
+.cp-files-title{padding:8px 10px 12px;font-weight:750}
+.cp-files button,.cp-files .cp-file-folder{border-radius:8px;font-size:11px}
+.cp-files button.active{background:#b9f36b18;box-shadow:inset 2px 0 #b9f36b;color:#f7f9f4}
+.cp-editor-wrap{background:#0b0d10}
+.cp-editor-head{height:auto;min-height:42px;gap:12px;padding:10px 15px;flex-wrap:wrap;background:#101216}
+.cp-editor-head b{font-size:11px;font-weight:650;overflow-wrap:anywhere}
+.cp-editor-head span{font-size:10px;color:#8d96a3}
+.cp-editor{min-height:360px;padding:20px clamp(12px,2vw,25px);font-size:12px;line-height:1.7;tab-size:2}
+.cp-db-panel{margin:12px clamp(12px,2vw,24px);border-radius:13px;background:#111419}
+.cp-project-backend{padding:0}
+.cp-inline-check{display:flex!important;grid-template-columns:18px 1fr;align-items:center;gap:9px!important}
+.cp-inline-check input{width:16px!important;height:16px;accent-color:#b9f36b}
+.cp-project-backend>.cp-grid{padding:0 16px 16px}
+.cp-api-preview{max-height:180px;overflow:auto;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:900px){.cp-ide-top{align-items:flex-start;flex-direction:column}.cp-ide-actions{justify-content:flex-start}.cp-ide-heading p{max-width:90vw}.cp-ide-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cp-ide-body{grid-template-columns:145px minmax(0,1fr)}}
+@media(max-width:560px){.cp-ide-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.cp-ide-actions>*{min-width:0}.cp-ide-settings-grid{grid-template-columns:1fr}.cp-ide-project-settings>summary span{display:block;margin:4px 0 0 20px}.cp-ide-body{grid-template-columns:112px minmax(0,1fr)}.cp-files{padding:6px 4px}.cp-files button{padding-top:8px;padding-bottom:8px}.cp-files button small,.cp-files .cp-file-folder small{font-size:8px}.cp-editor{padding:12px 9px;font-size:11px}.cp-db-panel{margin:8px}.cp-grid.two{grid-template-columns:1fr}}
