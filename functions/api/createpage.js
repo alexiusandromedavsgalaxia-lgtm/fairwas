@@ -382,7 +382,7 @@ export async function onRequest({request,env}){
    const resolvedId=project.site_id;
    const nextHostname=String(b.hostname||project.hostname).trim().toLowerCase();
    const nextTitle=String(b.title||project.title).trim()||project.title;
-   if(!/^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)+$/.test(nextHostname))return json({ok:false,error:"invalid_hostname"},400);
+   if(!/^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)+$/.test(nextHostname))return json({ok:false,error:"invalid_hostname"},400);
    const duplicate=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' AND site_id<>? LIMIT 1").bind(nextHostname,resolvedId).first();
    if(duplicate)return json({ok:false,error:"hostname_already_registered"},409);
    const incoming=Array.isArray(b.files)&&b.files.length?b.files:[{path:"/index.html",content:String(b.html||"")}];
@@ -422,7 +422,7 @@ export async function onRequest({request,env}){
    const hostname=String(b.hostname||"").trim().toLowerCase();
    const title=String(b.title||"").trim()||hostname;
    if(!hostname)return json({ok:false,error:"hostname_required"},400);
-   if(!/^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)+$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
+   if(!/^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)+$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
    const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
    if(!developer)return json({ok:false,error:"developer_not_registered",detail:"Registra primero tu cuenta en /registry."},403);
 
