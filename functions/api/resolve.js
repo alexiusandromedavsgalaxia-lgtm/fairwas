@@ -244,6 +244,65 @@ function expandApiTemplate(value,ctx){
  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,expandApiTemplate(v,ctx)]));
  return value;
 }
+const platformEncoder=new TextEncoder();
+async function platformDigest(value){const result=await crypto.subtle.digest("SHA-256",platformEncoder.encode(String(value)));return Array.from(new Uint8Array(result),b=>b.toString(16).padStart(2,"0")).join("")}
+function platformToken(bytes=32){return Array.from(crypto.getRandomValues(new Uint8Array(bytes)),b=>b.toString(16).padStart(2,"0")).join("")}
+async function platformPasswordHash(password,salt){const key=await crypto.subtle.importKey("raw",platformEncoder.encode(password),"PBKDF2",false,["deriveBits"]);const bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt:platformEncoder.encode(salt),iterations:310000,hash:"SHA-256"},key,256);return Array.from(new Uint8Array(bits),b=>b.toString(16).padStart(2,"0")).join("")}
+async function platformIdentitySchema(db){
+ await db.batch([
+  db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_identity_accounts(id TEXT PRIMARY KEY,service_id TEXT NOT NULL,email TEXT NOT NULL,display_name TEXT NOT NULL,password_hash TEXT NOT NULL,password_salt TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(service_id,email))"),
+  db.prepare("CREATE INDEX IF NOT EXISTS idx_fw_platform_identity_accounts ON fw_platform_identity_accounts(service_id,email)"),
+  db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_identity_sessions(token_hash TEXT PRIMARY KEY,service_id TEXT NOT NULL,user_id TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL)"),
+  db.prepare("CREATE INDEX IF NOT EXISTS idx_fw_platform_identity_sessions ON fw_platform_identity_sessions(service_id,user_id)")
+ ]);
+}
+async function handlePlatformIdentity(request,parsed,env,serviceId){
+ const path=parsed.pathname.replace(/\\/+$/,"")||"/",method=request.method.toUpperCase();
+ if(!["/auth/register","/auth/login","/auth/me","/auth/logout","/register","/login","/me","/logout"].includes(path))return null;
+ const action=path.split("/").pop();
+ await platformIdentitySchema(env.database);
+ if(action==="register"||action==="login"){
+  if(method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
+  let body;try{body=await request.json()}catch{return Response.json({ok:false,error:"invalid_json"},{status:400,headers:apiCors()})}
+  const email=String(body.email||"").trim().toLowerCase(),password=String(body.password||""),displayName=String(body.display_name||body.name||"").trim().slice(0,80);
+  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return Response.json({ok:false,error:"invalid_email"},{status:400,headers:apiCors()});
+  if(password.length<10||password.length>128)return Response.json({ok:false,error:"password_length",detail:"La contraseña debe tener entre 10 y 128 caracteres."},{status:400,headers:apiCors()});
+  const ip=String(request.headers.get("cf-connecting-ip")||"unknown"),ipKey=await platformDigest(serviceId+"|"+ip),emailKey=await platformDigest(email);
+  await env.database.prepare("CREATE TABLE IF NOT EXISTS fw_platform_identity_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,service_id TEXT NOT NULL,ip_key TEXT NOT NULL,email_key TEXT NOT NULL,created_at TEXT NOT NULL)").run();
+  const cutoff=new Date(Date.now()-15*60*1000).toISOString();
+  const previous=await env.database.prepare("SELECT COUNT(*) AS total FROM fw_platform_identity_attempts WHERE service_id=? AND created_at>? AND (ip_key=? OR email_key=?)").bind(serviceId,cutoff,ipKey,emailKey).first();
+  await env.database.prepare("DELETE FROM fw_platform_identity_attempts WHERE created_at<?").bind(new Date(Date.now()-24*60*60*1000).toISOString()).run();
+  await env.database.prepare("INSERT INTO fw_platform_identity_attempts(service_id,ip_key,email_key,created_at) VALUES(?,?,?,?)").bind(serviceId,ipKey,emailKey,new Date().toISOString()).run();
+  if(Number(previous?.total||0)>=12)return Response.json({ok:false,error:"rate_limited"},{status:429,headers:apiCors()});
+  if(action==="register"){
+   if(displayName.length<1)return Response.json({ok:false,error:"display_name_required"},{status:400,headers:apiCors()});
+   const exists=await env.database.prepare("SELECT id FROM fw_platform_identity_accounts WHERE service_id=? AND email=? LIMIT 1").bind(serviceId,email).first();
+   if(exists)return Response.json({ok:false,error:"account_exists"},{status:409,headers:apiCors()});
+   const id=crypto.randomUUID(),salt=platformToken(16),password_hash=await platformPasswordHash(password,salt),created_at=new Date().toISOString();
+   try{await env.database.prepare("INSERT INTO fw_platform_identity_accounts(id,service_id,email,display_name,password_hash,password_salt,created_at) VALUES(?,?,?,?,?,?,?)").bind(id,serviceId,email,displayName,password_hash,salt,created_at).run()}catch{return Response.json({ok:false,error:"account_create_failed"},{status:409,headers:apiCors()})}
+   const token=platformToken(),expires_at=new Date(Date.now()+30*24*60*60*1000).toISOString();
+   await env.database.prepare("INSERT INTO fw_platform_identity_sessions(token_hash,service_id,user_id,expires_at,created_at) VALUES(?,?,?,?,?)").bind(await platformDigest(token),serviceId,id,expires_at,created_at).run();
+   return Response.json({ok:true,user:{id,email,display_name:displayName,created_at},token,expires_at},{status:201,headers:{"cache-control":"no-store",...apiCors()}});
+  }
+  const account=await env.database.prepare("SELECT * FROM fw_platform_identity_accounts WHERE service_id=? AND email=? LIMIT 1").bind(serviceId,email).first();
+  const hash=await platformPasswordHash(password,account?.password_salt||platformToken(16));
+  if(!account||hash!==account.password_hash)return Response.json({ok:false,error:"invalid_credentials"},{status:401,headers:apiCors()});
+  const token=platformToken(),created_at=new Date().toISOString(),expires_at=new Date(Date.now()+30*24*60*60*1000).toISOString();
+  await env.database.prepare("INSERT INTO fw_platform_identity_sessions(token_hash,service_id,user_id,expires_at,created_at) VALUES(?,?,?,?,?)").bind(await platformDigest(token),serviceId,account.id,expires_at,created_at).run();
+  return Response.json({ok:true,user:{id:account.id,email:account.email,display_name:account.display_name,created_at:account.created_at},token,expires_at},{headers:{"cache-control":"no-store",...apiCors()}});
+ }
+ const authorization=String(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i)?.[1]||"";
+ if(!authorization)return Response.json({ok:false,error:"session_required"},{status:401,headers:apiCors()});
+ const tokenHash=await platformDigest(authorization),session=await env.database.prepare("SELECT s.token_hash,s.expires_at,a.id,a.email,a.display_name,a.created_at FROM fw_platform_identity_sessions s JOIN fw_platform_identity_accounts a ON a.id=s.user_id AND a.service_id=s.service_id WHERE s.service_id=? AND s.token_hash=? LIMIT 1").bind(serviceId,tokenHash).first();
+ if(!session||session.expires_at<=new Date().toISOString()){if(session)await env.database.prepare("DELETE FROM fw_platform_identity_sessions WHERE token_hash=?").bind(tokenHash).run();return Response.json({ok:false,error:"invalid_session"},{status:401,headers:apiCors()})}
+ if(action==="logout"){
+  if(method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
+  await env.database.prepare("DELETE FROM fw_platform_identity_sessions WHERE token_hash=?").bind(tokenHash).run();
+  return Response.json({ok:true},{headers:{"cache-control":"no-store",...apiCors()}});
+ }
+ if(method!=="GET"&&method!=="POST")return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
+ return Response.json({ok:true,user:{id:session.id,email:session.email,display_name:session.display_name,created_at:session.created_at,expires_at:session.expires_at}},{headers:{"cache-control":"no-store",...apiCors()}});
+}
 async function handlePlatformServiceApi(request,parsed,env){
  if(!env.database)return null;
  let domain;
@@ -251,6 +310,7 @@ async function handlePlatformServiceApi(request,parsed,env){
  if(!domain)return null;
  const cors=apiCors(),method=request.method.toUpperCase(),path=parsed.pathname||"/";
  if(domain.status!=="active")return Response.json({ok:false,error:"service_paused"},{status:503,headers:cors});
+ if(domain.kind==="auth"||domain.service_type==="identity"){const identityResponse=await handlePlatformIdentity(request,parsed,env,domain.service_id);if(identityResponse)return identityResponse}
  const redirect=await env.database.prepare("SELECT target_uri,status_code FROM fw_platform_redirects WHERE service_id=? AND source_uri=? LIMIT 1").bind(domain.service_id,path).first();
  if(redirect)return new Response(null,{status:Number(redirect.status_code)||302,headers:{...cors,location:redirect.target_uri,"cache-control":"no-store"}});
  if(method==="OPTIONS")return new Response(null,{status:204,headers:cors});
