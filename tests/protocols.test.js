@@ -18,3 +18,18 @@ test("full HTTC URLs and search input keep their existing behavior", () => {
   assert.equal(resolveAddressInput("httc://site.fair/()"), "httc://site.fair/()");
   assert.equal(resolveAddressInput("hello world"), "httc://search?q=hello%20world");
 });
+
+
+import { wwwCounterpart } from "../src/protocols.js";
+
+test("domain correspondence toggles only the leading www and preserves the route", () => {
+  assert.equal(wwwCounterpart("httc://roblox.com/games/123?x=1#top"), "httc://www.roblox.com/games/123?x=1#top");
+  assert.equal(wwwCounterpart("httc://www.roblox.com/games/123?x=1#top"), "httc://roblox.com/games/123?x=1#top");
+});
+
+test("domain correspondence ignores internal hosts, IP addresses and non-HTTC URLs", () => {
+  assert.equal(wwwCounterpart("httc://home"), null);
+  assert.equal(wwwCounterpart("httc://createpage.fair"), null);
+  assert.equal(wwwCounterpart("httc://127.0.0.1"), null);
+  assert.equal(wwwCounterpart("https://roblox.com"), null);
+});
