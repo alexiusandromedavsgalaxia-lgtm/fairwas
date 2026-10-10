@@ -255,7 +255,7 @@ function expandApiTemplate(value,ctx){
  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,expandApiTemplate(v,ctx)]));
  return value;
 }
-function apiResponseFromConfig(value,{status=200,requestMethod="GET",cors={},defaultHeaders={}}={}){
+function apiResponseFromConfig(value,{status=200,requestMethod="GET",request=null,cors={},defaultHeaders={}}={}){
  const envelope=value&&typeof value==="object"&&!Array.isArray(value)?(value.__response||value.$response||null):null;
  if(!envelope){const headers={"content-type":"application/json; charset=utf-8","cache-control":"no-store",...cors,...defaultHeaders};if([204,205,304].includes(status)||requestMethod==="HEAD")return new Response(null,{status,headers});return Response.json(value,{status,headers})}
  const type=String(envelope.type||"json").toLowerCase();
@@ -282,6 +282,7 @@ function apiResponseFromConfig(value,{status=200,requestMethod="GET",cors={},def
  }else if(type==="base64"||type==="binary"){
   try{const encoded=String(body).replace(/^data:[^,]*;base64,/i,"").replace(/\s/g,"");const raw=atob(encoded);const bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);payload=bytes}
   catch{return Response.json({ok:false,error:"invalid_base64_response"},{status:500,headers:cors})}
+  if(status===200&&request)return binaryRangeResponse(request,payload,headers["content-type"]||"application/octet-stream",headers);
  }else{
   payload=typeof body==="string"?body:JSON.stringify(body);
  }
@@ -425,7 +426,7 @@ async function handlePlatformServiceApi(request,parsed,env){
  const query=Object.fromEntries(parsed.searchParams.entries());
  let template;try{template=JSON.parse(route.response_json)}catch{return Response.json({ok:false,error:"invalid_route_configuration"},{status:500,headers:cors})}
  const output=expandApiTemplate(template,{params,query,body}),status=Number(route.status_code)||200;
- return apiResponseFromConfig(output,{status,requestMethod:method,cors});
+ return apiResponseFromConfig(output,{status,requestMethod:method,request,cors});
 }
 async function handleSiteApi(request,parsed,env){
  const method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method;
@@ -450,7 +451,7 @@ async function handleSiteApi(request,parsed,env){
  let template;try{template=JSON.parse(endpoint.response_json)}catch{return Response.json({ok:false,error:"invalid_endpoint_configuration"},{status:500,headers:apiCors()})}
  const output=expandApiTemplate(template,{params,query,body});
  const status=Number(endpoint.response_status)||200;
- return apiResponseFromConfig(output,{status,requestMethod:method,cors:apiCors()});
+ return apiResponseFromConfig(output,{status,requestMethod:method,request,cors:apiCors()});
 }
 async function onSiteApiMethod({request,env}){
  let target;try{target=new URL(request.url).searchParams.get("url")||""}catch{}
