@@ -62,6 +62,7 @@ async function ensureProjectSchema(env){
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_projects (site_id TEXT PRIMARY KEY,hostname TEXT NOT NULL UNIQUE,title TEXT NOT NULL,developer_id TEXT,status TEXT NOT NULL DEFAULT 'draft',build_root TEXT NOT NULL DEFAULT '/',build_output TEXT NOT NULL DEFAULT '/dist',build_command TEXT NOT NULL DEFAULT 'npm run build',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_deployments (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT NOT NULL,version TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL)"),
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_databases (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,name TEXT NOT NULL UNIQUE,engine TEXT NOT NULL DEFAULT 'SQLite',status TEXT NOT NULL DEFAULT 'registered',created_at TEXT NOT NULL)"),
+  env.database.prepare("CREATE TABLE IF NOT EXISTS cp_page_databases (id TEXT PRIMARY KEY,site_id TEXT NOT NULL,name TEXT NOT NULL,engine TEXT NOT NULL DEFAULT 'SQLite',status TEXT NOT NULL DEFAULT 'ready',created_at TEXT NOT NULL,UNIQUE(site_id,name))"),
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_profiles (id INTEGER PRIMARY KEY CHECK(id=1),display_name TEXT NOT NULL DEFAULT 'Fairwas user',updated_at TEXT NOT NULL)"),
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_workers (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,name TEXT NOT NULL,script TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'draft',updated_at TEXT NOT NULL)"),
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_docs (id TEXT PRIMARY KEY,title TEXT NOT NULL,content TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL)")
@@ -116,6 +117,91 @@ export async function onRequest({request,env}){
   if(action==="databases"){
    const r=await env.database.prepare("SELECT * FROM cp_databases ORDER BY id DESC").all();
    return json({ok:true,items:r.results||[]});
+  }
+
+  if(action==="db-list"){
+   const siteId=String(u.searchParams.get("site_id")||"").trim();
+   const hostname=String(u.searchParams.get("hostname")||"").trim().toLowerCase();
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(developer&&project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const r=await env.database.prepare("SELECT id,site_id,name,engine,status,created_at FROM cp_page_databases WHERE site_id=? ORDER BY created_at,name").bind(project.site_id).all();
+   const items=[];
+   for(const db of r.results||[]){
+    const prefix="fwdb_"+project.site_id.replace(/[^a-zA-Z0-9]/g,"")+"_"+db.id.replace(/[^a-zA-Z0-9]/g,"")+"_";
+    const t=await env.database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ORDER BY name").bind(prefix+"%").all();
+    items.push({...db,tables:(t.results||[]).map(x=>x.name.slice(prefix.length))});
+   }
+   return json({ok:true,items});
+  }
+
+  if(action==="db-create"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
+   const siteId=String(b.site_id||"").trim(),name=String(b.name||"").trim();
+   if(!/^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(name))return json({ok:false,error:"invalid_database_name",detail:"Usa letras, números, guion o guion bajo (máximo 40 caracteres)."},400);
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const count=await env.database.prepare("SELECT COUNT(*) AS total FROM cp_page_databases WHERE site_id=?").bind(siteId).first();
+   if(Number(count?.total||0)>=20)return json({ok:false,error:"database_limit_reached",detail:"Cada sitio admite un máximo de 20 bases de datos."},409);
+   const stamp=now(),databaseId=id();
+   try{await env.database.prepare("INSERT INTO cp_page_databases(id,site_id,name,engine,status,created_at) VALUES(?,?,?,'SQLite','ready',?)").bind(databaseId,siteId,name,stamp).run()}
+   catch(e){if(/unique/i.test(String(e)))return json({ok:false,error:"database_name_exists"},409);throw e}
+   return json({ok:true,database:{id:databaseId,site_id:siteId,name,engine:"SQLite",status:"ready",created_at:stamp,tables:[]}});
+  }
+
+  if(action==="db-delete"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
+   const databaseId=String(b.database_id||"").trim(),siteId=String(b.site_id||"").trim();
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const db=await env.database.prepare("SELECT * FROM cp_page_databases WHERE id=? AND site_id=?").bind(databaseId,siteId).first();
+   if(!db)return json({ok:false,error:"database_not_found"},404);
+   const prefix="fwdb_"+siteId.replace(/[^a-zA-Z0-9]/g,"")+"_"+databaseId.replace(/[^a-zA-Z0-9]/g,"")+"_";
+   const tables=await env.database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?").bind(prefix+"%").all();
+   if((tables.results||[]).length)await env.database.batch(tables.results.map(t=>env.database.prepare('DROP TABLE IF EXISTS "'+t.name.replace(/"/g,'""')+'"')));
+   await env.database.prepare("DELETE FROM cp_page_databases WHERE id=? AND site_id=?").bind(databaseId,siteId).run();
+   return json({ok:true,deleted:databaseId});
+  }
+
+  if(action==="db-query"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
+   const hostname=String(b.hostname||"").trim().toLowerCase(),databaseName=String(b.database||"").trim();
+   let sql=String(b.sql||"").trim();
+   const params=Array.isArray(b.params)?b.params:[];
+   if(!hostname||!databaseName||!sql)return json({ok:false,error:"hostname_database_sql_required"},400);
+   if(sql.length>12000||params.length>100)return json({ok:false,error:"query_too_large"},413);
+   if(/[;]|--|\/\*|\*\//.test(sql)||/\b(?:PRAGMA|ATTACH|DETACH|VACUUM|REINDEX|ANALYZE|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|EXPLAIN|sqlite_master|sqlite_schema|load_extension)\b/i.test(sql))return json({ok:false,error:"sql_not_allowed",detail:"Solo se admite una consulta SQLite por petición; no se permiten instrucciones administrativas."},400);
+   const site=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' AND status='published' LIMIT 1").bind(hostname).first();
+   if(!site)return json({ok:false,error:"site_not_found"},404);
+   const db=await env.database.prepare("SELECT * FROM cp_page_databases WHERE site_id=? AND name=? AND status='ready' LIMIT 1").bind(site.site_id,databaseName).first();
+   if(!db)return json({ok:false,error:"database_not_found"},404);
+   const prefix="fwdb_"+site.site_id.replace(/[^a-zA-Z0-9]/g,"")+"_"+db.id.replace(/[^a-zA-Z0-9]/g,"")+"_";
+   const verb=(sql.match(/^([A-Za-z]+)/)||[])[1]?.toUpperCase();
+   if(!["SELECT","INSERT","UPDATE","DELETE","CREATE","DROP","ALTER"].includes(verb))return json({ok:false,error:"sql_not_allowed",detail:"Usa SQLite: SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE o ALTER TABLE."},400);
+   const refs=[];
+   const refPattern=/\b(?:FROM|JOIN|INTO|UPDATE|TABLE|DELETE\s+FROM)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)/gi;
+   let match;
+   while((match=refPattern.exec(sql))!==null){
+    const table=match[1];
+    if(["SELECT","SET","WHERE","VALUES","ON","AS"].includes(table.toUpperCase()))continue;
+    if(/^fwdb_/i.test(table)||/^sqlite_/i.test(table))return json({ok:false,error:"invalid_table_name"},400);
+    refs.push({name:table,start:match.index+match[0].lastIndexOf(table)});
+   }
+   if(!refs.length)return json({ok:false,error:"table_required",detail:"La consulta debe operar sobre una tabla de esta base de datos."},400);
+   for(const ref of refs.slice().sort((a,b)=>b.start-a.start))sql=sql.slice(0,ref.start)+prefix+ref.name+sql.slice(ref.start+ref.name.length);
+   try{
+    const statement=env.database.prepare(sql);
+    const result=verb==="SELECT"?await statement.bind(...params).all():await statement.bind(...params).run();
+    return json({ok:true,engine:"SQLite",results:result.results||[],meta:result.meta||null,changes:result.meta?.changes||0});
+   }catch(e){return json({ok:false,error:"sql_error",detail:String(e)},400)}
   }
 
   if(action==="servers"){
