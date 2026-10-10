@@ -169,9 +169,16 @@ function TabView({tab,active,navigate,history,bookmarks}){
   if(documentUrl===home||!protocolFor(documentUrl))return;
   (async()=>{
    const requestResolve=async url=>{
-    const response=await fetch("/api/resolve?url="+encodeURIComponent(url));
-    const data=await response.json().catch(()=>({}));
-    return{ok:response.ok&&data.ok,data,error:data.error||"resolve_failed"};
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort("resolve_timeout"),12000);
+    try{
+     const response=await fetch("/api/resolve?url="+encodeURIComponent(url),{signal:controller.signal,cache:"no-store"});
+     const data=await response.json().catch(()=>({ok:false,error:"invalid_server_response"}));
+     if(!response.ok||!data.ok)return{ok:false,data,error:data.error||("http_"+response.status)};
+     return{ok:true,data,error:null};
+    }catch(error){
+     return{ok:false,data:null,error:controller.signal.aborted?"resolve_timeout":String(error&&error.message||"network_error")};
+    }finally{clearTimeout(timeout)}
    };
    try{
     let result=await requestResolve(documentUrl);
@@ -241,7 +248,7 @@ function ProtocolPage({tab,scheme,resolved,resolveError,navigate}){
  }
  const missingFile=resolved?.document?.type==="site"&&resolved.document.error==="file_not_found";
  return <section className="webpage">
-  {resolveError||missingFile?<div className="not-found"><div className="not-found-icon">⌕</div><h1>{missingFile?"No existe el HTML de esta ruta":"No se puede abrir la página"}</h1><p>{missingFile?"Fairwas no encontró un archivo HTML publicado para esta dirección. Comprueba que el archivo esté guardado y publicado con su ruta exacta.":resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError}</p><code>{tab.url}</code></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Respuesta recibida":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
+  {resolveError||missingFile?<div className="not-found"><div className="not-found-icon">⌕</div><h1>{missingFile?"No existe el HTML de esta ruta":"No se puede abrir la página"}</h1><p>{missingFile?"Fairwas no encontró un archivo HTML publicado para esta dirección. Comprueba que el archivo esté guardado y publicado con su ruta exacta.":resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError==="resolve_timeout"?"El runtime de Fairwas no respondió en 12 segundos. Comprueba el despliegue de Cloudflare Pages y sus bindings D1.":resolveError}</p><code>{tab.url}</code><p><button type="button" onClick={()=>window.dispatchEvent(new CustomEvent("fairwas:retry-resolve",{detail:tab.url}))}>Reintentar</button></p></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Respuesta recibida":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
  </section>
 }
 createRoot(document.getElementById("root")).render(<App/>);
