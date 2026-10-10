@@ -35,6 +35,12 @@ Tipos admitidos: `json`, `text`, `html`, `xml`, `svg`, `css`, `javascript`, `csv
 
 Las rutas pueden leer cuerpos JSON, `application/x-www-form-urlencoded`, `multipart/form-data`, texto y binario. Las plantillas usan `{{params.clave}}`, `{{query.clave}}` y `{{body.clave}}`. En cuerpos de texto, usa `{{body.text}}`; en binarios, el cuerpo expone `{{body.base64}}`, `{{body.byteLength}}` y `{{body.content_type}}`. El límite actual de entrada es 1 MiB y las configuraciones de respuesta se limitan a 900 KB.
 
+## Dominios de almacenamiento
+
+Los dominios registrados con función `storage` exponen almacenamiento persistente del servicio en `httc://tu-dominio/kv/:clave` o `/storage/:clave`. Todas las operaciones requieren `Authorization: Bearer TU_CLAVE_API`: `GET` lee una clave, `POST` o `PUT` guarda el JSON enviado (por ejemplo, `{"value":{"enabled":true}}`) y `DELETE` elimina la clave. La clave API debe tener el permiso `api:read` para leer y `api:write` para escribir o borrar. Un `GET` en `/kv` lista hasta 100 claves, sin exponer sus valores.
+
+Los dominios de función `auth` o los servicios de tipo `identity` habilitan las rutas de cuentas `/auth/register`, `/auth/login`, `/auth/me` y `/auth/logout`. Los dominios `api` ejecutan las rutas configuradas para el servicio.
+
 ## Vídeos, imágenes y archivos
 
 Para archivos grandes, súbelos al proyecto como archivos estáticos en lugar de incrustarlos en la configuración de una API. Fairwas reconoce tipos como MP4, WebM, MP3, PNG, WebP, PDF y otros. Los archivos binarios estáticos y las respuestas binarios base64 con estado 200 admiten solicitudes HTTP `Range`, que los reproductores usan para buscar posiciones dentro del medio.
