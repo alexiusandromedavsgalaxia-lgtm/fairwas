@@ -55,16 +55,6 @@ export const resolveAddressInput=(input="",currentUrl="httc://home")=>{
 
 
 export const wwwCounterpart = (input = "") => {
- try {
-  const url = new URL(String(input || ""));
-  if (url.protocol !== "httc:" || !url.hostname) return null;
-  const hostname = url.hostname.toLowerCase();
-  if (hostname === "home" || hostname.endsWith(".fair") || hostname === "localhost" || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) return null;
-  const parts = hostname.split(".");
-  if (parts.length < 2) return null;
-  url.hostname = hostname.startsWith("www.") ? hostname.slice(4) : "www." + hostname;
-  return url.toString();
- } catch {
-  return null;
- }
+ // Fairwas hosts are resolved exactly as entered. Never require or inject www.
+ return null;
 };
