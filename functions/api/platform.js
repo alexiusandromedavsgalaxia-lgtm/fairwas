@@ -7,7 +7,7 @@ const token=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toStr
 async function hash(v){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v));return Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,"0")).join("")}
 async function schema(db){
  await db.batch([
-  db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_services(id TEXT PRIMARY KEY,developer_id TEXT NOT NULL,name TEXT NOT NULL,slug TEXT NOT NULL,service_type TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(developer_id,slug))"),
+  db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_services(id TEXT PRIMARY KEY,developer_id TEXT NOT NULL,site_id TEXT,name TEXT NOT NULL,slug TEXT NOT NULL,service_type TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(developer_id,slug))"),
   db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_domains(id TEXT PRIMARY KEY,service_id TEXT NOT NULL,hostname TEXT NOT NULL UNIQUE,kind TEXT NOT NULL DEFAULT 'api',created_at TEXT NOT NULL)"),
   db.prepare("CREATE INDEX IF NOT EXISTS idx_fw_platform_domains_service ON fw_platform_domains(service_id,hostname)"),
   db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_keys(id TEXT PRIMARY KEY,service_id TEXT NOT NULL,label TEXT NOT NULL,key_prefix TEXT NOT NULL,key_hash TEXT NOT NULL,scopes_json TEXT NOT NULL DEFAULT '[]',created_at TEXT NOT NULL,revoked_at TEXT)"),
@@ -17,8 +17,8 @@ async function schema(db){
   db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_connections(id TEXT PRIMARY KEY,service_id TEXT NOT NULL,target_service_id TEXT NOT NULL,label TEXT NOT NULL,scopes_json TEXT NOT NULL DEFAULT '[]',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,UNIQUE(service_id,target_service_id))"),
   db.prepare("CREATE TABLE IF NOT EXISTS fw_platform_kv(service_id TEXT NOT NULL,key TEXT NOT NULL,value_json TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(service_id,key))")
  ]);
-}
  try{await db.prepare("ALTER TABLE fw_platform_services ADD COLUMN site_id TEXT").run()}catch{}
+}
 async function owner(db,serviceId,developerId){
  const row=await db.prepare("SELECT id,developer_id,site_id,name,slug,service_type,description,status,created_at,updated_at FROM fw_platform_services WHERE id=? AND developer_id=? LIMIT 1").bind(serviceId,developerId).first();
  return row||null;
