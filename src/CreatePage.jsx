@@ -19,6 +19,7 @@ const privateRoutes=[
  ["/my/profile","Mi perfil"],
  ["/my/databases","Mis bases de datos"],
  ["/my/servers","Mis servidores"],
+ ["/my/apis","APIs y endpoints"],
  ["/init","Crear sitio"],
  ["/editor","Estudio web"],
  ["/ide","Editor de código"],
@@ -87,6 +88,7 @@ function Workspace({path,onNavigate}){
   effectivePath==="/my/sites"?<Sites sites={sites} onNavigate={onNavigate} onRefresh={reload}/>:
   effectivePath==="/my/databases"?<Databases dbs={dbs}/>:
   effectivePath==="/my/servers"?<Servers servers={servers}/>:
+  effectivePath==="/my/apis"?<ApiEndpoints sites={sites}/>:
   effectivePath==="/registry"?<Registry data={registry}/>:
   effectivePath==="/landscape"?<Landscape data={registry}/>:
   effectivePath==="/workers"?<Workers workers={workers}/>:
@@ -106,6 +108,65 @@ function Sites({sites,onNavigate,onRefresh}){
  const unpublish=async site=>{if(!window.confirm("¿Despublicar "+site.hostname+"? Dejará de estar disponible para los visitantes, pero podrás volver a publicarlo editándolo."))return;setBusy(v=>({...v,[site.site_id]:true}));setErrors(v=>({...v,[site.site_id]:""}));try{await api("unpublish",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({site_id:site.site_id})});setStats(v=>({...v,[site.site_id]:undefined}));await onRefresh?.()}catch(e){setErrors(v=>({...v,[site.site_id]:e.message}))}finally{setBusy(v=>({...v,[site.site_id]:false}))}};
  const deleteSite=async site=>{if(!window.confirm("ELIMINAR DEFINITIVAMENTE "+site.hostname+"? Se borrarán los archivos, la configuración, las bases de datos y el historial de visitas. Esta acción no se puede deshacer."))return;setBusy(v=>({...v,[site.site_id]:true}));setErrors(v=>({...v,[site.site_id]:""}));try{await api("delete-site",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({site_id:site.site_id})});setStats(v=>({...v,[site.site_id]:undefined}));await onRefresh?.()}catch(e){setErrors(v=>({...v,[site.site_id]:e.message}));setBusy(v=>({...v,[site.site_id]:false}))}};
  return <><Head eyebrow="MY / SITES" title="Mis sitios" text="Administra publicación, visitas y eliminación de tus páginas."/><div className="cp-list">{sites.map(s=><div className="cp-card cp-site-admin" key={s.site_id}><div className="cp-row"><div><b>{s.title}</b><small>httc://{s.hostname}</small></div><span className="cp-pill">{s.status}</span></div><div className="cp-site-actions"><button type="button" onClick={()=>navigate("/ide?site_id="+encodeURIComponent(s.site_id),onNavigate)}>Editar</button><button type="button" disabled={busy[s.site_id]} onClick={()=>stats[s.site_id]?setStats(v=>({...v,[s.site_id]:undefined})):visitStats(s)}>{busy[s.site_id]?"Consultando…":stats[s.site_id]?"Ocultar visitas":"Consultar visitas"}</button>{s.status==="published"&&<button type="button" disabled={busy[s.site_id]} onClick={()=>unpublish(s)}>Despublicar</button>}<button type="button" className="cp-site-danger" disabled={busy[s.site_id]} onClick={()=>deleteSite(s)}>Eliminar página</button></div>{errors[s.site_id]&&<div className="cp-error">{errors[s.site_id]}</div>}{stats[s.site_id]&&<div className="cp-visits"><div className="cp-visits-metrics"><div><b>{stats[s.site_id].total}</b><span>Visitas registradas</span></div><div><b>{stats[s.site_id].last30Days}</b><span>Últimos 30 días</span></div><div><b>{stats[s.site_id].lastVisit?new Date(stats[s.site_id].lastVisit).toLocaleString():"Nunca"}</b><span>Última visita</span></div></div>{stats[s.site_id].items.length>0?<div className="cp-visits-list"><b>Últimas visitas</b>{stats[s.site_id].items.slice(0,10).map((v,i)=><div key={v.visited_at+"-"+i}><span>{v.url}</span><small>{new Date(v.visited_at).toLocaleString()}</small></div>)}</div>:<p className="cp-empty">Todavía no hay visitas registradas.</p>}</div>}</div>)}{!sites.length&&<Empty text="Todavía no hay sitios."/>}</div></>
+}
+
+
+function ApiEndpoints({sites}){
+ const[siteId,setSiteId]=useState(sites[0]?.site_id||"");
+ const[items,setItems]=useState([]);
+ const[name,setName]=useState("Nuevo endpoint");
+ const[path,setPath]=useState("/api/hello/:name");
+ const[method,setMethod]=useState("GET");
+ const[status,setStatus]=useState("200");
+ const[response,setResponse]=useState(JSON.stringify({ok:true,message:"Hola {{params.name}}"},null,2));
+ const[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ const site=sites.find(s=>s.site_id===siteId);
+ const load=async id=>{
+  if(!id){setItems([]);return}
+  setBusy(true);setError("");
+  try{const r=await fetch("/api/endpoints?action=list&site_id="+encodeURIComponent(id));const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"request_failed");setItems(d.items||[])}
+  catch(e){setError(e.message)}
+  finally{setBusy(false)}
+ };
+ useEffect(()=>{if(!siteId&&sites[0]?.site_id)setSiteId(sites[0].site_id)},[sites,siteId]);
+ useEffect(()=>{load(siteId)},[siteId]);
+ const create=async()=>{
+  setBusy(true);setError("");setNotice("");
+  let jsonResponse;try{jsonResponse=JSON.parse(response)}catch{setBusy(false);setError("La respuesta debe ser JSON válido.");return}
+  try{
+   const r=await fetch("/api/endpoints?action=create",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({site_id:siteId,name,path,method,response_status:Number(status),response_json:jsonResponse})});
+   const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"request_failed");
+   setItems(v=>[d.endpoint,...v]);setNotice("Endpoint creado.");setName("Nuevo endpoint");setPath("/api/hello/:name");
+  }catch(e){setError(e.message)}
+  finally{setBusy(false)}
+ };
+ const remove=async item=>{
+  if(!window.confirm("¿Eliminar el endpoint "+item.method+" "+item.path+"?"))return;
+  setBusy(true);setError("");setNotice("");
+  try{const r=await fetch("/api/endpoints?action=delete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({site_id:siteId,id:item.id})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"request_failed");setItems(v=>v.filter(x=>x.id!==item.id));setNotice("Endpoint eliminado.")}
+  catch(e){setError(e.message)}
+  finally{setBusy(false)}
+ };
+ return <><Head eyebrow="API / ENDPOINTS" title="APIs y endpoints" text="Define rutas HTTP para cada sitio y responde con JSON sin crear un servidor desde cero."/>
+  {!sites.length?<div className="cp-card cp-empty">Primero crea un sitio en CreatePage.</div>:<>
+   <div className="cp-card cp-form">
+    <label>Sitio publicado<select value={siteId} onChange={e=>setSiteId(e.target.value)}>{sites.map(s=><option key={s.site_id} value={s.site_id}>{s.hostname} · {s.status}</option>)}</select></label>
+    {site&&<p className="cp-empty">URL base: <b>httc://{site.hostname}</b></p>}
+    <div className="cp-grid two">
+     <label>Nombre del endpoint<input value={name} onChange={e=>setName(e.target.value)} maxLength={80}/></label>
+     <label>Método HTTP<select value={method} onChange={e=>setMethod(e.target.value)}>{["GET","POST","PUT","PATCH","DELETE"].map(m=><option key={m}>{m}</option>)}</select></label>
+     <label>Ruta<input value={path} onChange={e=>setPath(e.target.value)} placeholder="/api/users/:id"/></label>
+     <label>Código HTTP<select value={status} onChange={e=>setStatus(e.target.value)}>{[200,201,202,204,400,401,403,404,409,422,429,500,503].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
+    </div>
+    <label>Respuesta JSON<textarea rows={7} value={response} onChange={e=>setResponse(e.target.value)} spellCheck={false}/></label>
+    <small>Variables: {"{{params.id}}"}, {"{{query.search}}"} y {"{{body.name}}"}.</small>
+    <button type="button" className="cp-primary" disabled={busy||!siteId} onClick={create}>{busy?"Guardando…":"＋ Crear endpoint"}</button>
+    {error&&<div className="cp-error">{error}</div>}{notice&&<p>{notice}</p>}
+   </div>
+   <div className="cp-section-heading"><div><small>ROUTES</small><h2>Endpoints de {site?.hostname||"tu sitio"}</h2></div><button type="button" onClick={()=>load(siteId)} disabled={busy}>↻ Actualizar</button></div>
+   <div className="cp-list">{items.map(item=><div className="cp-card" key={item.id}><div className="cp-row"><div><b>{item.name}</b><small>{item.method} · {item.path}</small></div><span className="cp-pill">{item.response_status}</span></div><pre className="cp-api-preview">{item.response_json}</pre><div className="cp-site-actions"><button type="button" className="cp-site-danger" disabled={busy} onClick={()=>remove(item)}>Eliminar endpoint</button></div><small>URL pública: httc://{item.hostname}{item.path}</small></div>)}{!items.length&&<Empty text={busy?"Cargando endpoints…":"Todavía no has creado endpoints para este sitio."}/>}</div>
+  </>}
+ </>;
 }
 
 function Databases({dbs}){return <><Head eyebrow="MY / DATABASES" title="Mis bases de datos" text="Recursos de datos registrados en Database."/><div className="cp-list">{dbs.map(d=><div className="cp-card cp-row" key={d.id}><div><b>{d.name}</b><small>{d.engine} · {d.status}</small></div><span className="cp-pill">{d.site_id?"Conectada":"Libre"}</span></div>)}{!dbs.length&&<Empty text="No hay bases de datos."/>}</div></>}
