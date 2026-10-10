@@ -241,6 +241,15 @@ function RedirectPage({target,navigate,baseUrl}){
 }
 
 function ProtocolPage({tab,scheme,resolved,resolveError,navigate,retry}){
+ if(resolved?.document?.type==="api"){
+  const apiDoc=resolved.document;
+  const apiType=String(apiDoc.contentType||"text/plain").split(";")[0].trim().toLowerCase();
+  let apiBody=String(apiDoc.body||"");
+  if(apiType==="application/json"||apiType.endsWith("+json")){try{apiBody=JSON.stringify(JSON.parse(apiBody),null,2)}catch{}}
+  const escapeHtml=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  const apiHtml=/^(?:text\/html|application\/xhtml\+xml)$/.test(apiType)?apiBody:'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Respuesta API · '+escapeHtml(tab.title)+'</title><style>body{font:14px/1.6 ui-monospace,monospace;padding:24px;background:#111318;color:#e8eaf0}header{font:13px system-ui,sans-serif;color:#aeb6c5;margin-bottom:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><header>Fairwas API · HTTP '+Number(apiDoc.status||200)+' · '+escapeHtml(apiType)+'</header><pre>'+escapeHtml(apiBody)+'</pre></body></html>';
+  return <section className="published-frame"><iframe key={"api-"+(tab.reloadToken||0)+"-"+apiDoc.status} title={tab.title+" API response"} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(apiHtml,tab.documentUrl||tab.url)}/></section>;
+ }
  if(tab.runtimeResponse?.html)return <section className="published-frame"><iframe key={"runtime-"+(tab.reloadToken||0)+"-"+tab.runtimeResponse.status} title={tab.title+" response"} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(tab.runtimeResponse.html,tab.documentUrl||tab.url)}/></section>;
  if(resolved?.document?.type==="site"&&resolved.document.file&&typeof resolved.document.file.content==="string"&&( /^(text\/html|application\/xhtml\+xml)$/i.test(String(resolved.document.file.content_type||"").split(";")[0].trim()) || /\.(html?|xhtml)$/i.test(String(resolved.document.file.path||"")) || /^\s*(<!doctype\s+html|<html(\s|>)|<head(\s|>)|<body(\s|>))/i.test(String(resolved.document.file.content)))){
   if(resolved.document.redirect)return <RedirectPage target={resolved.document.redirect} navigate={navigate} baseUrl={tab.url}/>;
