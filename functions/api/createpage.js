@@ -359,6 +359,7 @@ export async function onRequest({request,env}){
     env.database.prepare("DELETE FROM cp_deployments WHERE site_id=?").bind(siteId),
     env.database.prepare("DELETE FROM cp_projects WHERE site_id=?").bind(siteId)
    ]);
+   await env.pages.prepare("CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT,url TEXT NOT NULL,protocol TEXT NOT NULL,visited_at TEXT NOT NULL)").run();
    await env.pages.batch([
     env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(siteId),
     env.pages.prepare("DELETE FROM sites WHERE site_id=?").bind(siteId),
