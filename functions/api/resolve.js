@@ -458,7 +458,8 @@ async function handleMediaApi(request,parsed,env,serviceId,hostname){
   const type=String(body.content_type||"application/octet-stream").trim().slice(0,160);
   if(!Number.isSafeInteger(size)||size<1||size>500*1024*1024)return Response.json({ok:false,error:"invalid_media_size",detail:"El archivo debe ocupar entre 1 byte y 500 MB."},{status:413,headers:cors});
   const typeParts=type.split("/");
-  if(typeParts.length!==2||!typeParts[0]||!typeParts[1]||!/^[\w!#  if(!/^[\w!#$&^_.+-]+\/[\w!#$&^_.+-]+$/.test(type))return Response.json({ok:false,error:"invalid_content_type"},{status:400,headers:cors});^_.+-]+$/.test(typeParts[0])||!/^[\w!#  if(!/^[\w!#$&^_.+-]+\/[\w!#$&^_.+-]+$/.test(type))return Response.json({ok:false,error:"invalid_content_type"},{status:400,headers:cors});^_.+-]+$/.test(typeParts[1]))return Response.json({ok:false,error:"invalid_content_type"},{status:400,headers:cors});
+  const isMimeToken=value=>value.length>0&&Array.from(value).every(ch=>{const n=ch.charCodeAt(0);return (n>=48&&n<=57)||(n>=65&&n<=90)||(n>=97&&n<=122)||"!#$&^_.+-".includes(ch)});
+  if(typeParts.length!==2||!isMimeToken(typeParts[0])||!isMimeToken(typeParts[1]))return Response.json({ok:false,error:"invalid_content_type"},{status:400,headers:cors});
   const key=serviceId+"/"+crypto.randomUUID()+"/"+name;
   try{
    const upload=await env.media.createMultipartUpload(key,{httpMetadata:{contentType:type,contentDisposition:"inline; filename*=UTF-8''"+encodeURIComponent(name)}});
