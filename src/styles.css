@@ -48,3 +48,21 @@
 .cp-db-toggle:hover{border-color:var(--cp-accent,#b8f36b);}
 .cp-db-panel>.cp-empty{padding:12px 0;font-size:12px;}
 @media(max-width:440px){.cp-db-panel{padding:11px}.cp-db-toggle{padding:8px 9px;font-size:11px}}
+
+
+/* CreatePage site management */
+.cp-site-admin{display:grid;gap:13px;padding:15px;min-width:0}
+.cp-site-actions{display:flex;gap:7px;flex-wrap:wrap}
+.cp-site-actions button{border:1px solid var(--cp-border,#303746);border-radius:8px;background:var(--cp-soft,#1c222d);color:inherit;padding:8px 10px;font-size:11px;cursor:pointer}
+.cp-site-actions button:disabled{opacity:.5;cursor:wait}
+.cp-site-actions .cp-site-danger{border-color:#f871713d;color:#ffaaa5;background:#f871710d}
+.cp-visits{border-top:1px solid var(--cp-border,#303746);padding-top:13px;min-width:0}
+.cp-visits-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cp-visits-metrics>div{display:grid;gap:5px;padding:12px;border:1px solid var(--cp-border,#303746);border-radius:10px;min-width:0}
+.cp-visits-metrics b{font-size:18px;overflow-wrap:anywhere}
+.cp-visits-metrics span,.cp-visits-list small{font-size:10px;color:var(--cp-muted,#858b9a)}
+.cp-visits-list{display:grid;gap:8px;margin-top:14px}
+.cp-visits-list> b{font-size:12px}
+.cp-visits-list>div{display:grid;gap:4px;padding:9px 0;border-bottom:1px solid var(--cp-border,#303746);min-width:0}
+.cp-visits-list span{font-size:11px;overflow-wrap:anywhere}
+@media(max-width:520px){.cp-visits-metrics{grid-template-columns:1fr}.cp-site-actions button{flex:1}}
