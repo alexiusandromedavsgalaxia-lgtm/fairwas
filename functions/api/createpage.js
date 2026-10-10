@@ -179,7 +179,8 @@ export async function onRequest({request,env}){
    const params=Array.isArray(b.params)?b.params:[];
    if(!hostname||!databaseName||!sql)return json({ok:false,error:"hostname_database_sql_required"},400);
    if(sql.length>12000||params.length>100)return json({ok:false,error:"query_too_large"},413);
-   sql=sql.replace(/;\\s*$/,"").trim();\n   if(!sql||/;|--|\\/\\*|\\*\\//.test(sql)||/\\b(?:PRAGMA|ATTACH|DETACH|VACUUM|REINDEX|ANALYZE|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|EXPLAIN|sqlite_master|sqlite_schema|load_extension)\\b/i.test(sql))return json({ok:false,error:"sql_not_allowed",detail:"Se admite una sola consulta SQLite por petición. Puedes terminarla con punto y coma, pero no encadenar consultas ni usar comentarios o instrucciones administrativas."},400);
+   sql=sql.replace(/;\s*$/,"").trim();
+   if(!sql||/;|--|\/\*|\*\//.test(sql)||/\b(?:PRAGMA|ATTACH|DETACH|VACUUM|REINDEX|ANALYZE|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|EXPLAIN|sqlite_master|sqlite_schema|load_extension)\b/i.test(sql))return json({ok:false,error:"sql_not_allowed",detail:"Se admite una sola consulta SQLite por petición. Puedes terminarla con punto y coma, pero no encadenar consultas ni usar comentarios o instrucciones administrativas."},400);
    const site=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' AND status='published' LIMIT 1").bind(hostname).first();
    if(!site)return json({ok:false,error:"site_not_found"},404);
    const db=await env.database.prepare("SELECT * FROM cp_page_databases WHERE site_id=? AND name=? AND status='ready' LIMIT 1").bind(site.site_id,databaseName).first();
