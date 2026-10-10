@@ -1,7 +1,7 @@
 import React,{useEffect,useState}from"react";
 import{createRoot}from"react-dom/client";
 import"./styles.css";
-import{protocolFor,resolveAddressInput,wwwCounterpart}from"./protocols";
+import{protocolFor,resolveAddressInput}from"./protocols";
 import{load,save}from"./storage";
 import CreatePage from"./CreatePage";
 
@@ -175,14 +175,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
    };
    try{
     let result=await requestResolve(documentUrl);
-    if(!result.ok&&result.error==="site_not_found"){
-     const alternate=wwwCounterpart(documentUrl);
-     if(alternate&&alternate!==documentUrl){
-      const matched=await requestResolve(alternate);
-      if(matched.ok)result=matched;
-     }
-    }
-    if(!result.ok)throw new Error(result.error);
+if(!result.ok)throw new Error(result.error);
     if(!cancelled)setResolved(result.data);
    }catch(e){if(!cancelled)setResolveError(e.message||"resolve_failed")}
   })();
