@@ -246,7 +246,7 @@ function expandApiTemplate(value,ctx){
 }
 function apiResponseFromConfig(value,{status=200,requestMethod="GET",cors={},defaultHeaders={}}={}){
  const envelope=value&&typeof value==="object"&&!Array.isArray(value)?(value.__response||value.$response||null):null;
- if(!envelope)return Response.json(value,{status,headers:{"cache-control":"no-store",...cors,...defaultHeaders}});
+ if(!envelope){const headers={"cache-control":"no-store",...cors,...defaultHeaders};if(requestMethod==="HEAD")return new Response(null,{status,headers:{"content-type":"application/json; charset=utf-8",...headers}});return Response.json(value,{status,headers})}
  const type=String(envelope.type||"json").toLowerCase();
  const body=envelope.body??(type==="json"?{}:"");
  const headers={...cors,...defaultHeaders};
@@ -264,7 +264,7 @@ function apiResponseFromConfig(value,{status=200,requestMethod="GET",cors={},def
   headers.location=target;
   return new Response(null,{status:[301,302,303,307,308].includes(status)?status:302,headers});
  }
- if([204,205,304].includes(status))return new Response(null,{status,headers});
+ if([204,205,304].includes(status)||requestMethod==="HEAD")return new Response(null,{status,headers});
  let payload;
  if(type==="json"){
   return Response.json(body,{status,headers});
@@ -389,20 +389,20 @@ async function handlePlatformServiceApi(request,parsed,env){
 async function handleSiteApi(request,parsed,env){
  const method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method;
  const serviceResponse=await handlePlatformServiceApi(request,parsed,env);if(serviceResponse)return serviceResponse;
- if(!parsed.pathname.startsWith("/api/"))return null;
+ const isApiPath=parsed.pathname.startsWith("/api/");
  if(method==="OPTIONS")return new Response(null,{status:204,headers:apiCors()});
- if(!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method))return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
- if(!env.database||!env.pages)return Response.json({ok:false,error:"api_binding_missing"},{status:500,headers:apiCors()});
+ if(!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method))return isApiPath?Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()}):null;
+ if(!env.database||!env.pages)return isApiPath?Response.json({ok:false,error:"api_binding_missing"},{status:500,headers:apiCors()}):null;
  const hostname=parsed.hostname.toLowerCase();
  const site=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' AND status='published' LIMIT 1").bind(hostname).first();
  if(!site)return null;
  let rows;
  try{
-  rows=await env.database.prepare("SELECT id,path,method,response_status,response_json FROM fw_api_endpoints WHERE site_id=? AND hostname=? AND enabled=1 AND method=?").bind(site.site_id,hostname,lookupMethod).all();
+  rows=await env.database.prepare("SELECT id,path,method,response_status,response_json FROM fw_api_endpoints WHERE site_id=? AND hostname=? AND enabled=1 AND method IN (?,?) ORDER BY CASE WHEN method=? THEN 0 ELSE 1 END").bind(site.site_id,hostname,method,lookupMethod,method).all();
  }catch{return null}
  let endpoint=null,params={};
  for(const row of rows.results||[]){const matched=routeMatch(row.path,parsed.pathname);if(matched){endpoint=row;params=matched;break}}
- if(!endpoint)return Response.json({ok:false,error:"endpoint_not_found",path:parsed.pathname,method},{status:404,headers:apiCors()});
+ if(!endpoint)return isApiPath?Response.json({ok:false,error:"endpoint_not_found",path:parsed.pathname,method},{status:404,headers:apiCors()}):null;
  let body={};
  if(!["GET","HEAD"].includes(method)){
   const raw=await request.text();
