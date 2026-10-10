@@ -493,12 +493,24 @@ async function handleMediaApi(request,parsed,env,serviceId,hostname){
  if(segments[1]==="files"&&(method==="GET"||method==="HEAD")){
   let key;try{key=decodeURIComponent(segments.slice(2).join("/"))}catch{return Response.json({ok:false,error:"invalid_media_key"},{status:400,headers:cors})}
   if(!key.startsWith(serviceId+"/")||key.includes(".."))return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-  const range=request.headers.get("range");
-  let object;try{object=await env.media.get(key,range?{range}:undefined)}catch{return Response.json({ok:false,error:"media_read_failed"},{status:500,headers:cors})}
+  const rangeHeader=request.headers.get("range");
+  let object,totalSize=null,rangeInfo=null;
+  try{
+   if(rangeHeader){
+    const meta=await env.media.head(key);if(!meta)return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
+    totalSize=meta.size;
+    const match=rangeHeader.match(/^bytes=(\\d*)-(\\d*)$/);
+    if(!match)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+totalSize}});
+    let start=match[1]?Number(match[1]):null,end=match[2]?Number(match[2]):null;
+    if(start===null){const suffix=end||0;start=Math.max(0,totalSize-suffix);end=totalSize-1}else if(end===null)end=totalSize-1;
+    if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start||start>=totalSize)return new Response(null,{status:416,headers:{...cors,"content-range":"bytes */"+totalSize}});
+    end=Math.min(end,totalSize-1);rangeInfo={offset:start,length:end-start+1};object=await env.media.get(key,{range:rangeInfo});
+   }else object=await (method==="HEAD"?env.media.head(key):env.media.get(key));
+  }catch{return Response.json({ok:false,error:"media_read_failed"},{status:500,headers:cors})}
   if(!object)return Response.json({ok:false,error:"media_not_found"},{status:404,headers:cors});
-  const headers={"content-type":object.httpMetadata?.contentType||"application/octet-stream","content-length":String(object.size),"accept-ranges":"bytes","cache-control":"public, max-age=31536000, immutable","x-content-type-options":"nosniff",etag:object.httpEtag||object.etag,...cors};
-  if(object.range){headers["content-range"]="bytes "+object.range.offset+"-"+(object.range.offset+object.range.length-1)+"/"+object.size;headers["content-length"]=String(object.range.length)}
-  return new Response(method==="HEAD"?null:object.body,{status:object.range?206:200,headers});
+  const headers={"content-type":object.httpMetadata?.contentType||"application/octet-stream","content-length":String(rangeInfo?.length??object.size),"accept-ranges":"bytes","cache-control":"public, max-age=31536000, immutable","x-content-type-options":"nosniff",etag:object.httpEtag||object.etag,...cors};
+  if(rangeInfo)headers["content-range"]="bytes "+rangeInfo.offset+"-"+(rangeInfo.offset+rangeInfo.length-1)+"/"+totalSize;
+  return new Response(method==="HEAD"?null:object.body,{status:rangeInfo?206:200,headers});
  }
  return Response.json({ok:false,error:"media_endpoint_not_found",detail:"Usa POST /media/uploads/init, /media/uploads/part y /media/uploads/complete; los archivos se sirven desde /media/files/."},{status:404,headers:cors});
 }
