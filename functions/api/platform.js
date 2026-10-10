@@ -54,10 +54,14 @@ export async function onRequest({request,env}){
   const name=clean(b.name,80),slug=clean(b.slug||name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""),64),type=clean(b.service_type,20),description=clean(b.description,500);
   if(!name||!slugOk(slug))return json({ok:false,error:"invalid_service",detail:"Pon un nombre y un identificador corto válido."},400);
   if(!["api","cloud","identity","storage","gateway"].includes(type))return json({ok:false,error:"invalid_service_type"},400);
+  const siteId=clean(b.site_id,80);
+  if(!siteId)return json({ok:false,error:"site_required",detail:"Abre el backend desde el IDE de una página publicada."},400);
+  const project=await env.database.prepare("SELECT site_id,developer_id FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
+  if(!project||project.developer_id!==dev.developer_id)return json({ok:false,error:"site_not_owned",detail:"La página no pertenece a esta cuenta de desarrollador."},403);
   const id=crypto.randomUUID();
-  try{await env.database.prepare("INSERT INTO fw_platform_services(id,developer_id,name,slug,service_type,description,status,created_at,updated_at) VALUES(?,?,?,?,?,?,'active',?,?)").bind(id,dev.developer_id,name,slug,type,description,stamp,stamp).run()}
+  try{await env.database.prepare("INSERT INTO fw_platform_services(id,developer_id,site_id,name,slug,service_type,description,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?)").bind(id,dev.developer_id,siteId,name,slug,type,description,stamp,stamp).run()}
   catch{return json({ok:false,error:"service_slug_exists",detail:"Ya existe un servicio con ese identificador."},409)}
-  return json({ok:true,service:{id,developer_id:dev.developer_id,name,slug,service_type:type,description,status:"active",created_at:stamp,updated_at:stamp}},201);
+  return json({ok:true,service:{id,developer_id:dev.developer_id,site_id:siteId,name,slug,service_type:type,description,status:"active",created_at:stamp,updated_at:stamp}},201);
  }
  const service=await owner(env.database,serviceId,dev.developer_id);
  if(!service)return json({ok:false,error:"service_not_found"},404);
