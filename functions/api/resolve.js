@@ -230,24 +230,24 @@ async function publishedDocument(parsed,env){
 function apiCors(){return {"access-control-allow-origin":"*","access-control-allow-methods":"GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS","access-control-allow-headers":"content-type, authorization","access-control-max-age":"86400"}}
 function routeMatch(pattern,path){
  const a=String(pattern).split("/").filter(Boolean),b=String(path).split("/").filter(Boolean),out={};
- let i=0;
- for(;i<a.length;i++){
+ let j=0;
+ for(let i=0;i<a.length;i++){
   const segment=a[i];
   if(segment==="*"||segment.startsWith("*")){
    const key=segment.slice(1)||"wildcard";
    if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(key))return null;
-   try{out[key]=b.slice(i).map(decodeURIComponent).join("/")}catch{return null}
+   try{out[key]=b.slice(j).map(part=>decodeURIComponent(part)).join("/")}catch{return null}
    return out;
   }
   if(segment.startsWith(":")){
    const optional=segment.endsWith("?"),key=segment.slice(1,optional?-1:undefined);
    if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(key))return null;
-   if(i>=b.length){if(optional)continue;return null}
-   try{out[key]=decodeURIComponent(b[i])}catch{return null}
-  }else if(b[i]!==segment)return null;
-  i++;
+   if(j>=b.length){if(optional)continue;return null}
+   try{out[key]=decodeURIComponent(b[j])}catch{return null}
+   j++;
+  }else{if(b[j]!==segment)return null;j++}
  }
- return i===b.length?out:null;
+ return j===b.length?out:null;
 }
 function expandApiTemplate(value,ctx){
  if(typeof value==="string")return value.replace(/\{\{\s*(params|query|body)\.([A-Za-z0-9_]+)\s*\}\}/g,(all,source,key)=>ctx[source]?.[key]==null?"":String(ctx[source][key]));
