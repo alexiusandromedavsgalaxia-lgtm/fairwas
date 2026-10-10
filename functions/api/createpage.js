@@ -146,6 +146,8 @@ export async function onRequest({request,env}){
    const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
    if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const published=await env.pages.prepare("SELECT status FROM sites WHERE site_id=? AND protocol='httc' LIMIT 1").bind(siteId).first();
+   if(!published||published.status!=="published")return json({ok:false,error:"site_not_published",detail:"Publica el sitio antes de crear una base de datos."},409);
    const count=await env.database.prepare("SELECT COUNT(*) AS total FROM cp_page_databases WHERE site_id=?").bind(siteId).first();
    if(Number(count?.total||0)>=20)return json({ok:false,error:"database_limit_reached",detail:"Cada sitio admite un máximo de 20 bases de datos."},409);
    const stamp=now(),databaseId=id();
