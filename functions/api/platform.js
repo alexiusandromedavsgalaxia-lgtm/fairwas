@@ -107,7 +107,8 @@ export async function onRequest({request,env}){
  if(action==="route-create"){
   const method=clean(b.method||"GET",10).toUpperCase(),path=clean(b.path,180),status=Number(b.status_code||200),raw=typeof b.response_json==="string"?b.response_json:JSON.stringify(b.response_json??{ok:true});
   if(!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(method)||!path.startsWith("/")||path.length<2||path.includes("?")||path.includes("#")||path.includes("//")||path.split("/").some(x=>x===".."||x===".")||raw.length>900000||!Number.isInteger(status)||status<200||status>599)return json({ok:false,error:"invalid_route",detail:"Revisa método, ruta, código y JSON de respuesta."},400);
-  try{JSON.parse(raw)}catch{return json({ok:false,error:"invalid_response_json"},400)}
+  let routeConfig;try{routeConfig=JSON.parse(raw)}catch{return json({ok:false,error:"invalid_response_json"},400)}
+  if(routeConfig?.__operation&&routeConfig.__operation.type==="collection"&&!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(String(routeConfig.__operation.collection||"")))return json({ok:false,error:"invalid_collection_name",detail:"Usa un nombre de colección como products o user_profiles."},400)
   const id=crypto.randomUUID();
   try{await env.database.prepare("INSERT INTO fw_platform_routes(id,service_id,method,path,status_code,response_json,auth_required,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,serviceId,method,path,status,raw,b.auth_required?1:0,stamp,stamp).run()}
   catch{return json({ok:false,error:"route_exists"},409)}
