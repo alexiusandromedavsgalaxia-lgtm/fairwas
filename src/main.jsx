@@ -1,7 +1,7 @@
 import React,{useEffect,useState}from"react";
 import{createRoot}from"react-dom/client";
 import"./styles.css";
-import{protocolFor,resolveAddressInput}from"./protocols";
+import{protocolFor,resolveAddressInput,wwwCounterpart}from"./protocols";
 import{load,save}from"./storage";
 import CreatePage from"./CreatePage";
 
@@ -175,7 +175,8 @@ function TabView({tab,active,navigate,history,bookmarks}){
    };
    try{
     let result=await requestResolve(documentUrl);
-if(!result.ok)throw new Error(result.error);
+    if(!result.ok){const alternate=wwwCounterpart(documentUrl);if(alternate){const fallback=await requestResolve(alternate);if(fallback.ok)result=fallback}}
+    if(!result.ok)throw new Error(result.error);
     if(!cancelled)setResolved(result.data);
    }catch(e){if(!cancelled)setResolveError(e.message||"resolve_failed")}
   })();
