@@ -56,3 +56,18 @@ test("query-only and fragment-only input preserve the current URL correctly", ()
     "httc://site.fair/users_list?user_name=axel#profile_card"
   );
 });
+
+test("address parsing separates the hostname from complex routes and parameters", () => {
+  assert.equal(
+    resolveAddressInput("miweb.fair/perfil/axel?foo=bar&user_name=axel#section_2"),
+    "httc://miweb.fair/perfil/axel?foo=bar&user_name=axel#section_2"
+  );
+  assert.equal(
+    resolveAddressInput("httc://miweb.fair/user_settings?theme=dark&lang=es"),
+    "httc://miweb.fair/user_settings?theme=dark&lang=es"
+  );
+  assert.equal(
+    resolveAddressInput("miweb.fair/api/v1/items?filter=created_at%3Adesc"),
+    "httc://miweb.fair/api/v1/items?filter=created_at%3Adesc"
+  );
+});
