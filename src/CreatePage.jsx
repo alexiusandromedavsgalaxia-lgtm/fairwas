@@ -284,7 +284,37 @@ function PlatformServices({siteId="",siteHostname=""}){
  const createDomain=()=>run(()=>request("domain-create",{service_id:selectedService?.id,hostname:domain,kind:domainKind}),"Dominio de servicio registrado.");
  const createKey=()=>run(()=>request("key-create",{service_id:selectedService?.id,label:keyLabel,scopes:["api:read","api:write"]}),"Clave generada. Cópiala ahora: no se vuelve a mostrar.");
  const revokeKey=id=>{if(window.confirm("¿Revocar esta clave? Las peticiones que la usen dejarán de funcionar."))run(()=>request("key-revoke",{service_id:selectedService?.id,id}),"Clave revocada.")};
- const createRoute=()=>{if(!routeMethods.length){setError("Selecciona al menos un método HTTP.");return}let parsed;if(routeType==="database"){const collection=routeJson.trim();if(!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(collection)){setError("Usa un nombre de colección válido, por ejemplo products.");return}parsed={__operation:{type:"collection",collection,id_param:"id"}}}else if(routeType==="json"){try{parsed=JSON.parse(routeJson)}catch{setError("La respuesta debe ser JSON válido.");return}}else{parsed={__response:{type:routeType,body:routeJson,...(routeContentType.trim()?{content_type:routeContentType.trim()}: {})}}}return run(()=>request("route-create",{service_id:selectedService?.id,path:routePath,methods:routeMethods,status_code:Number(routeStatus),response_json:parsed,auth_required:routeAuth}),"Ruta API creada para "+routeMethods.join(", ")+".")};
+ const createRoute=async()=>{
+  if(busy)return;
+  const serviceId=selectedService?.id;
+  if(!serviceId){setError("Selecciona o crea primero un servicio de backend.");return}
+  if(!routeMethods.length){setError("Selecciona al menos un método HTTP.");return}
+  const cleanPath=routePath.trim();
+  if(!cleanPath.startsWith("/")||cleanPath.length<2){setError("La ruta debe empezar por / y tener un nombre, por ejemplo /api/status.");return}
+  let parsed;
+  if(routeType==="database"){
+   const collection=routeJson.trim();
+   if(!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(collection)){setError("Usa un nombre de colección válido, por ejemplo products.");return}
+   parsed={__operation:{type:"collection",collection,id_param:"id"}};
+  }else if(routeType==="json"){
+   try{parsed=JSON.parse(routeJson)}catch{setError("La respuesta debe ser JSON válido.");return}
+  }else{
+   parsed={__response:{type:routeType,body:routeJson,...(routeContentType.trim()?{content_type:routeContentType.trim()}: {})}};
+  }
+  setBusy(true);setError("");setNotice("");
+  try{
+   const d=await request("route-create",{service_id:serviceId,path:cleanPath,methods:routeMethods,status_code:Number(routeStatus),response_json:parsed,auth_required:routeAuth});
+   const added=d.routes||(d.route?[d.route]:[]);
+   if(!added.length)throw new Error("El servidor respondió sin confirmar ninguna ruta guardada.");
+   setItems(current=>current.map(service=>{
+    if(service.id!==serviceId)return service;
+    const routes=service.routes||[];
+    return {...service,routes:[...routes.filter(route=>!added.some(item=>item.method===route.method&&item.path===route.path)),...added].sort((a,b)=>a.path.localeCompare(b.path)||a.method.localeCompare(b.method))};
+   }));
+   setNotice("Ruta guardada correctamente: "+added.map(route=>route.method+" "+route.path).join(", "));
+  }catch(e){setError(e.message||"No se pudo crear la ruta.");}
+  finally{setBusy(false);}
+ };
  const createRedirect=()=>run(()=>request("redirect-create",{service_id:selectedService?.id,source_uri:redirectSource,target_uri:redirectTarget,status_code:Number(redirectStatus)}),"Redirección creada.");
  const remove=(action,id,msg)=>run(()=>request(action,{service_id:selectedService?.id,id}),msg);
  return <><Head eyebrow={siteId?"PROJECT / BACKEND":"PLATFORM / CLOUD"} title={siteId?"Backend y APIs del proyecto":"Cloud y servicios"} text={siteId?"Este backend pertenece a "+siteHostname+". Configura aquí sus subdominios, rutas, cuentas, claves, almacenamiento y conexiones.":"Administra los servicios de tu cuenta."}/>
