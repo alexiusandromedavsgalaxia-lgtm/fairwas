@@ -432,12 +432,12 @@ async function handlePlatformServiceApi(request,parsed,env){
 }
 
 async function runCollectionOperation(db,scopeType,scopeId,operation,method,params,query,body){
+ const respond=(data,status=200)=>method==="HEAD"?new Response(null,{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store",...apiCors()}}):Response.json(data,{status,headers:{"cache-control":"no-store",...apiCors()}});
  const collection=String(operation.collection||"").trim();
  if(!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(collection))return respond({ok:false,error:"invalid_collection_name"},400);
  const idParam=/^[A-Za-z][A-Za-z0-9_]*$/.test(String(operation.id_param||"id"))?String(operation.id_param||"id"):"id";
  const id=params?.[idParam]??params?.id??"";
  const now=new Date().toISOString();
- const respond=(data,status=200)=>method==="HEAD"?new Response(null,{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store",...apiCors()}}):Response.json(data,{status,headers:{"cache-control":"no-store",...apiCors()}});
  try{await db.prepare("CREATE TABLE IF NOT EXISTS fw_api_records(scope_type TEXT NOT NULL,scope_id TEXT NOT NULL,collection TEXT NOT NULL,record_id TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(scope_type,scope_id,collection,record_id))").run()}
  catch{return respond({ok:false,error:"database_not_ready"},503)}
  const base="SELECT record_id,data_json,created_at,updated_at FROM fw_api_records WHERE scope_type=? AND scope_id=? AND collection=?";
@@ -446,7 +446,7 @@ async function runCollectionOperation(db,scopeType,scopeId,operation,method,para
    const row=await db.prepare(base+" AND record_id=? LIMIT 1").bind(scopeType,scopeId,collection,String(id)).first();
    if(!row)return respond({ok:false,error:"record_not_found",id:String(id)},404);
    let item;try{item=JSON.parse(row.data_json)}catch{item={}}
-   return respond({ok:true,item,meta:{id:row.record_id,created_at:row.created_at,updated_at:row.updated_at}},{headers:{"cache-control":"no-store",...apiCors()}});
+   return respond({ok:true,item,meta:{id:row.record_id,created_at:row.created_at,updated_at:row.updated_at}});
   }
   const limit=Math.max(1,Math.min(100,Number.parseInt(query?.limit||"50",10)||50)),offset=Math.max(0,Math.min(10000,Number.parseInt(query?.offset||"0",10)||0));
   const result=await db.prepare(base+" ORDER BY updated_at DESC LIMIT ? OFFSET ?").bind(scopeType,scopeId,collection,limit,offset).all();
@@ -460,10 +460,10 @@ async function runCollectionOperation(db,scopeType,scopeId,operation,method,para
   const data={...body};delete data._created_at;delete data._updated_at;data.id=recordId;
   try{await db.prepare("INSERT INTO fw_api_records(scope_type,scope_id,collection,record_id,data_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(scopeType,scopeId,collection,recordId,JSON.stringify(data),now,now).run()}
   catch{return respond({ok:false,error:"record_already_exists",id:recordId},409)}
-  return respond({ok:true,item:data,meta:{id:recordId,created_at:now,updated_at:now}},{status:201,headers:{"cache-control":"no-store",...apiCors()}});
+  return respond({ok:true,item:data,meta:{id:recordId,created_at:now,updated_at:now}},201);
  }
- if(["PUT","PATCH"].includes(method)){
-  if(!id)return Response.json({ok:false,error:"record_id_required"},400);
+ if(method==="PUT"||method==="PATCH"){
+  if(!id)return respond({ok:false,error:"record_id_required"},400);
   if(!body||typeof body!=="object"||Array.isArray(body))return respond({ok:false,error:"object_body_required"},400);
   const old=await db.prepare(base+" AND record_id=? LIMIT 1").bind(scopeType,scopeId,collection,String(id)).first();
   if(!old)return respond({ok:false,error:"record_not_found",id:String(id)},404);
@@ -479,9 +479,8 @@ async function runCollectionOperation(db,scopeType,scopeId,operation,method,para
   if(!(result.meta?.changes>0))return respond({ok:false,error:"record_not_found",id:String(id)},404);
   return respond({ok:true,deleted:String(id)});
  }
- return Response.json({ok:false,error:"method_not_allowed"},405);
+ return respond({ok:false,error:"method_not_allowed"},405);
 }
-
 async function handleSiteApi(request,parsed,env){
  const method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method;
  const serviceResponse=await handlePlatformServiceApi(request,parsed,env);if(serviceResponse)return serviceResponse;
