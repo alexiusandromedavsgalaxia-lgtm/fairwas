@@ -116,7 +116,8 @@ export async function onRequest({request,env}){
 
   if(action==="databases"){
    const r=await env.database.prepare("SELECT * FROM cp_databases ORDER BY id DESC").all();
-   return json({ok:true,items:r.results||[]});
+   const pageDbs=await env.database.prepare("SELECT * FROM cp_page_databases ORDER BY created_at DESC").all();
+   return json({ok:true,items:[...(pageDbs.results||[]),...(r.results||[])]});
   }
 
   if(action==="db-list"){
@@ -125,7 +126,7 @@ export async function onRequest({request,env}){
    const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
    const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
-   if(developer&&project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
    const r=await env.database.prepare("SELECT id,site_id,name,engine,status,created_at FROM cp_page_databases WHERE site_id=? ORDER BY created_at,name").bind(project.site_id).all();
    const items=[];
    for(const db of r.results||[]){
@@ -186,6 +187,7 @@ export async function onRequest({request,env}){
    const prefix="fwdb_"+site.site_id.replace(/[^a-zA-Z0-9]/g,"")+"_"+db.id.replace(/[^a-zA-Z0-9]/g,"")+"_";
    const verb=(sql.match(/^([A-Za-z]+)/)||[])[1]?.toUpperCase();
    if(!["SELECT","INSERT","UPDATE","DELETE","CREATE","DROP","ALTER"].includes(verb))return json({ok:false,error:"sql_not_allowed",detail:"Usa SQLite: SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE o ALTER TABLE."},400);
+   if(/\bFROM\s+[A-Za-z_][A-Za-z0-9_]*(?:\s+(?:AS\s+)?[A-Za-z_][A-Za-z0-9_]*)?\s*,/i.test(sql))return json({ok:false,error:"comma_joins_not_supported",detail:"Usa JOIN explícitos para mantener aisladas las tablas de cada base de datos."},400);
    const refs=[];
    const refPattern=/\b(?:FROM|JOIN|INTO|UPDATE|TABLE|DELETE\s+FROM)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)/gi;
    let match;
