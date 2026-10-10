@@ -229,14 +229,25 @@ async function publishedDocument(parsed,env){
 
 function apiCors(){return {"access-control-allow-origin":"*","access-control-allow-methods":"GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS","access-control-allow-headers":"content-type, authorization","access-control-max-age":"86400"}}
 function routeMatch(pattern,path){
- const a=String(pattern).split("/").filter(Boolean),b=String(path).split("/").filter(Boolean);
- if(a.length!==b.length)return null;
- const out={};
- for(let i=0;i<a.length;i++){
-  if(a[i].startsWith(":")){if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(a[i].slice(1)))return null;try{out[a[i].slice(1)]=decodeURIComponent(b[i])}catch{return null}}
-  else if(a[i]!==b[i])return null;
+ const a=String(pattern).split("/").filter(Boolean),b=String(path).split("/").filter(Boolean),out={};
+ let i=0;
+ for(;i<a.length;i++){
+  const segment=a[i];
+  if(segment==="*"||segment.startsWith("*")){
+   const key=segment.slice(1)||"wildcard";
+   if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(key))return null;
+   try{out[key]=b.slice(i).map(decodeURIComponent).join("/")}catch{return null}
+   return out;
+  }
+  if(segment.startsWith(":")){
+   const optional=segment.endsWith("?"),key=segment.slice(1,optional?-1:undefined);
+   if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(key))return null;
+   if(i>=b.length){if(optional)continue;return null}
+   try{out[key]=decodeURIComponent(b[i])}catch{return null}
+  }else if(b[i]!==segment)return null;
+  i++;
  }
- return out;
+ return i===b.length?out:null;
 }
 function expandApiTemplate(value,ctx){
  if(typeof value==="string")return value.replace(/\{\{\s*(params|query|body)\.([A-Za-z0-9_]+)\s*\}\}/g,(all,source,key)=>ctx[source]?.[key]==null?"":String(ctx[source][key]));
@@ -290,6 +301,12 @@ async function readApiBody(request,method){
    if(total>1024*1024)return {ok:false,status:413,error:"request_too_large"};
   }
   return {ok:true,body};
+ }
+ if(!contentType.includes("application/json")&&!contentType.includes("+json")&&!contentType.includes("application/x-www-form-urlencoded")&&!contentType.startsWith("text/")&&!contentType.includes("xml")&&!contentType.includes("javascript")){
+  let bytes;try{bytes=new Uint8Array(await request.arrayBuffer())}catch{return {ok:false,status:400,error:"invalid_request_body"}}
+  if(bytes.byteLength>1024*1024)return {ok:false,status:413,error:"request_too_large"}
+  let binary="";for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return {ok:true,body:{base64:btoa(binary),byteLength:bytes.byteLength,content_type:contentType||"application/octet-stream"}};
  }
  let raw;try{raw=await request.text()}catch{return {ok:false,status:400,error:"invalid_request_body"}}
  if(new TextEncoder().encode(raw).byteLength>1024*1024)return {ok:false,status:413,error:"request_too_large"};
