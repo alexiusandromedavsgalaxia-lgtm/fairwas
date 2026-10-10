@@ -33,3 +33,26 @@ test("domain correspondence ignores internal hosts, IP addresses and non-HTTC UR
   assert.equal(wwwCounterpart("httc://127.0.0.1"), null);
   assert.equal(wwwCounterpart("https://roblox.com"), null);
 });
+
+
+test("bare domains accept query parameters, underscores and fragments", () => {
+  assert.equal(
+    resolveAddressInput("site.fair/users_list?user_name=axel&sort=created_at#profile_card"),
+    "httc://site.fair/users_list?user_name=axel&sort=created_at#profile_card"
+  );
+  assert.equal(
+    resolveAddressInput("my_site.fair/api_v1?include_deleted=true"),
+    "httc://my_site.fair/api_v1?include_deleted=true"
+  );
+});
+
+test("query-only and fragment-only input preserve the current URL correctly", () => {
+  assert.equal(
+    resolveAddressInput("?page=2&sort=created_at", "httc://site.fair/users_list?old=1"),
+    "httc://site.fair/users_list?page=2&sort=created_at"
+  );
+  assert.equal(
+    resolveAddressInput("#profile_card", "httc://site.fair/users_list?user_name=axel"),
+    "httc://site.fair/users_list?user_name=axel#profile_card"
+  );
+});
