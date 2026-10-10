@@ -152,7 +152,7 @@ async function renderSiteHtml(siteId,html,env,htmlPath="/index.html",hostname=""
     const safeName=JSON.stringify(String(db.name)).replace(/</g,"\\u003c");
     const safeHost=JSON.stringify(String(hostname).toLowerCase()).replace(/</g,"\\u003c");
     const client="<script id=\"fairwas-database-client\">(function(){const initialDatabase="+safeName+",hostname="+safeHost+",apiUrl=\"/api/createpage?action=db-query\";window.fairwasDB={database:initialDatabase,hostname:hostname,use:function(name){if(typeof name!==\"string\"||!name.trim())throw new TypeError(\"database name required\");this.database=name.trim();return this},query:async function(sql,params=[]){if(typeof sql!==\"string\"||!sql.trim())throw new TypeError(\"SQL query required\");const response=await fetch(apiUrl,{method:\"POST\",headers:{\"content-type\":\"application/json\"},body:JSON.stringify({hostname:this.hostname,database:this.database,sql:sql,params:params})});const result=await response.json().catch(()=>({ok:false,error:\"invalid_server_response\"}));if(!response.ok||!result.ok)throw new Error(result.detail||result.error||\"database_query_failed\");return result}}})();</script>";
-    const marker=/<script\\s+id=["']fairwas-database-client["'][^>]*>[\\s\\S]*?<\\/script>/i;
+    const marker=/<script\s+id=["']fairwas-database-client["'][^>]*>[\s\S]*?<\/script>/i;
     output=marker.test(output)?output.replace(marker,client):output.includes("</head>")?output.replace("</head>",client+"</head>"):output.includes("</body>")?output.replace("</body>",client+"</body>"):output+client;
    }
   }catch(error){/* Keep the page available if its optional database binding is unavailable. */}
