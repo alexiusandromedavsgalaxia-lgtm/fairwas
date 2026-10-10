@@ -433,52 +433,53 @@ async function handlePlatformServiceApi(request,parsed,env){
 
 async function runCollectionOperation(db,scopeType,scopeId,operation,method,params,query,body){
  const collection=String(operation.collection||"").trim();
- if(!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(collection))return Response.json({ok:false,error:"invalid_collection_name"},{status:400,headers:apiCors()});
+ if(!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(collection))return respond({ok:false,error:"invalid_collection_name"},400);
  const idParam=/^[A-Za-z][A-Za-z0-9_]*$/.test(String(operation.id_param||"id"))?String(operation.id_param||"id"):"id";
  const id=params?.[idParam]??params?.id??"";
  const now=new Date().toISOString();
+ const respond=(data,status=200)=>method==="HEAD"?new Response(null,{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store",...apiCors()}}):Response.json(data,{status,headers:{"cache-control":"no-store",...apiCors()}});
  try{await db.prepare("CREATE TABLE IF NOT EXISTS fw_api_records(scope_type TEXT NOT NULL,scope_id TEXT NOT NULL,collection TEXT NOT NULL,record_id TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(scope_type,scope_id,collection,record_id))").run()}
- catch{return Response.json({ok:false,error:"database_not_ready"},{status:503,headers:apiCors()})}
+ catch{return respond({ok:false,error:"database_not_ready"},503)}
  const base="SELECT record_id,data_json,created_at,updated_at FROM fw_api_records WHERE scope_type=? AND scope_id=? AND collection=?";
  if(method==="GET"||method==="HEAD"){
   if(id){
    const row=await db.prepare(base+" AND record_id=? LIMIT 1").bind(scopeType,scopeId,collection,String(id)).first();
-   if(!row)return Response.json({ok:false,error:"record_not_found",id:String(id)},{status:404,headers:apiCors()});
+   if(!row)return respond({ok:false,error:"record_not_found",id:String(id)},404);
    let item;try{item=JSON.parse(row.data_json)}catch{item={}}
-   return Response.json({ok:true,item,meta:{id:row.record_id,created_at:row.created_at,updated_at:row.updated_at}},{headers:{"cache-control":"no-store",...apiCors()}});
+   return respond({ok:true,item,meta:{id:row.record_id,created_at:row.created_at,updated_at:row.updated_at}},{headers:{"cache-control":"no-store",...apiCors()}});
   }
   const limit=Math.max(1,Math.min(100,Number.parseInt(query?.limit||"50",10)||50)),offset=Math.max(0,Math.min(10000,Number.parseInt(query?.offset||"0",10)||0));
   const result=await db.prepare(base+" ORDER BY updated_at DESC LIMIT ? OFFSET ?").bind(scopeType,scopeId,collection,limit,offset).all();
   const items=(result.results||[]).map(row=>{try{return {...JSON.parse(row.data_json),id:row.record_id,_created_at:row.created_at,_updated_at:row.updated_at}}catch{return {id:row.record_id}}});
-  return Response.json({ok:true,items,limit,offset},{headers:{"cache-control":"no-store",...apiCors()}});
+  return respond({ok:true,items,limit,offset});
  }
  if(method==="POST"){
-  if(!body||typeof body!=="object"||Array.isArray(body))return Response.json({ok:false,error:"object_body_required"},{status:400,headers:apiCors()});
+  if(!body||typeof body!=="object"||Array.isArray(body))return respond({ok:false,error:"object_body_required"},400);
   const recordId=String(body.id||crypto.randomUUID()).trim().slice(0,180);
-  if(!recordId)return Response.json({ok:false,error:"record_id_required"},{status:400,headers:apiCors()});
+  if(!recordId)return respond({ok:false,error:"record_id_required"},400);
   const data={...body};delete data._created_at;delete data._updated_at;data.id=recordId;
   try{await db.prepare("INSERT INTO fw_api_records(scope_type,scope_id,collection,record_id,data_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(scopeType,scopeId,collection,recordId,JSON.stringify(data),now,now).run()}
-  catch{return Response.json({ok:false,error:"record_already_exists",id:recordId},{status:409,headers:apiCors()})}
-  return Response.json({ok:true,item:data,meta:{id:recordId,created_at:now,updated_at:now}},{status:201,headers:{"cache-control":"no-store",...apiCors()}});
+  catch{return respond({ok:false,error:"record_already_exists",id:recordId},409)}
+  return respond({ok:true,item:data,meta:{id:recordId,created_at:now,updated_at:now}},{status:201,headers:{"cache-control":"no-store",...apiCors()}});
  }
  if(["PUT","PATCH"].includes(method)){
-  if(!id)return Response.json({ok:false,error:"record_id_required"},{status:400,headers:apiCors()});
-  if(!body||typeof body!=="object"||Array.isArray(body))return Response.json({ok:false,error:"object_body_required"},{status:400,headers:apiCors()});
+  if(!id)return Response.json({ok:false,error:"record_id_required"},400);
+  if(!body||typeof body!=="object"||Array.isArray(body))return respond({ok:false,error:"object_body_required"},400);
   const old=await db.prepare(base+" AND record_id=? LIMIT 1").bind(scopeType,scopeId,collection,String(id)).first();
-  if(!old)return Response.json({ok:false,error:"record_not_found",id:String(id)},{status:404,headers:apiCors()});
+  if(!old)return respond({ok:false,error:"record_not_found",id:String(id)},404);
   let prior={};try{prior=JSON.parse(old.data_json)}catch{}
   const data=method==="PATCH"?{...prior,...body,id:String(id)}:{...body,id:String(id)};
   delete data._created_at;delete data._updated_at;
   await db.prepare("UPDATE fw_api_records SET data_json=?,updated_at=? WHERE scope_type=? AND scope_id=? AND collection=? AND record_id=?").bind(JSON.stringify(data),now,scopeType,scopeId,collection,String(id)).run();
-  return Response.json({ok:true,item:data,meta:{id:String(id),created_at:old.created_at,updated_at:now}},{headers:{"cache-control":"no-store",...apiCors()}});
+  return respond({ok:true,item:data,meta:{id:String(id),created_at:old.created_at,updated_at:now}});
  }
  if(method==="DELETE"){
-  if(!id)return Response.json({ok:false,error:"record_id_required"},{status:400,headers:apiCors()});
+  if(!id)return respond({ok:false,error:"record_id_required"},400);
   const result=await db.prepare("DELETE FROM fw_api_records WHERE scope_type=? AND scope_id=? AND collection=? AND record_id=?").bind(scopeType,scopeId,collection,String(id)).run();
-  if(!(result.meta?.changes>0))return Response.json({ok:false,error:"record_not_found",id:String(id)},{status:404,headers:apiCors()});
-  return Response.json({ok:true,deleted:String(id)},{headers:{"cache-control":"no-store",...apiCors()}});
+  if(!(result.meta?.changes>0))return respond({ok:false,error:"record_not_found",id:String(id)},404);
+  return respond({ok:true,deleted:String(id)});
  }
- return Response.json({ok:false,error:"method_not_allowed"},{status:405,headers:apiCors()});
+ return Response.json({ok:false,error:"method_not_allowed"},405);
 }
 
 async function handleSiteApi(request,parsed,env){
