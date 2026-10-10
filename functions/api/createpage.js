@@ -306,6 +306,68 @@ export async function onRequest({request,env}){
    return json({ok:true,site:site||project,project,files:files.results||[]});
   }
 
+  if(action==="visits"){
+   const siteId=String(u.searchParams.get("site_id")||"").trim();
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():null;
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   await env.pages.prepare("CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT,url TEXT NOT NULL,protocol TEXT NOT NULL,visited_at TEXT NOT NULL)").run();
+   await env.pages.prepare("CREATE INDEX IF NOT EXISTS idx_visits_id ON visits(id DESC)").run();
+   const prefix="httc://"+project.hostname;
+   const rows=await env.pages.prepare("SELECT id,url,visited_at FROM visits WHERE substr(url,1,?)=? ORDER BY id DESC").bind(prefix.length,prefix).all();
+   const matched=(rows.results||[]).filter(v=>{try{const parsed=new URL(v.url);return parsed.hostname.toLowerCase()===project.hostname.toLowerCase()&&parsed.protocol==="httc:"}catch{return false}});
+   const cutoff=Date.now()-30*24*60*60*1000;
+   const recent=matched.filter(v=>Date.parse(v.visited_at)>=cutoff);
+   return json({ok:true,hostname:project.hostname,total:matched.length,last30Days:recent.length,lastVisit:matched[0]?.visited_at||null,items:matched.slice(0,50).map(v=>({url:v.url,visited_at:v.visited_at}))});
+  }
+
+  if(action==="unpublish"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
+   const siteId=String(b.site_id||"").trim();
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const stamp=now();
+   await env.pages.prepare("UPDATE sites SET status='unpublished',updated_at=? WHERE site_id=?").bind(stamp,siteId).run();
+   await env.server.prepare("UPDATE servers SET status='inactive',updated_at=? WHERE site_id=?").bind(stamp,siteId).run();
+   await env.database.prepare("UPDATE cp_projects SET status='unpublished',updated_at=? WHERE site_id=?").bind(stamp,siteId).run();
+   await env.database.prepare("INSERT INTO cp_deployments(site_id,version,status,created_at) VALUES(?,?,?,?)").bind(siteId,"unpublish-"+Date.now(),"unpublished",stamp).run();
+   return json({ok:true,site_id:siteId,hostname:project.hostname,status:"unpublished"});
+  }
+
+  if(action==="delete-site"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
+   const siteId=String(b.site_id||"").trim();
+   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
+   if(!project)return json({ok:false,error:"site_not_found"},404);
+   if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
+   const databases=await env.database.prepare("SELECT id FROM cp_page_databases WHERE site_id=?").bind(siteId).all();
+   for(const db of databases.results||[]){
+    const prefix="fwdb_"+siteId.replace(/[^a-zA-Z0-9]/g,"")+"_"+String(db.id).replace(/[^a-zA-Z0-9]/g,"")+"_";
+    const tables=await env.database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND substr(name,1,?)=?").bind(prefix.length,prefix).all();
+    if((tables.results||[]).length)await env.database.batch(tables.results.map(t=>env.database.prepare('DROP TABLE IF EXISTS "'+String(t.name).replace(/"/g,'""')+'"')));
+   }
+   await env.database.batch([
+    env.database.prepare("DELETE FROM cp_page_databases WHERE site_id=?").bind(siteId),
+    env.database.prepare("DELETE FROM cp_databases WHERE site_id=?").bind(siteId),
+    env.database.prepare("DELETE FROM cp_workers WHERE site_id=?").bind(siteId),
+    env.database.prepare("DELETE FROM cp_deployments WHERE site_id=?").bind(siteId),
+    env.database.prepare("DELETE FROM cp_projects WHERE site_id=?").bind(siteId)
+   ]);
+   await env.pages.batch([
+    env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(siteId),
+    env.pages.prepare("DELETE FROM sites WHERE site_id=?").bind(siteId),
+    env.pages.prepare("DELETE FROM visits WHERE substr(url,1,?)=? AND (length(url)=? OR substr(url,?,1) IN ('/','?','#'))").bind(("httc://"+project.hostname).length,"httc://"+project.hostname,("httc://"+project.hostname).length,("httc://"+project.hostname).length+1)
+   ]);
+   await env.server.prepare("DELETE FROM servers WHERE site_id=?").bind(siteId).run();
+   return json({ok:true,site_id:siteId,hostname:project.hostname,deleted:true});
+  }
+
   if(action==="update"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
