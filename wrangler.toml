@@ -27,7 +27,8 @@ database_name="users"
 database_id="e13c0728-7e13-458f-a19b-fdf54ee78f02"
 preview_database_id="users"
 
-# Create this R2 bucket in Cloudflare before deploying: fairwas-media
-[[r2_buckets]]
-binding = "media"
-bucket_name = "fairwas-media"
+[[d1_databases]]
+binding = "songsave"
+database_name = "songsave"
+database_id = "f2c1d0f0-2ed8-4844-8cd6-0324859beccf"
+preview_database_id = "songsave"
