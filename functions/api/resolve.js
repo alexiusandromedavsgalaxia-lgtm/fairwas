@@ -264,7 +264,14 @@ function routeMatch(pattern,path){
  return j===b.length?out:null;
 }
 function expandApiTemplate(value,ctx){
- if(typeof value==="string")return value.replace(/\{\{\s*(params|query|body)\.([A-Za-z0-9_]+)\s*\}\}/g,(all,source,key)=>ctx[source]?.[key]==null?"":String(ctx[source][key]));
+ if(typeof value==="string"){
+  // Support explicit templates such as {{params.id}} and route-style
+  // placeholders such as :id in response values. Resolve :id only when
+  // the current matched route actually defines that parameter.
+  return value
+   .replace(/\{\{\s*(params|query|body)\.([A-Za-z0-9_]+)\s*\}\}/g,(all,source,key)=>ctx[source]?.[key]==null?"":String(ctx[source][key]))
+   .replace(/:([A-Za-z][A-Za-z0-9_]*)\b/g,(all,key)=>Object.prototype.hasOwnProperty.call(ctx.params||{},key)?String(ctx.params[key]):all);
+ }
  if(Array.isArray(value))return value.map(v=>expandApiTemplate(v,ctx));
  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,expandApiTemplate(v,ctx)]));
  return value;
