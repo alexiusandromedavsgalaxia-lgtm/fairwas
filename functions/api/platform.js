@@ -20,7 +20,7 @@ async function schema(db){
 }
  try{await db.prepare("ALTER TABLE fw_platform_services ADD COLUMN site_id TEXT").run()}catch{}
 async function owner(db,serviceId,developerId){
- const row=await db.prepare("SELECT id,developer_id,name,slug,service_type,description,status,created_at,updated_at FROM fw_platform_services WHERE id=? AND developer_id=? LIMIT 1").bind(serviceId,developerId).first();
+ const row=await db.prepare("SELECT id,developer_id,site_id,name,slug,service_type,description,status,created_at,updated_at FROM fw_platform_services WHERE id=? AND developer_id=? LIMIT 1").bind(serviceId,developerId).first();
  return row||null;
 }
 export async function onRequest({request,env}){
@@ -32,7 +32,8 @@ export async function onRequest({request,env}){
  if(action==="public-route")return json({ok:false,error:"use_runtime_router"},400);
  if(request.method==="GET"){
   if(action==="list"){
-   const rows=await env.database.prepare("SELECT * FROM fw_platform_services WHERE developer_id=? ORDER BY created_at DESC").bind(dev.developer_id).all();
+   const siteId=clean(url.searchParams.get("site_id"),80);
+   const rows=siteId?await env.database.prepare("SELECT * FROM fw_platform_services WHERE developer_id=? AND site_id=? ORDER BY created_at DESC").bind(dev.developer_id,siteId).all():await env.database.prepare("SELECT * FROM fw_platform_services WHERE developer_id=? ORDER BY created_at DESC").bind(dev.developer_id).all();
    const items=[];
    for(const s of rows.results||[]){
     const domains=await env.database.prepare("SELECT id,hostname,kind,created_at FROM fw_platform_domains WHERE service_id=? ORDER BY hostname").bind(s.id).all();
