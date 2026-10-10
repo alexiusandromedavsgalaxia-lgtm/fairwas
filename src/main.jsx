@@ -116,8 +116,9 @@ function App(){
    </div>
    <div className="toolbar">
     <div className="navgroup">
-     <button onClick={goBack} disabled={!tab.back.length} aria-label="Atrás">‹</button>
-     <button onClick={goForward} disabled={!tab.forward.length} aria-label="Adelante">›</button>
+     <button onClick={goBack} disabled={!tab.back.length} aria-label="Atrás" title="Atrás">‹</button>
+     <button onClick={goForward} disabled={!tab.forward.length} aria-label="Adelante" title="Adelante">›</button>
+     <button onClick={()=>{if(tab.url===home)return;setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1,runtimeResponse:null}:x));}} disabled={tab.url===home} aria-label="Recargar página" title="Recargar página">↻</button>
     </div>
     <form className="addressbar" onSubmit={e=>{e.preventDefault();navigate()}}>
       <span className="site-control">⌄</span>
