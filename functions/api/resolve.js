@@ -426,7 +426,7 @@ async function handlePlatformServiceApi(request,parsed,env){
  const query=Object.fromEntries(parsed.searchParams.entries());
  let template;try{template=JSON.parse(route.response_json)}catch{return Response.json({ok:false,error:"invalid_route_configuration"},{status:500,headers:cors})}
  const output=expandApiTemplate(template,{params,query,body}),status=Number(route.status_code)||200;
- return apiResponseFromConfig(output,{status,requestMethod:method,request,cors});
+ return apiResponseFromConfig(output,{status,requestMethod:method,request,cors,defaultHeaders:{"x-fairwas-endpoint":"1"}});
 }
 async function handleSiteApi(request,parsed,env){
  const method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method;
@@ -451,7 +451,7 @@ async function handleSiteApi(request,parsed,env){
  let template;try{template=JSON.parse(endpoint.response_json)}catch{return Response.json({ok:false,error:"invalid_endpoint_configuration"},{status:500,headers:apiCors()})}
  const output=expandApiTemplate(template,{params,query,body});
  const status=Number(endpoint.response_status)||200;
- return apiResponseFromConfig(output,{status,requestMethod:method,request,cors:apiCors()});
+ return apiResponseFromConfig(output,{status,requestMethod:method,request,cors:apiCors(),defaultHeaders:{"x-fairwas-endpoint":"1"}});
 }
 async function onSiteApiMethod({request,env}){
  let target;try{target=new URL(request.url).searchParams.get("url")||""}catch{}
