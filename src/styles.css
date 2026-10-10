@@ -36,3 +36,15 @@
 .cp-db-docs p{color:var(--cp-muted,#858b9a);line-height:1.65}
 .cp-db-docs pre{padding:12px;border-radius:9px;background:var(--cp-editor-bg,#10131a)}
 @media(max-width:520px){.cp-db-create{flex-direction:column}.cp-db-create button{width:100%}.cp-db-panel .cp-section-heading{align-items:flex-start}}
+
+/* Compact, collapsible database manager */
+.cp-db-panel{margin-top:14px;padding:12px 14px;}
+.cp-db-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;}
+.cp-db-toggle-row>div{display:grid;gap:4px;min-width:0;}
+.cp-db-toggle-row small{font-size:9px;letter-spacing:.12em;color:var(--cp-muted,#858b9a);}
+.cp-db-toggle-row b{font-size:14px;}
+.cp-db-toggle-row span{font-size:11px;color:var(--cp-muted,#858b9a);}
+.cp-db-toggle{flex:none;border:1px solid var(--cp-border,#303746);border-radius:9px;background:var(--cp-soft,#1c222d);color:inherit;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+.cp-db-toggle:hover{border-color:var(--cp-accent,#b8f36b);}
+.cp-db-panel>.cp-empty{padding:12px 0;font-size:12px;}
+@media(max-width:440px){.cp-db-panel{padding:11px}.cp-db-toggle{padding:8px 9px;font-size:11px}}
