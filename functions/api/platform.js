@@ -75,7 +75,9 @@ export async function onRequest({request,env}){
   const hostname=clean(b.hostname,253).toLowerCase(),kind=clean(b.kind||"api",20);
   if(!hostOk(hostname)||!["api","auth","storage","app","custom"].includes(kind))return json({ok:false,error:"invalid_domain",detail:"Usa un hostname como api.mi-servicio.aploscabluchel."},400);
   const existing=await env.database.prepare("SELECT id FROM fw_platform_domains WHERE hostname=? LIMIT 1").bind(hostname).first();
-  if(existing)return json({ok:false,error:"domain_taken"},409);
+  const published=env.pages?await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? AND protocol='httc' LIMIT 1").bind(hostname).first():null;
+  let serverDomain=null;try{serverDomain=env.server?await env.server.prepare("SELECT id FROM servers WHERE hostname=? AND protocol='httc' LIMIT 1").bind(hostname).first():null}catch{}
+  if(existing||published||serverDomain)return json({ok:false,error:"domain_taken",detail:"Ese hostname ya está ocupado en Fairwas."},409);
   const id=crypto.randomUUID();
   await env.database.prepare("INSERT INTO fw_platform_domains(id,service_id,hostname,kind,created_at) VALUES(?,?,?,?,?)").bind(id,serviceId,hostname,kind,stamp).run();
   return json({ok:true,domain:{id,service_id:serviceId,hostname,kind,created_at:stamp}},201);
