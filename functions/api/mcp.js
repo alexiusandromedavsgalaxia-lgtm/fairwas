@@ -35,7 +35,7 @@ function normalizeFiles(input){
 async function readJson(request){const len=Number(request.headers.get("content-length")||0);if(len>22*1024*1024)return null;try{return await request.json()}catch{return null}}
 async function getDeveloper(env){if(!env.database)return null;return await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first()}
 async function ownedProject(env,siteId,developer){if(!siteId||!developer)return null;const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();return project&&project.developer_id===developer.developer_id?project:null}
-async function runTool(name,args,env){
+export async function runTool(name,args,env){
  if(!env.database||!env.pages||!env.server)throw new Error("Faltan los bindings D1 database, pages o server.");
  const developer=await getDeveloper(env);if(!developer)throw new Error("developer_not_registered");
  if(name==="list_sites"){
