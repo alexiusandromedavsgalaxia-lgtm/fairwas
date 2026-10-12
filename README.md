@@ -49,4 +49,4 @@ La plataforma de servicios, dominios HTTC, rutas API, claves, almacenamiento y s
 
 ## Integración con IAs (MCP)
 
-Fairwas incluye un servidor MCP en `/api/mcp` para clientes de IA compatibles. Permite listar sitios, leer archivos, editarlos y publicar proyectos con autenticación Bearer. Antes de usarlo, configura el secreto `MCP_TOKEN` en Cloudflare. Consulta la [guía de configuración MCP](docs/MCP.md).
+Fairwas incluye un servidor MCP en `/api/mcp` y una API REST alternativa en `/api/ai` para asistentes que no admiten MCP. Ambas permiten listar sitios, leer y editar archivos y publicar proyectos con autenticación Bearer. Configura `MCP_TOKEN` para MCP o `FAIRWAS_API_TOKEN` para REST en Cloudflare. Consulta la [guía MCP](docs/MCP.md) y la [guía REST para IA](docs/API.md).
