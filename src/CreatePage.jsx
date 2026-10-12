@@ -35,7 +35,6 @@ const privateRoutes=[
  ["/my/profile","Mi perfil"],
  ["/my/databases","Mis bases de datos"],
  ["/my/servers","Mis servidores"],
- ["/my/apis","APIs para IA"],
  ["/init","Crear sitio"],
  ["/editor","Estudio web"],
  ["/ide","Editor de código"],
@@ -104,7 +103,6 @@ function Workspace({path,onNavigate}){
   effectivePath==="/my/sites"?<Sites sites={sites} onNavigate={onNavigate} onRefresh={reload}/>:
   effectivePath==="/my/databases"?<Databases dbs={dbs}/>:
   effectivePath==="/my/servers"?<Servers servers={servers}/>:
-  effectivePath==="/my/apis"?<AIIntegrations/>:
   effectivePath==="/registry"?<Registry data={registry}/>:
   effectivePath==="/landscape"?<Landscape data={registry}/>:
   effectivePath==="/workers"?<Workers workers={workers}/>:
@@ -365,13 +363,3 @@ function PlatformServices({siteId="",siteHostname=""}){
 }
 
 
-function AIIntegrations(){
- const [action,setAction]=useState("list_sites");
- const [sample,setSample]=useState("curl -X POST https://TU-DOMINIO/api/ai \\\n  -H \"Authorization: Bearer TU_API_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"action\":\"list_sites\",\"args\":{}}'");
- const updateSample=next=>{
-  setAction(next);
-  const args=next==="list_sites"?"{}":next==="list_files"?'{"site_id":"ID_DEL_SITIO"}':next==="read_file"?'{"site_id":"ID_DEL_SITIO","path":"/index.html"}':next==="write_file"?'{"site_id":"ID_DEL_SITIO","path":"/index.html","content":"<h1>Hola</h1>"}':'{"hostname":"demo.aploscabluchel","title":"Demo","files":[{"path":"/index.html","content":"<h1>Hola</h1>"}]}';
-  setSample("curl -X POST https://TU-DOMINIO/api/ai \\\n  -H \"Authorization: Bearer TU_API_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '"+JSON.stringify({action:next,args})+"'");
- };
- return <><Head eyebrow="INTEGRACIONES / IA" title="APIs para conectar cualquier IA" text="¿La IA no admite MCP? Dale acceso a Fairwas mediante una API REST estándar con JSON y una clave Bearer."/><div className="cp-grid two"><div className="cp-card cp-form"><h3>↗ Endpoint REST</h3><label>URL de la API<input readOnly value="https://TU-DOMINIO/api/ai" onFocus={e=>e.target.select()}/></label><p className="cp-empty">Sustituye TU-DOMINIO por el dominio real de Fairwas después del despliegue. La API acepta GET para consultar las acciones y POST para ejecutarlas.</p><a href="https://github.com/alexiusandromedavsgalaxia-lgtm/fairwas/blob/main/docs/API.md" target="_blank" rel="noreferrer">Abrir documentación REST ↗</a></div><div className="cp-card cp-form"><h3>🔐 Clave de acceso</h3><p>En Cloudflare abre el proyecto Fairwas → Settings → Variables and Secrets y añade el secreto <code>FAIRWAS_API_TOKEN</code> con una clave aleatoria larga.</p><p className="cp-empty">No pegues la clave aquí ni la guardes en el frontend. La IA debe enviarla como <code>Authorization: Bearer TU_API_TOKEN</code>. También se acepta <code>MCP_TOKEN</code> como alternativa si ya lo configuraste.</p><a href="https://github.com/alexiusandromedavsgalaxia-lgtm/fairwas/blob/main/docs/MCP.md" target="_blank" rel="noreferrer">Configurar MCP ↗</a></div></div><div className="cp-card cp-form"><h3>Probar / preparar una llamada</h3><label>Acción<select value={action} onChange={e=>updateSample(e.target.value)}>{[["list_sites","Listar sitios"],["list_files","Listar archivos"],["read_file","Leer archivo"],["write_file","Escribir archivo"],["publish_site","Publicar sitio"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label><label>Ejemplo HTTP<textarea rows={7} value={sample} onChange={e=>setSample(e.target.value)} spellCheck={false}/></label><button type="button" onClick={()=>navigator.clipboard?.writeText(sample)}>Copiar ejemplo</button><p className="cp-empty">Acciones disponibles: list_sites, list_files, read_file, write_file y publish_site. La API comprueba que el sitio pertenece a tu cuenta antes de permitir cambios.</p></div></>;
-}
