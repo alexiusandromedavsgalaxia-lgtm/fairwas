@@ -223,7 +223,8 @@ function Editor({siteId=""}){
  const[apiPanelOpen,setApiPanelOpen]=useState(false);
  const[aiApiAction,setAiApiAction]=useState("write_file");
  const[aiApiPath,setAiApiPath]=useState("/routes/mainpage/index.html");
- const[aiApiContent,setAiApiContent]=useState("<!doctype html>\\n<html><head><meta charset=\\"utf-8\\"><title>Mi sitio</title></head><body><h1>Creado por IA</h1></body></html>");
+  const[aiApiContent,setAiApiContent]=useState(`<!doctype html>
+<html><head><meta charset="utf-8"><title>Mi sitio</title></head><body><h1>Creado por IA</h1></body></html>`);
  const syncAIFiles=async()=>{if(!activeSiteId){setStatus("Publica primero el proyecto para darle un ID a la IA.");return}setStatus("Sincronizando archivos desde Fairwas…");try{const d=await api("site&site_id="+encodeURIComponent(activeSiteId));const incoming=d.files||[];if(!incoming.length)throw new Error("El servidor no devolvió archivos.");setFiles(incoming);const next=incoming.find(f=>f.path===selected)||incoming[0];setSelected(next.path);setCode(next.content||"");setStatus("Archivos sincronizados desde Fairwas. Si la IA ha guardado cambios por API, ya puedes verlos aquí.")}catch(e){setStatus(e.message||"No se pudieron sincronizar los archivos.")}};
  const aiApiExample=()=>JSON.stringify({action:aiApiAction,args:aiApiAction==="list_sites"?{}:aiApiAction==="list_files"?{site_id:activeSiteId||"ID_DEL_SITIO"}:aiApiAction==="read_file"?{site_id:activeSiteId||"ID_DEL_SITIO",path:aiApiPath}:aiApiAction==="write_file"?{site_id:activeSiteId||"ID_DEL_SITIO",path:aiApiPath,content:aiApiContent}: {site_id:activeSiteId||"ID_DEL_SITIO",files:[{path:aiApiPath,content:aiApiContent}] }},null,2);
 
