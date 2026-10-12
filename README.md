@@ -46,3 +46,7 @@ CreatePage y la migración estática no solicitan una clave de administración. 
 ## Cloud y servicios
 
 La plataforma de servicios, dominios HTTC, rutas API, claves, almacenamiento y servicios de identidad está documentada en [`docs/PLATFORM.md`](docs/PLATFORM.md).
+
+## Integración con IAs (MCP)
+
+Fairwas incluye un servidor MCP en `/api/mcp` para clientes de IA compatibles. Permite listar sitios, leer archivos, editarlos y publicar proyectos con autenticación Bearer. Antes de usarlo, configura el secreto `MCP_TOKEN` en Cloudflare. Consulta la [guía de configuración MCP](docs/MCP.md).
