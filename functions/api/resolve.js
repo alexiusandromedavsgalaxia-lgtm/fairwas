@@ -1,4 +1,5 @@
 import { rewriteCssUrls, rewriteJavaScriptImports, rewriteJavaScriptLocationRedirects, transformHtmlDocument } from "../../src/runtime/parsers.js";
+import { autoRenderFile } from "../../src/runtime/auto-render.js";
 const ALLOWED=new Set(["httc"]);
 const DESCRIPTION="Fairwas global web protocol";
 function contentType(path){const p=String(path||"").toLowerCase(),ext=p.includes(".")?p.slice(p.lastIndexOf(".")):"";return ({".html":"text/html; charset=utf-8",".htm":"text/html; charset=utf-8",".css":"text/css; charset=utf-8",".js":"text/javascript; charset=utf-8",".mjs":"text/javascript; charset=utf-8",".cjs":"text/javascript; charset=utf-8",".json":"application/json; charset=utf-8",".csv":"text/csv; charset=utf-8",".pdf":"application/pdf",".svg":"image/svg+xml",".txt":"text/plain; charset=utf-8",".xml":"application/xml; charset=utf-8",".webmanifest":"application/manifest+json",".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",".gif":"image/gif",".webp":"image/webp",".avif":"image/avif",".ico":"image/x-icon",".bmp":"image/bmp",".woff":"font/woff",".woff2":"font/woff2",".ttf":"font/ttf",".otf":"font/otf",".eot":"application/vnd.ms-fontobject",".mp3":"audio/mpeg",".m4a":"audio/mp4",".aac":"audio/aac",".flac":"audio/flac",".mid":"audio/midi",".midi":"audio/midi",".wav":"audio/wav",".ogg":"audio/ogg",".mp4":"video/mp4",".m4v":"video/x-m4v",".mov":"video/quicktime",".3gp":"video/3gpp",".webm":"video/webm",".wasm":"application/wasm",".map":"application/json"}[ext]||"application/octet-stream");}
@@ -243,8 +244,13 @@ async function publishedDocument(parsed,env){
  const bodyLooksHtml=/^\s*(?:<!doctype\s+html|<html(?:\s|>)|<head(?:\s|>)|<body(?:\s|>))/i.test(String(file.content||""));
  const isHtml=/^(?:text\/html|application\/xhtml\+xml)$/i.test(type)||pathLooksHtml||bodyLooksHtml;
  const rendered=isHtml?await renderSiteHtml(site.site_id,file.content,env,file.path,parsed.hostname):null;
+ const runtime=isHtml?{kind:"html",html:rendered||file.content}:autoRenderFile(file,{
+  title:site.title||hostname,
+  hostname:parsed.hostname,
+  rewriteImports:source=>rewriteModuleImports(source,parsed.hostname,file.path)
+ });
  const redirect=rendered?resolveHtmlRedirect(extractHtmlRedirect(rendered),parsed.href):null;
- return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content},rendered,redirect};
+ return{type:"site",site,server,path,file:{path:file.path,content_type:file.content_type||contentType(file.path),content:file.content,encoding:file.encoding||null},rendered,runtime,redirect};
 }
 
 function apiCors(){return {"access-control-allow-origin":"*","access-control-allow-methods":"GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS","access-control-allow-headers":"content-type, authorization","access-control-max-age":"86400"}}
