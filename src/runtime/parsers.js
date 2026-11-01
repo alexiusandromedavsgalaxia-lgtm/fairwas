@@ -26,6 +26,7 @@ function parseJs(source) {
     catch { return null; }
   }
 }
+export function canParseJavaScript(source) { return parseJs(source) !== null; }
 export function parseHtmlDocument(source) { return parse5.parse(String(source ?? "")); }
 export function serializeHtmlDocument(document) { return parse5.serialize(document); }
 
