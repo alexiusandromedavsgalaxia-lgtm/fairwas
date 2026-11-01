@@ -4,6 +4,7 @@ import"./styles.css";
 import{protocolFor,resolveAddressInput,wwwCounterpart}from"./protocols";
 import{load,save}from"./storage";
 import CreatePage from"./CreatePage";
+import YourCode from"./YourCode";
 
 const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
@@ -28,7 +29,7 @@ function App(){
  const[panel,setPanel]=useState(null);const[addressFocused,setAddressFocused]=useState(false);
  const tab=tabs[active]||tabs[tabs.length-1]||makeTab();
  const scheme=protocolFor(tab.url);
- const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
+ const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"||host==="yourcode.createpage.fair"})();
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home,compactChrome},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,compactChrome,tabs,active,tab?.url]);
  useEffect(()=>setAddress(displayAddress(tab.url,mobile)),[tab.id,tab.url,mobile]);
@@ -89,7 +90,7 @@ function App(){
    if((e.ctrlKey||e.metaKey)&&e.key==="h"){e.preventDefault();setPanel("history")}
    if((e.ctrlKey||e.metaKey)&&e.key==="b"){e.preventDefault();setPanel("bookmarks")}
   };
-  const onCreatePageNavigate=e=>{const url=e?.detail;if(typeof url==="string"&&url.startsWith("httc://createpage.fair"))navigate(url)};
+  const onCreatePageNavigate=e=>{const url=e?.detail;if(typeof url==="string"&&(url.startsWith("httc://createpage.fair")||url.startsWith("httc://yourcode.createpage.fair")))navigate(url)};
   window.addEventListener("message",onMessage);
   window.addEventListener("keydown",key);
   window.addEventListener("fairwas:navigate",onCreatePageNavigate);
