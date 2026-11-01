@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState}from"react";
 import { parseSource, supportedParserLanguages } from "./runtime/polyglot-parser.js";
-import { runYourCode } from "./runtime/yourcode-runtime.js";
+import { inspectAnySource } from "./runtime/yourcode-reader.js";
 
 function parsePublishTarget(value){
  const raw=String(value||"").trim();
@@ -280,12 +280,11 @@ function Editor({siteId="",yourCode=false}){
   const[selected,setSelected]=useState(()=>draft?.selected||(yourCode?"":"/routes/mainpage/index.html"));
  const[code,setCode]=useState(()=>(draft?.code??draft?.files?.find(file=>file.path===draft?.selected)?.content) ?? (yourCode?"":"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"));
  const[parserLanguage,setParserLanguage]=useState("");
+ const[universalResult,setUniversalResult]=useState(null);
  const[syntaxResult,setSyntaxResult]=useState(null);
  const[syntaxBusy,setSyntaxBusy]=useState(false);
- const[runtimeResult,setRuntimeResult]=useState(null);
- const[runtimeError,setRuntimeError]=useState("");
  useEffect(()=>{
-  if(!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
+  if(yourCode||!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
   let current=true;
   const timer=setTimeout(()=>{
    setSyntaxBusy(true);
@@ -295,7 +294,7 @@ function Editor({siteId="",yourCode=false}){
     .finally(()=>{if(current)setSyntaxBusy(false)});
   },220);
   return()=>{current=false;clearTimeout(timer)};
- },[code,selected,parserLanguage]);
+ },[code,selected,parserLanguage,yourCode]);
 
  const[site,setSite]=useState(()=>draft?.site||{site_id:siteId,hostname:"",title:"Mi sitio"});
  const[build,setBuild]=useState(()=>draft?.build||{root:"/",output:"/dist",command:"npm run build"});
@@ -372,7 +371,16 @@ function Editor({siteId="",yourCode=false}){
  return <section className="cp-ide">
   <div className="cp-ide-top"><div className="cp-ide-heading"><small>FAIRWAS · WORKSPACE</small><h1>{yourCode?"YourCode":siteId?"Editar página":"Nuevo proyecto"}</h1><p>{site.hostname||"Configura el dominio y empieza a editar"}</p></div><div className="cp-ide-actions"><button type="button" onClick={addFile}>＋ Archivo</button><button type="button" onClick={addFolder}>＋ Carpeta</button><button type="button" onClick={()=>setApiPanelOpen(v=>!v)}>{apiPanelOpen?"Cerrar chat":"✦ Chat IA / Backend"}</button><label className="cp-button">Importar archivos<input type="file" multiple onChange={importFiles}/></label><label className="cp-button">Importar carpeta<input type="file" multiple webkitdirectory="" onChange={importFiles}/></label><button type="button" className="cp-ide-publish" onClick={save}>{yourCode?(siteId?"Actualizar publicación":"Publicar código"):siteId?"Guardar cambios":"Publicar sitio"}</button></div></div>
   <details className="cp-ide-project-settings"><summary>Configuración del proyecto <span>Dominio y publicación</span></summary><div className="cp-ide-settings-grid">{!yourCode&&!siteId?<><label>Repositorio Git<input placeholder="https://github.com/usuario/repositorio" value={repoUrl} onChange={e=>setRepoUrl(e.target.value)}/></label><button type="button" onClick={importRepo}>Importar Git</button><label>Migrar web estática<input placeholder="https://ejemplo.com/" value={migrateUrl} onChange={e=>setMigrateUrl(e.target.value)}/></label><button type="button" onClick={migrateStatic}>Migrar web</button></>:null}<label>Dominio o URL completa<input placeholder="miweb.fair o miweb.fair/tienda/producto/" value={site.hostname} onChange={e=>setSite(s=>({...s,hostname:e.target.value}))}/><small>Puedes publicar en la raíz o pegar una URL con ruta. Fairwas separa automáticamente el dominio y la ruta.</small></label><label>Nombre del sitio<input placeholder="Mi web" value={site.title} onChange={e=>setSite(s=>({...s,title:e.target.value}))}/></label>{!yourCode? <><label>Raíz del proyecto<input placeholder="/" value={build.root} onChange={e=>setBuild(x=>({...x,root:e.target.value}))}/></label><label>Carpeta de salida<input placeholder="/dist" value={build.output} onChange={e=>setBuild(x=>({...x,output:e.target.value}))}/></label><label>Comando de compilación<input placeholder="npm run build" value={build.command} onChange={e=>setBuild(x=>({...x,command:e.target.value}))}/></label></>:null}</div></details>
-  <div className="cp-ide-body"><aside className="cp-files" aria-label="Explorador de archivos"><div className="cp-files-title">EXPLORADOR</div>{tree.map(item=>item.folder?<div className="cp-file-folder" style={{paddingLeft:10+item.depth*14}} key={"dir:"+item.path} title={item.path}><span aria-hidden="true">▸</span> {item.path.split("/").pop()}<small>{item.path}</small></div>:<button type="button" className={selected===item.path?"active":""} style={{paddingLeft:10+item.depth*14}} key={"file:"+item.path} onClick={()=>pick(item.path)}>{item.path.split("/").pop()||"/"}<small>{item.path}</small></button>)}</aside><div className="cp-editor-wrap"><div className="cp-editor-head"><b>{selected}</b><span aria-live="polite">{status}</span><div className="cp-editor-file-actions"><button type="button" onClick={rename}>Renombrar</button><button type="button" onClick={remove}>Eliminar archivo</button></div></div><CodeEditor value={code} onChange={setCode} filename={selected}/><section aria-live="polite" style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,.09)",background:"rgba(255,255,255,.025)"}}>
+  <div className="cp-ide-body"><aside className="cp-files" aria-label="Explorador de archivos"><div className="cp-files-title">EXPLORADOR</div>{tree.map(item=>item.folder?<div className="cp-file-folder" style={{paddingLeft:10+item.depth*14}} key={"dir:"+item.path} title={item.path}><span aria-hidden="true">▸</span> {item.path.split("/").pop()}<small>{item.path}</small></div>:<button type="button" className={selected===item.path?"active":""} style={{paddingLeft:10+item.depth*14}} key={"file:"+item.path} onClick={()=>pick(item.path)}>{item.path.split("/").pop()||"/"}<small>{item.path}</small></button>)}</aside><div className="cp-editor-wrap"><div className="cp-editor-head"><b>{selected}</b><span aria-live="polite">{status}</span><div className="cp-editor-file-actions"><button type="button" onClick={rename}>Renombrar</button><button type="button" onClick={remove}>Eliminar archivo</button></div></div><CodeEditor value={code} onChange={setCode} filename={selected}/>{yourCode ? <section style={{padding:14,borderTop:"1px solid rgba(255,255,255,.09)",background:"#11151b"}}>
+   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><div><b style={{fontSize:13}}>LECTOR UNIVERSAL YOURCODE</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>No selecciona lenguajes, no aplica gramáticas conocidas y no modifica tu código. Agrupa caracteres y delimitadores conservando el original.</p></div><button type="button" className="cp-primary" disabled={!code.length} onClick={()=>{const result=inspectAnySource(code);setUniversalResult(result);setStatus(result.lossless?"Lectura estructural completada. Fuente conservada íntegramente.":"La lectura no ha podido verificar la conservación íntegra.")}}>Leer estructura</button></div>
+   {universalResult&&<div style={{display:"grid",gap:10,marginTop:12}}>
+    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:12,color:"#aeb8c6"}}><span>{universalResult.sourceLength} caracteres</span><span>{universalResult.lineCount} líneas</span><span>{universalResult.unitCount} segmentos neutrales</span><span style={{color:universalResult.lossless?"#65d6a0":"#f0a080"}}>{universalResult.lossless?"Fuente conservada":"Diferencia detectada"}</span></div>
+    <div><b style={{fontSize:12}}>Fuente original, sin reinterpretar</b><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:260,overflow:"auto",fontSize:11,color:"#c4cbd6",padding:10,background:"#080a0d",borderRadius:8}}>{universalResult.source}</pre></div>
+    <div><b style={{fontSize:12}}>Estructura neutral</b><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:320,overflow:"auto",fontSize:11,color:"#c4cbd6",padding:10,background:"#080a0d",borderRadius:8}}>{JSON.stringify(universalResult.tree,null,2)}</pre></div>
+    <div style={{fontSize:12,color:"#aeb8c6"}}>Delimitadores abiertos sin pareja: {universalResult.unmatchedOpen.length} · cierres sin pareja: {universalResult.unmatchedClose.length}. Se muestran como datos, no como errores de compilación.</div>
+    <p style={{fontSize:12,color:"#d6b46a",margin:0}}>Esto lee cualquier secuencia de caracteres sin exigir una gramática. No ejecuta instrucciones cuyo significado no esté definido: inventar su efecto produciría resultados falsos.</p>
+   </div>}
+  </section> : (<section aria-live="polite" style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,.09)",background:"rgba(255,255,255,.025)"}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
     <b style={{fontSize:12}}>PARSER SINTÁCTICO</b>
     <span style={{fontSize:12,color:syntaxBusy?"#d6b46a":syntaxResult?.status==="valid"?"#65d6a0":syntaxResult?.status==="syntax-errors"?"#f0a080":"#aab2c0"}}>{syntaxBusy?"Analizando…":syntaxResult?.status==="valid"?"Sintaxis válida · "+syntaxResult.nodeCount+" nodos":syntaxResult?.status==="syntax-errors"?"Se han encontrado "+syntaxResult.problems.length+" incidencias":syntaxResult?.message||"Esperando código"}</span>
@@ -386,19 +394,7 @@ function Editor({siteId="",yourCode=false}){
    {syntaxResult?.problems?.length>0&&<div style={{display:"grid",gap:5,marginTop:10}}>{syntaxResult.problems.map((problem,index)=><div key={index} style={{fontSize:12,color:"#f0a080"}}>Línea {problem.line}, columna {problem.column}: {problem.message} {problem.token&&<code>{problem.token}</code>}</div>)}</div>}
    {syntaxResult?.status==="grammar-unavailable"&&<p style={{fontSize:12,color:"#f0a080",margin:"8px 0 0"}}>{syntaxResult.message}</p>}
    {syntaxResult?.tree&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:12}}>Ver árbol sintáctico · {syntaxResult.language}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:260,overflow:"auto",fontSize:11,color:"#c4cbd6",marginTop:8}}>{syntaxResult.tree}</pre></details>}
-  </section>
-  {yourCode&&<section style={{padding:14,borderTop:"1px solid rgba(255,255,255,.09)",background:"#11151b"}}>
-   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><div><b style={{fontSize:13}}>EJECUCIÓN YOURCODE</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>Interpreta instrucciones legibles y genera una vista previa real.</p></div><button type="button" className="cp-primary" onClick={()=>{try{setRuntimeError("");setRuntimeResult(runYourCode(code));setStatus("Programa ejecutado correctamente.")}catch(error){setRuntimeResult(null);setRuntimeError(error.message||String(error))}}}>▶ Ejecutar código</button></div>
-   {runtimeError&&<div className="cp-error" role="alert">{runtimeError}</div>}
-   {runtimeResult&&<div style={{display:"grid",gap:10,marginTop:12}}>
-    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:12,color:"#aeb8c6"}}><span>{runtimeResult.steps} instrucciones</span><span>{runtimeResult.ast.body.length} nodos de programa</span><span>{Object.keys(runtimeResult.variables).length} variables</span></div>
-    {runtimeResult.output.length>0&&<div><b style={{fontSize:12}}>Consola</b><pre style={{whiteSpace:"pre-wrap",padding:10,background:"#080a0d",borderRadius:8,color:"#c8f0a5"}}>{runtimeResult.output.join("\n")}</pre></div>}
-    <div><b style={{fontSize:12}}>Resultado renderizado</b><iframe title="Resultado YourCode" sandbox="" srcDoc={runtimeResult.html} style={{display:"block",width:"100%",height:320,marginTop:8,border:"1px solid #343b47",borderRadius:10,background:"#101318"}}/></div>
-    <details><summary style={{cursor:"pointer",fontSize:12}}>Árbol sintáctico interpretado</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:240,overflow:"auto",fontSize:11,color:"#c4cbd6"}}>{JSON.stringify(runtimeResult.ast,null,2)}</pre></details>
-   </div>}
-   <details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:12}}>Ver instrucciones del lenguaje YourCode</summary><pre style={{whiteSpace:"pre-wrap",fontSize:11,color:"#c4cbd6"}}>{'let nombre = "Axel"\nlet puntos = 2 + 3 * 4\nheading "Hola " + nombre\ntext "Tienes " + puntos + " puntos"\nbutton "Continuar"\nprint puntos\nif puntos > 10 { text "Has superado diez" }\nrepeat 2 { text "Repetición" }'}</pre></details>
-  </section>}
-  </div></div>
+  </section>)}  </div></div>
   <section className="cp-card cp-db-panel">
    <div className="cp-db-toggle-row"><div><small>ENV.DATABASE</small><b>Bases de datos</b><span>{pageDatabases.length}/20 · {pageDatabases.length===1?"1 base conectada":pageDatabases.length+" bases conectadas"}</span></div><button type="button" className="cp-db-toggle" aria-expanded={dbPanelOpen} onClick={()=>setDbPanelOpen(open=>!open)}>{dbPanelOpen?"Cerrar bases ×":"Abrir bases ⚙"}</button></div>
    {dbPanelOpen&&<>
