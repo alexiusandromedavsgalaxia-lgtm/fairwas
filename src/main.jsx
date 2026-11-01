@@ -256,15 +256,15 @@ function ProtocolPage({tab,scheme,resolved,resolveError,navigate,retry}){
   return <section className="published-frame"><iframe key={"api-"+(tab.reloadToken||0)+"-"+apiDoc.status} title={tab.title+" API response"} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(apiHtml,tab.documentUrl||tab.url)}/></section>;
  }
  if(tab.runtimeResponse?.html)return <section className="published-frame"><iframe key={"runtime-"+(tab.reloadToken||0)+"-"+tab.runtimeResponse.status} title={tab.title+" response"} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(tab.runtimeResponse.html,tab.documentUrl||tab.url)}/></section>;
- if(resolved?.document?.type==="site"&&resolved.document.file&&typeof resolved.document.file.content==="string"&&( /^(text\/html|application\/xhtml\+xml)$/i.test(String(resolved.document.file.content_type||"").split(";")[0].trim()) || /\.(html?|xhtml)$/i.test(String(resolved.document.file.path||"")) || /^\s*(<!doctype\s+html|<html(\s|>)|<head(\s|>)|<body(\s|>))/i.test(String(resolved.document.file.content)))){
+ if(resolved?.document?.type==="site"&&resolved.document.runtime?.html){
   if(resolved.document.redirect)return <RedirectPage target={resolved.document.redirect} navigate={navigate} baseUrl={tab.url}/>;
-  return <section className="published-frame"><iframe key={tab.reloadToken||0} title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(resolved.document.rendered||resolved.document.file.content,tab.documentUrl||tab.url)}/></section>
+  return <section className="published-frame"><iframe key={tab.reloadToken||0} title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(resolved.document.runtime.html,tab.documentUrl||tab.url)}/></section>;
  }
- if(resolved?.document?.type==="site"&&resolved.document.file&&typeof resolved.document.file.content==="string"&&resolved.document.file.encoding!=="base64"){
-  return <section className="published-source" style={{height:"100%",overflow:"auto",background:"#0b0d12",color:"#e5e7eb",padding:"24px",boxSizing:"border-box"}}>
-   <div style={{fontSize:"12px",opacity:.65,marginBottom:"14px"}}>{resolved.document.site?.title||tab.title} · {resolved.document.file.path}</div>
-   <pre style={{margin:0,whiteSpace:"pre-wrap",overflowWrap:"anywhere",font:"13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace"}}>{resolved.document.file.content}</pre>
-  </section>;
+ if(resolved?.document?.type==="site"&&resolved.document.runtime?.kind==="unsupported"){
+  return <section className="webpage"><div className="not-found"><div className="not-found-icon">⌘</div><h1>No se reconoce el lenguaje</h1><p>{resolved.document.runtime.detail}</p><code>{resolved.document.file?.path||tab.url}</code></div></section>;
+ }
+ if(resolved?.document?.type==="site"&&resolved.document.runtime?.kind==="binary"){
+  return <section className="webpage"><div className="not-found"><h1>Archivo binario</h1><p>Este archivo no contiene una página que Fairwas pueda interpretar directamente.</p></div></section>;
  }
  const missingFile=resolved?.document?.type==="site"&&resolved.document.error==="file_not_found";
  return <section className="webpage">
