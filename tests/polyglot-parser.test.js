@@ -4,7 +4,7 @@ import { inferSourceLanguage, parseSource, supportedParserLanguages } from "../s
 
 test("polyglot parser exposes a broad grammar registry", () => {
   const languages = supportedParserLanguages();
-  for (const language of ["javascript", "typescript", "python", "rust", "go", "java", "cpp", "sql", "html", "css", "json", "yaml"]) {
+  for (const language of ["javascript", "typescript", "python", "rust", "go", "java", "cpp", "toml", "html", "css", "json", "yaml"]) {
     assert.ok(languages.includes(language), "missing parser for " + language);
   }
 });
