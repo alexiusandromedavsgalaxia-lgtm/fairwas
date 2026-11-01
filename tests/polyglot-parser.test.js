@@ -44,10 +44,23 @@ test("syntax errors produce source positions instead of parser Expected-token me
   assert.doesNotMatch(JSON.stringify(result.problems), /expected token/i);
 });
 
-test("unknown custom grammars are reported honestly", async () => {
-  const result = await parseSource("MAKE WINDOW WITH BLUE SKY", { path: "/page.xyz" });
-  assert.equal(result.status, "unknown-language");
-  assert.equal(result.tree, null);
+test("invented languages use the universal structural parser", async () => {
+  const source = "MAKE WINDOW WITH BLUE SKY\n\nset⟡value := 42 |> render["violet"]\ninvoke<thing>(x %% y)";
+  const result = await parseSource(source, { path: "/page.xyz" });
+  assert.equal(result.status, "valid");
+  assert.equal(result.language, "universal");
+  assert.match(result.tree, /"type": "Group"/);
+  assert.match(result.tree, /"value": "⟡"/);
+  assert.match(result.tree, /"value": "%%"/);
+  assert.ok(result.nodeCount > 12);
+});
+
+test("universal parser reports broken grouping without rejecting unknown operators", async () => {
+  const result = await parseSource("DO strange!! [a %% b", { path: "/made-up.syntax" });
+  assert.equal(result.language, "universal");
+  assert.equal(result.status, "syntax-errors");
+  assert.equal(result.problems[0].type, "unclosed-group");
+  assert.doesNotMatch(JSON.stringify(result.problems), /Expected token/i);
 });
 
 test("YAML uses a real document parser and reports malformed input", async () => {
