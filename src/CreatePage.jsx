@@ -281,6 +281,9 @@ function Editor({siteId="",yourCode=false}){
  const[code,setCode]=useState(()=>(draft?.code??draft?.files?.find(file=>file.path===draft?.selected)?.content) ?? (yourCode?"":"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"));
  const[parserLanguage,setParserLanguage]=useState("");
  const[universalResult,setUniversalResult]=useState(null);
+ const[interpretationResult,setInterpretationResult]=useState(null);
+ const[interpretationBusy,setInterpretationBusy]=useState(false);
+ const[interpretationError,setInterpretationError]=useState("");
  const[syntaxResult,setSyntaxResult]=useState(null);
  const[syntaxBusy,setSyntaxBusy]=useState(false);
  useEffect(()=>{
