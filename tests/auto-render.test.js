@@ -11,7 +11,8 @@ test("YourCode detects HTML inside a custom extension", () => {
 test("YourCode renders JavaScript from a custom extension as an executable page", () => {
   const result=autoRenderFile({path:"/logic.faircode",content:"document.body.innerHTML = '<h1>Rendered</h1>'"});
   assert.equal(result.kind,"javascript");
-  assert.match(result.html,/script\.type=/);\n  assert.match(result.html,/yourcode-runtime-error/);
+  assert.match(result.html,/script\.type=/);
+  assert.match(result.html,/yourcode-runtime-error/);
   assert.match(result.html,/Rendered/);
 });
 
