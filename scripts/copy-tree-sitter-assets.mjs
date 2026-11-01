@@ -11,7 +11,7 @@ const runtimeWasm = resolve(root, "node_modules/web-tree-sitter/tree-sitter.wasm
 mkdirSync(publicDir, { recursive: true });
 const files = readdirSync(grammarSource);
 const available = files
-  .filter(file => /^tree-sitter-.+\\.wasm$/.test(file))
+  .filter(file => /^tree-sitter-.+\.wasm$/.test(file))
   .map(file => file.slice("tree-sitter-".length, -".wasm".length))
   .sort();
 
@@ -28,6 +28,6 @@ writeFileSync(resolve(grammarTarget, "manifest.json"), JSON.stringify({
   runtimeVersion: "0.25.10",
   grammarPackage: "tree-sitter-wasms@0.1.13",
   languages: available
-}, null, 2) + "\\n");
+}, null, 2) + "\n");
 
 console.log("Tree-sitter assets installed: " + required.length + " mapped grammars; " + available.length + " available grammars.");
