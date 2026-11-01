@@ -234,7 +234,7 @@ function universalParse(source) {
     if (ch === "\"" || ch === "'" || ch === String.fromCharCode(96)) {
       push(readQuoted(ch, text.startsWith(ch.repeat(3), i))); continue;
     }
-    if (text.startsWith("//", i) || ch === "#") {
+    if (text.startsWith("//", i) || (ch === "#" && text.slice(text.lastIndexOf("\n", i - 1) + 1, i).trim() === "")) {
       const end = text.indexOf("\n", i), value = text.slice(i, end < 0 ? text.length : end);
       push(token("Comment", value, start)); advance(value); continue;
     }
