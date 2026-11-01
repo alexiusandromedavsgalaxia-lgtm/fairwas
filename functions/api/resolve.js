@@ -202,6 +202,33 @@ export function shouldFallbackToAppShell(path){
 export function rewriteLocationRedirects(source){
  return rewriteJavaScriptLocationRedirects(source);
 }
+function scoreYourCodeEntry(file){
+ const path=String(file.path||"").toLowerCase();
+ const name=path.split("/").pop()||"";
+ const type=String(file.content_type||contentType(path)).split(";")[0].toLowerCase();
+ const source=String(file.content||"").trim();
+ if(file.encoding==="base64"||!source)return -1000;
+ let score=0;
+ if(/(?:^|\/)(?:index|main|app|home|start|entry)\.[^/.]+$/.test(path))score+=180;
+ if(/\.(?:html?|xhtml)$/i.test(path)||type==="text/html")score+=1000;
+ else if(/\.(?:mjs|cjs|js|jsx|ts|tsx|py|lua|rb|php|swift|kt|java|c|h|cpp|cc|cs|go|rs|sh|sql)$/i.test(path))score+=750;
+ else if(/\.(?:css|scss|sass|less)$/i.test(path)||type==="text/css")score+=500;
+ else if(/\.(?:md|markdown|rst)$/i.test(path))score+=180;
+ else if(/(?:package|tsconfig|jsconfig|vite\.config|webpack\.config|\.lock|\.map|\.json)$/i.test(name))score-=250;
+ if(/^\s*(?:<!doctype\s+html|<html\b|<head\b|<body\b)/i.test(source))score+=1200;
+ else if(/^\s*<svg\b/i.test(source)||/^\s*<[A-Za-z][\w:-]*(?:\s[^>]*)?>[\s\S]*<\/[A-Za-z][\w:-]*>\s*$/.test(source))score+=650;
+ if(/\b(?:function|const|let|var|class|import|export|def|fn|func|public\s+static|print\s*\(|console\.|document\.|window\.|=>)\b/.test(source))score+=650;
+ if(/(?:^|\n)\s*(?:title|name|description|route|page|component|view|screen|button|text|heading)\s*[:=]/i.test(source))score+=300;
+ if(/^\s*[\[{]/.test(source))score+=80;
+ if(/\.(?:png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|mp3|mp4|pdf|wasm)$/i.test(path))score-=1200;
+ return score;
+}
+async function selectYourCodeEntry(env,siteId){
+ const result=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=?").bind(siteId).all();
+ const files=result.results||[];
+ return files.map((file,index)=>({file,index,score:scoreYourCodeEntry(file)}))
+  .sort((a,b)=>b.score-a.score||a.index-b.index)[0]?.file||null;
+}
 async function publishedDocument(parsed,env){
  const hostname=(parsed.hostname||"").toLowerCase();
  if(hostname==="home")return{type:"home",title:"Fairwas · HTTC",protocol:"httc",description:DESCRIPTION};
@@ -236,7 +263,7 @@ async function publishedDocument(parsed,env){
  // If no conventional index exists, serve the first HTML file, or the
  // first project file when the project contains no HTML document.
  if(!file&&requested==="/"){
-  file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? ORDER BY CASE WHEN lower(path) GLOB '*.html' OR lower(path) GLOB '*.htm' OR lower(content_type) LIKE 'text/html%' THEN 0 ELSE 1 END,path LIMIT 1").bind(site.site_id).first();
+  file=await selectYourCodeEntry(env,site.site_id);
  }
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
