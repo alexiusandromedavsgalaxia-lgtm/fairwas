@@ -11,7 +11,7 @@ const EXTENSIONS = {
   lua:"lua",swift:"swift",kt:"kotlin",
   kts:"kotlin",scala:"scala",ex:"elixir",exs:"elixir",
   vue:"vue",m:"objc",mm:"objc",
-  dart:"dart",ml:"ocaml",mli:"ocaml",el:"elisp",ql:"ql",res:"rescript",
+  dart:"dart",elm:"elm",r:"r",zig:"zig",ml:"ocaml",mli:"ocaml",el:"elisp",ql:"ql",res:"rescript",
   rdl:"systemrdl",tla:"tlaplus",sol:"solidity",ejs:"embedded_template",
   erb:"embedded_template"
 };
