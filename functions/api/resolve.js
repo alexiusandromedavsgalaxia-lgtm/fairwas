@@ -231,6 +231,12 @@ async function publishedDocument(parsed,env){
   file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
   if(file)break;
  }
+ // YourCode projects can use any filename as their entry document.
+ // If no conventional index exists, serve the first HTML file, or the
+ // first project file when the project contains no HTML document.
+ if(!file&&requested==="/"){
+  file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? ORDER BY CASE WHEN lower(path) GLOB '*.html' OR lower(path) GLOB '*.htm' OR lower(content_type) LIKE 'text/html%' THEN 0 ELSE 1 END,path LIMIT 1").bind(site.site_id).first();
+ }
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
  const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
