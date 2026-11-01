@@ -50,12 +50,12 @@ async function api(action,options){
  return d;
 }
 
-export default function CreatePage({url,onNavigate}){
+export default function CreatePage({url,onNavigate,yourCode=false}){
  let parsed;try{parsed=new URL(url)}catch{parsed=null}
  const host=parsed?.hostname||"createpage.fair";
  const path=(parsed?.pathname||"/")+(parsed?.search||"");
  if(host==="docs.createpage.fair")return <DocsPage path={path}/>;
- return <Workspace path={path} onNavigate={onNavigate}/>;
+ return <Workspace path={path} onNavigate={onNavigate} yourCode={yourCode}/>;
 }
 
 function Layout({path,children,hasAccount,onNavigate}){
@@ -71,7 +71,7 @@ function Layout({path,children,hasAccount,onNavigate}){
  </section>
 }
 
-function Workspace({path,onNavigate}){
+function Workspace({path,onNavigate,yourCode=false}){
  const[sites,setSites]=useState([]),[dbs,setDbs]=useState([]),[servers,setServers]=useState([]),[registry,setRegistry]=useState(null),[workers,setWorkers]=useState([]);
  const[error,setError]=useState("");
  const[loading,setLoading]=useState(true);
@@ -94,7 +94,7 @@ function Workspace({path,onNavigate}){
  useEffect(()=>{reload();const handler=()=>reload();window.addEventListener("fairwas:createpage-reload",handler);return()=>window.removeEventListener("fairwas:createpage-reload",handler)},[]);
  const routePath=path.split("?")[0];
  const privatePath=privateRoutes.some(([p])=>p===routePath);
- const effectivePath=privatePath&&!hasAccount?"/registry":routePath;
+ const effectivePath=yourCode?"/ide":privatePath&&!hasAccount?"/registry":routePath;
  const editorSiteId=new URLSearchParams(path.split("?")[1]||"").get("site_id")||"";
  const page=loading?<div className="cp-card cp-empty">Comprobando tu cuenta de desarrollador…</div>:
   effectivePath==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers} onNavigate={onNavigate}/>:
@@ -106,7 +106,7 @@ function Workspace({path,onNavigate}){
   effectivePath==="/registry"?<Registry data={registry}/>:
   effectivePath==="/landscape"?<Landscape data={registry}/>:
   effectivePath==="/workers"?<Workers workers={workers}/>:
-  effectivePath==="/ide"?<Editor siteId={editorSiteId}/>:
+  effectivePath==="/ide"?<Editor siteId={editorSiteId} yourCode={yourCode}/>:
   effectivePath==="/my/profile"?<Profile data={registry}/>:<NotFound/>;
  return <Layout path={effectivePath} hasAccount={hasAccount} onNavigate={onNavigate}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
 }
@@ -269,14 +269,14 @@ function CodeEditor({value,onChange,filename}){
  </div>;
 }
 
-function Editor({siteId=""}){
+function Editor({siteId="",yourCode=false}){
   const [newDraftId]=useState(()=>siteId?"":"new-"+Date.now()+"-"+Math.random().toString(36).slice(2));
   const draft=siteId?readIdeDraft(siteId):null;
   const draftKey="fairwas:ide-draft:"+(siteId||newDraftId);
- const[files,setFiles]=useState(()=>Array.isArray(draft?.files)&&draft.files.length?draft.files:[{path:"/routes/mainpage/index.html",content:"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"}]);
+ const[files,setFiles]=useState(()=>Array.isArray(draft?.files)&&draft.files.length?draft.files:(yourCode?[]:[{path:"/routes/mainpage/index.html",content:"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"}]));
  const[folders,setFolders]=useState(()=>Array.isArray(draft?.folders)?draft.folders:[]);
-  const[selected,setSelected]=useState(()=>draft?.selected||"/routes/mainpage/index.html");
- const[code,setCode]=useState(()=>(draft?.code??draft?.files?.find(file=>file.path===draft?.selected)?.content) || "<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>");
+  const[selected,setSelected]=useState(()=>draft?.selected||(yourCode?"":"/routes/mainpage/index.html"));
+ const[code,setCode]=useState(()=>(draft?.code??draft?.files?.find(file=>file.path===draft?.selected)?.content) ?? (yourCode?"":"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"));
  const[site,setSite]=useState(()=>draft?.site||{site_id:siteId,hostname:"",title:"Mi sitio"});
  const[build,setBuild]=useState(()=>draft?.build||{root:"/",output:"/dist",command:"npm run build"});
  const[status,setStatus]=useState("");
