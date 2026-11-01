@@ -182,6 +182,10 @@ function parseYamlSource(source) {
   };
 }
 
+const OPEN_TO_CLOSE = { "(": ")", "[": "]", "{": "}" };
+const CLOSE_TO_OPEN = { ")": "(", "]": "[", "}": "{" };
+const MULTI_OPERATORS = ["...", "===", "!==", ">>>", "<<=", ">>=", "=>", "->", "::", ":=", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "**", "++", "--", "+=", "-=", "*=", "/=", "%=", "<<", ">>", "|>", "<|", "&&=", "||=", "??="];
+
 function universalParse(source) {
   const text = String(source ?? "");
   const root = { type: "Document", children: [] };
