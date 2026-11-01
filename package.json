@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check:api": "node --check functions/api/resolve.js && node --check functions/api/proxy.js && node --check functions/api/migrate.js && node --check functions/api/createpage.js && node --check functions/api/mcp.js && node --check functions/api/ai.js && node --check functions/api/ide-ai.js && node --check functions/api/bookmarks.js && node --check functions/api/history.js && node --check src/runtime/parsers.js",
-    "check": "npm run check:api && node --test tests/*.test.js && npm run build"
+    "check": "npm run check:api && node --test tests/*.test.js && npm run build",
+    "postinstall": "node scripts/copy-tree-sitter-assets.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -18,7 +19,9 @@
     "parse5": "^7.2.1",
     "postcss": "^8.5.6",
     "acorn": "^8.15.0",
-    "postcss-value-parser": "^4.2.0"
+    "postcss-value-parser": "^4.2.0",
+    "web-tree-sitter": "0.25.10",
+    "tree-sitter-wasms": "0.1.13"
   },
   "devDependencies": {}
 }
