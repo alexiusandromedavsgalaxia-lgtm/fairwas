@@ -1,3 +1,4 @@
+import { canParseJavaScript } from "./parsers.js";
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const page = (title, body, extra = "") => '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escapeHtml(title)+'</title><style>html{color-scheme:light dark}body{margin:0;padding:24px;font:16px/1.55 system-ui,sans-serif;background:#f7f8fb;color:#171923}main{max-width:960px;margin:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%}td,th{padding:8px 10px;border:1px solid #ccd1dc;text-align:left}h1,h2{line-height:1.2}'+extra+'</style></head><body><main>'+body+'</main></body></html>';
 
@@ -57,13 +58,12 @@ function languageFor(path,source){
  if(/^\s*(?:fn\s+main\s*\(|use\s+std::|let\s+mut\s+)/m.test(s))return "Rust";
  if(/^\s*(?:SELECT\s|CREATE\s+TABLE\s|INSERT\s+INTO\s)/im.test(s))return "SQL";
  if(/^\s*(?:#!.*\b(?:bash|sh)\b|set\s+-e\b)/m.test(s))return "Shell";
- if(looksLikeJavaScript(s))return "JavaScript";
  if(looksLikeCss(s))return "CSS";
  return "Código";
 }
 function codePreview(source,path,title){
  const language=languageFor(path,source);
- return page(title,'<section style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px"><h1 style="margin:0">Vista de código</h1><span style="padding:5px 10px;border-radius:999px;background:#e5e7eb;color:#20232b;font:600 12px system-ui">'+escapeHtml(language)+'</span></section><p style="color:#667085">Archivo reconocido. Este formato se muestra sin ejecutar código incompatible con el navegador.</p><pre style="padding:18px;border-radius:12px;background:#111827;color:#e5e7eb;overflow:auto;tab-size:2"><code>'+escapeHtml(source)+'</code></pre>');
+ return page(title,'<section style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px"><h1 style="margin:0">Vista de código</h1><span style="padding:5px 10px;border-radius:999px;background:#e5e7eb;color:#20232b;font:600 12px system-ui">'+escapeHtml(language)+'</span></section><p style="color:#667085">Archivo reconocido. Se conserva el contenido original. No se ha supuesto una gramática ni un intérprete para este archivo.</p><pre style="padding:18px;border-radius:12px;background:#111827;color:#e5e7eb;overflow:auto;tab-size:2"><code>'+escapeHtml(source)+'</code></pre>');
 }
 function cssPreview(source){
  const selectors=[...String(source).matchAll(/([^{}]+)\{[^{}]*\}/g)].map(match=>match[1].trim()).filter(s=>s&&!s.startsWith("@")).slice(0,12);
@@ -72,9 +72,8 @@ function cssPreview(source){
 }
 
 /**
- * Detects a file's language from its contents first, then its extension.
- * The extension is a hint only: custom extensions can contain recognised syntax.
- * Unknown grammars are reported instead of being displayed as source code.
+ * Native browser execution is opt-in by conventional JS filename and successful
+ * JavaScript parsing. Unknown or non-JavaScript syntax is preserved as source.
  */
 export function autoRenderFile(file,{title="YourCode",hostname="",rewriteImports=value=>value}={}){
  const source=String(file?.content??"");
@@ -89,7 +88,7 @@ export function autoRenderFile(file,{title="YourCode",hostname="",rewriteImports
  if(/\.csv$/i.test(path)){const body=csvView(source);if(body)return {kind:"csv",html:page(title,body)}}
  if(/^\s*<\?xml[\s\S]*<svg\b/i.test(source))return {kind:"html",html:source.replace(/^\s*<\?xml[^>]*>\s*/i,"")};
  if(looksLikeCss(source)||/\.css$/i.test(path))return {kind:"css",html:cssPreview(source)};
- if(looksLikeJavaScript(source)||/\.(?:[cm]?js|jsx)$/i.test(path)){
+ if(/\.(?:[cm]?js)$/i.test(path)&&canParseJavaScript(source)){
   const executable=rewriteImports(source);
   const safeCode=JSON.stringify(executable).replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
   const isModule=/^\s*(?:import\s|export\s)|\bimport\s*\(/m.test(executable);
