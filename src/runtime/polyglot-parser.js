@@ -135,8 +135,8 @@ function collectSyntaxProblems(rootNode, source, limit = 30) {
 export async function parseSource(source, options = {}) {
   const text = String(source ?? "");
   const path = String(options.path || "");
-  const language = GRAMMAR_ALIASES[String(options.language || inferSourceLanguage(path, text) || "").toLowerCase()]
-    || String(options.language || inferSourceLanguage(path, text) || "").toLowerCase();
+  const requestedLanguage = String(options.language || inferSourceLanguage(path, text) || "").toLowerCase();
+  const language = GRAMMAR_ALIASES[requestedLanguage] || requestedLanguage;
   if (!language) {
     return {
       status: "unknown-language",
@@ -146,41 +146,58 @@ export async function parseSource(source, options = {}) {
       message: "No se ha podido inferir un lenguaje. Selecciona uno o añade una gramática."
     };
   }
+
   const assetBase = options.assetBase || (typeof window !== "undefined" ? "/tree-sitter-languages/" : undefined);
+  let tree;
   try {
     const parser = await getParser(language, assetBase);
-    const tree = parser.parse(text);
+    tree = parser.parse(text);
     if (!tree) throw new Error("El motor de parsing no ha devuelto un árbol sintáctico.");
     const root = tree.rootNode;
+    const hasError = Boolean(root.hasError);
     const problems = collectSyntaxProblems(root, text);
-    const result = {
-      status: problems.length ? "syntax-errors" : "valid",
+    if (hasError && problems.length === 0) {
+      const position = root.startPosition || { row: 0, column: 0 };
+      problems.push({
+        type: "unexpected",
+        node: root.type,
+        token: "",
+        line: position.row + 1,
+        column: position.column + 1,
+        endLine: position.row + 1,
+        endColumn: position.column + 1,
+        message: "El árbol sintáctico contiene errores que la gramática no ha podido localizar con más precisión."
+      });
+    }
+    return {
+      status: hasError || problems.length ? "syntax-errors" : "valid",
       language,
       tree: root.toString(),
       problems,
-      hasError: Boolean(root.hasError),
+      hasError,
       nodeCount: countNodes(root)
     };
-    tree.delete();
-    return result;
   } catch (error) {
     return {
       status: "grammar-unavailable",
       language,
       tree: null,
       problems: [],
-      message: "La gramática " + language + " no está disponible: " + String(error?.message || error)
+      message: "No se ha podido cargar o ejecutar la gramática " + language + ": " + String(error?.message || error)
     };
+  } finally {
+    tree?.delete();
   }
 }
 
 function countNodes(root) {
   let count = 0;
-  const visit = node => {
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
     count += 1;
-    for (const child of node.children || []) visit(child);
-  };
-  visit(root);
+    for (const child of node.children || []) stack.push(child);
+  }
   return count;
 }
 
