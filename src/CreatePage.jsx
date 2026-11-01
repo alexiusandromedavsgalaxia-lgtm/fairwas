@@ -282,8 +282,6 @@ function Editor({siteId="",yourCode=false}){
  const[parserLanguage,setParserLanguage]=useState("");\n const[universalResult,setUniversalResult]=useState(null);
  const[syntaxResult,setSyntaxResult]=useState(null);
  const[syntaxBusy,setSyntaxBusy]=useState(false);
- const[runtimeResult,setRuntimeResult]=useState(null);
- const[runtimeError,setRuntimeError]=useState("");
  useEffect(()=>{
   if(yourCode||!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
   let current=true;
