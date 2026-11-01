@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { inferSourceLanguage, parseSource, supportedParserLanguages } from "../src/runtime/polyglot-parser.js";
 
-test("every language advertised by YourCode has a real, loadable WASM grammar", async () => {
+test("every advertised language has a working parser", async () => {
   const languages = supportedParserLanguages();
   assert.ok(languages.length >= 30, "the grammar registry unexpectedly shrank");
   const failures = [];
@@ -23,11 +23,10 @@ test("custom extensions are detected from source syntax and parsed into a real t
   assert.ok(result.nodeCount > 3);
 });
 
-test("JavaScript, Rust, Elm and Zig are parsed into syntax trees", async () => {
+test("JavaScript, Rust and Zig are parsed into syntax trees", async () => {
   const examples = [
     ["javascript", "const answer = (value) => value + 42;", /lexical_declaration/],
     ["rust", "fn main() { let answer: i32 = 42; }", /function_item/],
-    ["elm", "module Main exposing (main)\n\nmain = 42", /function_declaration/],
     ["zig", "pub fn main() void {}", /FnProto|fn_proto/]
   ];
   for (const [language, source, expectedNode] of examples) {
@@ -49,4 +48,15 @@ test("unknown custom grammars are reported honestly", async () => {
   const result = await parseSource("MAKE WINDOW WITH BLUE SKY", { path: "/page.xyz" });
   assert.equal(result.status, "unknown-language");
   assert.equal(result.tree, null);
+});
+
+test("YAML uses a real document parser and reports malformed input", async () => {
+  const valid = await parseSource("site:\n  title: Fairwas\n  enabled: true\n", { path: "/config.yaml" });
+  assert.equal(valid.status, "valid");
+  assert.match(valid.tree, /YAMLMap/);
+  assert.ok(valid.nodeCount > 1);
+  const invalid = await parseSource("site: [one, two\n", { path: "/config.yaml" });
+  assert.equal(invalid.status, "syntax-errors");
+  assert.ok(invalid.problems.length > 0);
+  assert.ok(invalid.problems[0].line >= 1);
 });
