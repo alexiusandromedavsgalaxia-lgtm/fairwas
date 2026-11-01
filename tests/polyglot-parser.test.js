@@ -5,14 +5,12 @@ import { inferSourceLanguage, parseSource, supportedParserLanguages } from "../s
 test("every language advertised by YourCode has a real, loadable WASM grammar", async () => {
   const languages = supportedParserLanguages();
   assert.ok(languages.length >= 30, "the grammar registry unexpectedly shrank");
+  const failures = [];
   for (const language of languages) {
     const result = await parseSource("", { language });
-    assert.notEqual(
-      result.status,
-      "grammar-unavailable",
-      language + " is advertised but its grammar failed to load: " + result.message
-    );
+    if (result.status === "grammar-unavailable") failures.push({ language, message: result.message });
   }
+  assert.deepEqual(failures, [], "Some advertised grammars could not be loaded");
 });
 
 test("custom extensions are detected from source syntax and parsed into a real tree", async () => {
@@ -34,7 +32,7 @@ test("JavaScript, Rust, Elm and Zig are parsed into syntax trees", async () => {
   ];
   for (const [language, source, expectedNode] of examples) {
     const result = await parseSource(source, { language });
-    assert.equal(result.status, "valid", language + ": " + JSON.stringify(result.problems));
+    assert.equal(result.status, "valid", language + ": " + (result.message || JSON.stringify(result.problems)));
     assert.match(result.tree, expectedNode, language + " did not produce the expected syntax tree");
   }
 });
