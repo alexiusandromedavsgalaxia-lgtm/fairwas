@@ -115,14 +115,14 @@ function Workspace({path,onNavigate,yourCode=false}){
 function Head({eyebrow,title,text}){return <header className="cp-head"><div><small>{eyebrow}</small><h1>{title}</h1>{text&&<p>{text}</p>}</div></header>}
 function Dashboard({sites,dbs,servers,workers,onNavigate}){return <><div className="cp-welcome"><div><span className="cp-kicker">CREATEPAGE STUDIO · HTTC</span><h1>Tu próximo sitio empieza aquí.</h1><p>Diseña, construye y publica páginas web desde un único estudio creativo.</p><div className="cp-welcome-actions"><button type="button" className="cp-primary" onClick={()=>navigate("/editor",onNavigate)}>✦ Abrir el estudio visual ↗</button><button type="button" className="cp-secondary" onClick={()=>navigate("/ide",onNavigate)}>Abrir editor de código</button></div></div><div className="cp-welcome-art"><div className="cp-art-window"><div className="cp-art-dots"><i/><i/><i/></div><div className="cp-art-layout"><small>YOUR NEXT BIG IDEA</small><b>Build something<br/>remarkable.</b><span/><div className="cp-art-cards"><i/><i/><i/></div></div></div><div className="cp-art-chip">✦ Studio ready</div></div></div><div className="cp-section-heading"><div><small>OVERVIEW</small><h2>Tu espacio de trabajo</h2></div><button type="button" onClick={()=>navigate("/my/sites",onNavigate)}>Ver todos los sitios ↗</button></div><div className="cp-grid four"><Stat n={sites.length} t="Sitios publicados"/><Stat n={dbs.length} t="Bases de datos"/><Stat n={servers.length} t="Servidores"/><Stat n={workers.length} t="Workers"/></div><div className="cp-section-heading"><div><small>QUICK START</small><h2>Continúa creando</h2></div></div><div className="cp-grid three"><button className="cp-action-card" onClick={()=>navigate("/editor",onNavigate)}><span>✦</span><b>Diseñador visual</b><small>Compón tu página con secciones y estilos.</small><i>Empezar a diseñar ↗</i></button><button className="cp-action-card" onClick={()=>navigate("/init",onNavigate)}><span>＋</span><b>Nuevo proyecto</b><small>Configura el dominio y crea un sitio publicable.</small><i>Crear proyecto ↗</i></button><button className="cp-action-card" onClick={()=>navigate("/ide",onNavigate)}><span>⌘</span><b>Editor de código</b><small>Importa archivos y ajusta el código fuente.</small><i>Abrir editor ↗</i></button></div></>}
 function Stat({n,t}){return <div className="cp-card cp-stat"><b>{n}</b><span>{t}</span></div>}
-function Sites({sites,onNavigate,onRefresh}){
+function Sites({sites,onNavigate,onRefresh,yourCode=false}){
  const[stats,setStats]=useState({});
  const[busy,setBusy]=useState({});
  const[errors,setErrors]=useState({});
  const visitStats=async site=>{setBusy(v=>({...v,[site.site_id]:true}));setErrors(v=>({...v,[site.site_id]:""}));try{const d=await api("visits&site_id="+encodeURIComponent(site.site_id));setStats(v=>({...v,[site.site_id]:d}))}catch(e){setErrors(v=>({...v,[site.site_id]:e.message}))}finally{setBusy(v=>({...v,[site.site_id]:false}))}};
  const unpublish=async site=>{if(!window.confirm("¿Despublicar "+site.hostname+"? Dejará de estar disponible para los visitantes, pero podrás volver a publicarlo editándolo."))return;setBusy(v=>({...v,[site.site_id]:true}));setErrors(v=>({...v,[site.site_id]:""}));try{await api("unpublish",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({site_id:site.site_id})});setStats(v=>({...v,[site.site_id]:undefined}));await onRefresh?.()}catch(e){setErrors(v=>({...v,[site.site_id]:e.message}))}finally{setBusy(v=>({...v,[site.site_id]:false}))}};
  const deleteSite=async site=>{if(!window.confirm("ELIMINAR DEFINITIVAMENTE "+site.hostname+"? Se borrarán los archivos, la configuración, las bases de datos y el historial de visitas. Esta acción no se puede deshacer."))return;setBusy(v=>({...v,[site.site_id]:true}));setErrors(v=>({...v,[site.site_id]:""}));try{await api("delete-site",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({site_id:site.site_id})});setStats(v=>({...v,[site.site_id]:undefined}));await onRefresh?.()}catch(e){setErrors(v=>({...v,[site.site_id]:e.message}));setBusy(v=>({...v,[site.site_id]:false}))}};
- return <><Head eyebrow="MY / SITES" title="Mis sitios" text="Administra publicación, visitas y eliminación de tus páginas."/><div className="cp-list">{sites.map(s=><div className="cp-card cp-site-admin" key={s.site_id}><div className="cp-row"><div><b>{s.title}</b><small>httc://{s.hostname}</small></div><span className="cp-pill">{s.status}</span></div><div className="cp-site-actions"><button type="button" onClick={()=>navigate("/ide?site_id="+encodeURIComponent(s.site_id),onNavigate)}>Editar</button><button type="button" disabled={busy[s.site_id]} onClick={()=>stats[s.site_id]?setStats(v=>({...v,[s.site_id]:undefined})):visitStats(s)}>{busy[s.site_id]?"Consultando…":stats[s.site_id]?"Ocultar visitas":"Consultar visitas"}</button>{s.status==="published"&&<button type="button" disabled={busy[s.site_id]} onClick={()=>unpublish(s)}>Despublicar</button>}<button type="button" className="cp-site-danger" disabled={busy[s.site_id]} onClick={()=>deleteSite(s)}>Eliminar página</button></div>{errors[s.site_id]&&<div className="cp-error">{errors[s.site_id]}</div>}{stats[s.site_id]&&<div className="cp-visits"><div className="cp-visits-metrics"><div><b>{stats[s.site_id].total}</b><span>Visitas registradas</span></div><div><b>{stats[s.site_id].last30Days}</b><span>Últimos 30 días</span></div><div><b>{stats[s.site_id].lastVisit?new Date(stats[s.site_id].lastVisit).toLocaleString():"Nunca"}</b><span>Última visita</span></div></div>{stats[s.site_id].items.length>0?<div className="cp-visits-list"><b>Últimas visitas</b>{stats[s.site_id].items.slice(0,10).map((v,i)=><div key={v.visited_at+"-"+i}><span>{v.url}</span><small>{new Date(v.visited_at).toLocaleString()}</small></div>)}</div>:<p className="cp-empty">Todavía no hay visitas registradas.</p>}</div>}</div>)}{!sites.length&&<Empty text="Todavía no hay sitios."/>}</div></>
+ return <><Head eyebrow="MY / SITES" title="Mis sitios" text="Administra publicación, visitas y eliminación de tus páginas."/><div className="cp-list">{sites.map(s=><div className="cp-card cp-site-admin" key={s.site_id}><div className="cp-row"><div><b>{s.title}</b><small>httc://{s.hostname}</small></div><span className="cp-pill">{s.status}</span></div><div className="cp-site-actions"><button type="button" onClick={()=>yourCode?onNavigate?.("httc://yourcode.official/editor?site_id="+encodeURIComponent(s.site_id)):navigate("/ide?site_id="+encodeURIComponent(s.site_id),onNavigate)}>Editar</button><button type="button" disabled={busy[s.site_id]} onClick={()=>stats[s.site_id]?setStats(v=>({...v,[s.site_id]:undefined})):visitStats(s)}>{busy[s.site_id]?"Consultando…":stats[s.site_id]?"Ocultar visitas":"Consultar visitas"}</button>{s.status==="published"&&<button type="button" disabled={busy[s.site_id]} onClick={()=>unpublish(s)}>Despublicar</button>}<button type="button" className="cp-site-danger" disabled={busy[s.site_id]} onClick={()=>deleteSite(s)}>Eliminar página</button></div>{errors[s.site_id]&&<div className="cp-error">{errors[s.site_id]}</div>}{stats[s.site_id]&&<div className="cp-visits"><div className="cp-visits-metrics"><div><b>{stats[s.site_id].total}</b><span>Visitas registradas</span></div><div><b>{stats[s.site_id].last30Days}</b><span>Últimos 30 días</span></div><div><b>{stats[s.site_id].lastVisit?new Date(stats[s.site_id].lastVisit).toLocaleString():"Nunca"}</b><span>Última visita</span></div></div>{stats[s.site_id].items.length>0?<div className="cp-visits-list"><b>Últimas visitas</b>{stats[s.site_id].items.slice(0,10).map((v,i)=><div key={v.visited_at+"-"+i}><span>{v.url}</span><small>{new Date(v.visited_at).toLocaleString()}</small></div>)}</div>:<p className="cp-empty">Todavía no hay visitas registradas.</p>}</div>}</div>)}{!sites.length&&<Empty text="Todavía no hay sitios."/>}</div></>
 }
 
 
@@ -518,3 +518,53 @@ function PlatformServices({siteId="",siteHostname=""}){
 }
 
 
+
+
+export function YourCodePage({url="httc://yourcode.official/",onNavigate}){
+ let parsed;try{parsed=new URL(url)}catch{parsed=null}
+ const path=(parsed?.pathname||"/")+(parsed?.search||"");
+ const route=path.split("?")[0];
+ const siteId=new URLSearchParams(path.split("?")[1]||"").get("site_id")||"";
+ const [registry,setRegistry]=useState(null),[sites,setSites]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const go=next=>onNavigate?.("httc://yourcode.official"+next);
+ const reload=async()=>{
+  setLoading(true);setError("");
+  try{
+   const account=await api("registry");setRegistry(account);
+   if(account.developer){const result=await api("sites");const items=result.items||[];setSites(items.filter(item=>item.framework==="YourCode"||item.language==="User code"))}
+   else setSites([]);
+  }catch(e){setError(e.message||"No se pudieron cargar tus proyectos.")}
+  finally{setLoading(false)}
+ };
+ useEffect(()=>{reload();const handler=()=>reload();window.addEventListener("fairwas:createpage-reload",handler);return()=>window.removeEventListener("fairwas:createpage-reload",handler)},[]);
+ const hasAccount=Boolean(registry?.developer?.developer_id);
+ return <main className="yc-app">
+  <header className="yc-header">
+   <button className="yc-brand" type="button" onClick={()=>go("/")}>
+    <span className="yc-mark">Y</span><span><b>YourCode</b><small>OFFICIAL WORKSPACE</small></span>
+   </button>
+   <nav className="yc-nav">
+    <button className={route==="/"?"active":""} onClick={()=>go("/")}>Inicio</button>
+    <button className={route==="/sites"?"active":""} onClick={()=>go("/sites")}>Mis proyectos</button>
+    <button className={route==="/editor"?"active":""} onClick={()=>go("/editor")}>Editor</button>
+   </nav>
+   <button className="yc-new" onClick={()=>go("/editor")}>＋ Nuevo proyecto</button>
+  </header>
+  {error&&<div className="yc-error">{error}</div>}
+  {route==="/editor"?
+   <Editor siteId={siteId} yourCode/>:
+   <section className="yc-content">
+    <div className="yc-hero">
+     <div><span className="yc-eyebrow">YOURCODE · OFFICIAL</span><h1>Tu código.<br/><em>Tus reglas.</em></h1><p>Crea, edita y publica sitios web desde un espacio independiente. Usa lenguajes conocidos o inventa el tuyo.</p><div className="yc-hero-actions"><button className="yc-new" onClick={()=>go("/editor")}>Abrir editor <span>↗</span></button><button className="yc-ghost" onClick={()=>go("/sites")}>Ver mis proyectos</button></div></div>
+     <div className="yc-hero-art"><div className="yc-orbit yc-orbit-one"/><div className="yc-orbit yc-orbit-two"/><div className="yc-code-card"><div><i/><i/><i/><small>yourcode.official</small></div><pre><b>create</b> anything() {'{'}\n  <span>syntax</span> = <strong>"yours"</strong>\n  <span>publish</span>()\n{'}'}</pre></div><span className="yc-floating yc-float-a">{} AST</span><span className="yc-floating yc-float-b">⌘ parser</span></div>
+    </div>
+    {route==="/sites"?
+     <><div className="yc-section-head"><div><span className="yc-eyebrow">YOUR WORKSPACE</span><h2>Mis proyectos</h2><p>Abre cualquier sitio para seguir editando sus archivos.</p></div><button className="yc-ghost" onClick={()=>go("/editor")}>＋ Crear proyecto</button></div>
+      {loading?<div className="yc-empty">Cargando tus proyectos…</div>:!hasAccount?<div className="yc-empty">Para guardar y administrar publicaciones necesitas una cuenta de desarrollador de Fairwas. <button onClick={()=>onNavigate?.("httc://createpage.fair/registry")}>Crear cuenta ↗</button></div>:sites.length?<div className="yc-project-grid">{sites.map(site=><article className="yc-project" key={site.site_id}><div className="yc-project-top"><span className="yc-project-icon">⌘</span><span className={"yc-status "+(site.status==="published"?"published":"")}>{site.status||"draft"}</span></div><h3>{site.title||site.hostname}</h3><p>httc://{site.hostname}</p><div className="yc-project-actions"><button onClick={()=>go("/editor?site_id="+encodeURIComponent(site.site_id))}>Editar proyecto ↗</button><button className="yc-open" onClick={()=>onNavigate?.("httc://"+site.hostname)}>Abrir sitio</button></div></article>)}</div>:<div className="yc-empty">Todavía no has publicado proyectos con YourCode. <button onClick={()=>go("/editor")}>Crear el primero ↗</button></div>}
+     </>:
+     <><div className="yc-section-head"><div><span className="yc-eyebrow">YOUR PROJECTS</span><h2>Continúa donde lo dejaste</h2><p>Los proyectos publicados desde YourCode aparecen aquí y se pueden editar cuando quieras.</p></div><button className="yc-ghost" onClick={()=>go("/sites")}>Todos los proyectos ↗</button></div>
+      {loading?<div className="yc-empty">Cargando proyectos…</div>:sites.length?<div className="yc-project-grid">{sites.slice(0,3).map(site=><article className="yc-project" key={site.site_id}><div className="yc-project-top"><span className="yc-project-icon">⌘</span><span className={"yc-status "+(site.status==="published"?"published":"")}>{site.status||"draft"}</span></div><h3>{site.title||site.hostname}</h3><p>httc://{site.hostname}</p><div className="yc-project-actions"><button onClick={()=>go("/editor?site_id="+encodeURIComponent(site.site_id))}>Seguir editando ↗</button></div></article>)}</div>:<div className="yc-empty">Todavía no hay proyectos. Crea uno y aparecerá aquí para editarlo más adelante. <button onClick={()=>go("/editor")}>Crear proyecto ↗</button></div>}
+     </>}
+   </section>}
+ </main>;
+}
