@@ -1,4 +1,4 @@
-import { Parser } from "web-tree-sitter";
+import { Parser, Language } from "web-tree-sitter";
 import { fileURLToPath } from "node:url";
 
 const EXTENSIONS = {
@@ -67,7 +67,7 @@ async function getParser(grammar, assetBase) {
   await initPromise;
   let language = languageCache.get(grammar);
   if (!language) {
-    language = await Parser.Language.load(grammarLocation(grammar, assetBase));
+    language = await Language.load(grammarLocation(grammar, assetBase));
     languageCache.set(grammar, language);
   }
   let parser = parserCache.get(grammar);
