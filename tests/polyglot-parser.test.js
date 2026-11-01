@@ -45,7 +45,10 @@ test("syntax errors produce source positions instead of parser Expected-token me
 });
 
 test("invented languages use the universal structural parser", async () => {
-  const source = "MAKE WINDOW WITH BLUE SKY\n\nset⟡value := 42 |> render["violet"]\ninvoke<thing>(x %% y)";
+  const source = `MAKE WINDOW WITH BLUE SKY
+
+set⟡value := 42 |> render["violet"]
+invoke<thing>(x %% y)`;
   const result = await parseSource(source, { path: "/page.xyz" });
   assert.equal(result.status, "valid");
   assert.equal(result.language, "universal");
@@ -54,7 +57,6 @@ test("invented languages use the universal structural parser", async () => {
   assert.match(result.tree, /"value": "%%"/);
   assert.ok(result.nodeCount > 12);
 });
-
 test("universal parser reports broken grouping without rejecting unknown operators", async () => {
   const result = await parseSource("DO strange!! [a %% b", { path: "/made-up.syntax" });
   assert.equal(result.language, "universal");
