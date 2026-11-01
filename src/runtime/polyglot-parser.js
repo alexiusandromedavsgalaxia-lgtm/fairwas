@@ -11,7 +11,7 @@ const EXTENSIONS = {
   lua:"lua",swift:"swift",kt:"kotlin",
   kts:"kotlin",scala:"scala",ex:"elixir",exs:"elixir",
   vue:"vue",m:"objc",mm:"objc",
-  dart:"dart",elm:"elm",r:"r",zig:"zig",ml:"ocaml",mli:"ocaml",el:"elisp",ql:"ql",res:"rescript",
+  dart:"dart",elm:"elm",zig:"zig",ml:"ocaml",mli:"ocaml",el:"elisp",ql:"ql",res:"rescript",
   rdl:"systemrdl",tla:"tlaplus",sol:"solidity",ejs:"embedded_template",
   erb:"embedded_template"
 };
@@ -43,7 +43,6 @@ const LANGUAGE_HINTS = [
   ["solidity", /pragma\s+solidity|contract\s+\w+\s*\{/]
   ["elm", /(?:^|\n)\s*module\s+\w+\s+exposing\b/],
   ["zig", /(?:^|\n)\s*(?:const\s+std\s*=\s*@import|pub\s+fn\s+main\s*\()/],
-  ["r", /(?:^|\n)\s*[A-Za-z.][\w.]*\s*(?:<-|=)\s*(?:function\s*\(|c\()/],
 ];
 
 let initPromise;
