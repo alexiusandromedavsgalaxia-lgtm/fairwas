@@ -48,35 +48,50 @@ const parserCache = new Map();
 const languageCache = new Map();
 
 function runtimeLocation(scriptName) {
-  if (typeof window !== "undefined") return new URL(scriptName, "/").toString();
+  if (typeof window !== "undefined") return "/tree-sitter.wasm";
   return fileURLToPath(new URL("../../node_modules/web-tree-sitter/" + scriptName, import.meta.url));
 }
 
 function grammarLocation(grammar, assetBase) {
   const filename = "tree-sitter-" + grammar + ".wasm";
-  if (typeof window !== "undefined") return new URL(filename, assetBase || "/tree-sitter-languages/").toString();
+  if (typeof window !== "undefined") {
+    const base = String(assetBase || "/tree-sitter-languages/");
+    return (base.endsWith("/") ? base : base + "/") + filename;
+  }
   return fileURLToPath(new URL("../../node_modules/tree-sitter-wasms/out/" + filename, import.meta.url));
 }
 
 async function getParser(grammar, assetBase) {
   if (!initPromise) {
     initPromise = Parser.init({
-      locateFile: scriptName => runtimeLocation(scriptName, assetBase)
+      locateFile: scriptName => runtimeLocation(scriptName)
+    }).catch(error => {
+      initPromise = null;
+      throw error;
     });
   }
   await initPromise;
-  let language = languageCache.get(grammar);
-  if (!language) {
-    language = await Language.load(grammarLocation(grammar, assetBase));
-    languageCache.set(grammar, language);
+
+  let parserPromise = parserCache.get(grammar);
+  if (!parserPromise) {
+    parserPromise = (async () => {
+      let languagePromise = languageCache.get(grammar);
+      if (!languagePromise) {
+        languagePromise = Language.load(grammarLocation(grammar, assetBase));
+        languageCache.set(grammar, languagePromise);
+        languagePromise.catch(() => languageCache.delete(grammar));
+      }
+      const language = await languagePromise;
+      const parser = new Parser();
+      parser.setLanguage(language);
+      return parser;
+    })().catch(error => {
+      parserCache.delete(grammar);
+      throw error;
+    });
+    parserCache.set(grammar, parserPromise);
   }
-  let parser = parserCache.get(grammar);
-  if (!parser) {
-    parser = new Parser();
-    parser.setLanguage(language);
-    parserCache.set(grammar, parser);
-  }
-  return parser;
+  return parserPromise;
 }
 
 export function inferSourceLanguage(path, source) {
