@@ -260,6 +260,12 @@ function ProtocolPage({tab,scheme,resolved,resolveError,navigate,retry}){
   if(resolved.document.redirect)return <RedirectPage target={resolved.document.redirect} navigate={navigate} baseUrl={tab.url}/>;
   return <section className="published-frame"><iframe key={tab.reloadToken||0} title={resolved.document.site?.title||tab.title} sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups" srcDoc={fairwasLinkBridge(resolved.document.rendered||resolved.document.file.content,tab.documentUrl||tab.url)}/></section>
  }
+ if(resolved?.document?.type==="site"&&resolved.document.file&&typeof resolved.document.file.content==="string"&&resolved.document.file.encoding!=="base64"){
+  return <section className="published-source" style={{height:"100%",overflow:"auto",background:"#0b0d12",color:"#e5e7eb",padding:"24px",boxSizing:"border-box"}}>
+   <div style={{fontSize:"12px",opacity:.65,marginBottom:"14px"}}>{resolved.document.site?.title||tab.title} · {resolved.document.file.path}</div>
+   <pre style={{margin:0,whiteSpace:"pre-wrap",overflowWrap:"anywhere",font:"13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace"}}>{resolved.document.file.content}</pre>
+  </section>;
+ }
  const missingFile=resolved?.document?.type==="site"&&resolved.document.error==="file_not_found";
  return <section className="webpage">
   {resolveError||missingFile?<div className="not-found"><div className="not-found-icon">⌕</div><h1>{missingFile?"No existe el HTML de esta ruta":"No se puede abrir la página"}</h1><p>{missingFile?"Fairwas no encontró un archivo HTML publicado para esta dirección. Comprueba que el archivo esté guardado y publicado con su ruta exacta.":resolveError==="site_not_found"?"El sitio no está registrado en el Server de Fairwas.":resolveError==="resolve_timeout"?"El runtime de Fairwas no respondió en 12 segundos. Comprueba el despliegue de Cloudflare Pages y sus bindings D1.":resolveError}</p><code>{tab.url}</code><p><button type="button" onClick={retry}>Reintentar</button></p></div>:<div className="webpage-inner"><div className="webpage-head"><span className="site-icon">{scheme?.label?.[0]||"F"}</span><div><span className="eyebrow">{scheme?.label||"WEB"}</span><h1>{tab.title}</h1><code>{tab.url}</code></div></div><div className="state"><span className="status-dot"></span><div><b>{resolved?"Respuesta recibida":"Cargando página…"}</b><p>{resolved?.document?.description||"Fairwas está resolviendo esta dirección."}</p></div></div></div>}
