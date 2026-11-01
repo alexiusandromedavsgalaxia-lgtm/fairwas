@@ -64,7 +64,7 @@ function Layout({path,children,hasAccount,onNavigate}){
  return <section className="cp-shell">
   <aside className="cp-side">
    <div className="cp-brand"><span>CP</span><div><b>CreatePage</b><small>HTTC workspace</small></div></div>
-   <nav>{routes.map(([p,label])=><button key={p} className={path===p?"active":""} onClick={()=>go(p)}>{label}</button>)}</nav>
+   <nav>{routes.map(([p,label])=><button key={p} className={path===p?"active":""} onClick={()=>go(p)}>{label}</button>)}<button onClick={()=>onNavigate?.("httc://yourcode.createpage.fair")}>YourCode ↗</button></nav>
    <div className="cp-side-foot">{hasAccount?"Cuenta de desarrollador registrada":"Sin cuenta de desarrollador"}<br/><b>HTTC · Pages · Server · Database</b></div>
   </aside>
   <div className="cp-content">{children}</div>
