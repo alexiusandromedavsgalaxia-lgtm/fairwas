@@ -1,5 +1,6 @@
 import { Parser, Language } from "web-tree-sitter";
 import { fileURLToPath } from "node:url";
+import { parseDocument } from "yaml";
 
 const EXTENSIONS = {
   js:"javascript",mjs:"javascript",cjs:"javascript",jsx:"javascript",
@@ -132,6 +133,55 @@ function collectSyntaxProblems(rootNode, source, limit = 30) {
   return problems;
 }
 
+function serializeYamlNode(node) {
+  if (node === null || node === undefined) return null;
+  if (Array.isArray(node)) return node.map(serializeYamlNode);
+  if (typeof node !== "object") return node;
+  const type = node.constructor?.name || "YAMLNode";
+  if (Object.prototype.hasOwnProperty.call(node, "key") && Object.prototype.hasOwnProperty.call(node, "value")) {
+    return { type: "Pair", key: serializeYamlNode(node.key), value: serializeYamlNode(node.value) };
+  }
+  if (Array.isArray(node.items)) {
+    return { type, items: node.items.map(serializeYamlNode) };
+  }
+  const result = { type };
+  if (Object.prototype.hasOwnProperty.call(node, "value")) result.value = node.value;
+  if (node.tag) result.tag = node.tag;
+  return result;
+}
+
+function countYamlNodes(node) {
+  if (node === null || node === undefined || typeof node !== "object") return 0;
+  if (Array.isArray(node)) return node.reduce((total, item) => total + countYamlNodes(item), 0);
+  return 1 + Object.values(node).reduce((total, value) => total + countYamlNodes(value), 0);
+}
+
+function parseYamlSource(source) {
+  const document = parseDocument(source, { prettyErrors: false, uniqueKeys: true });
+  const problems = document.errors.map(error => {
+    const position = error.linePos?.[0] || { line: 1, col: 1 };
+    return {
+      type: "unexpected",
+      node: "yaml",
+      token: "",
+      line: position.line,
+      column: position.col,
+      endLine: error.linePos?.[1]?.line || position.line,
+      endColumn: error.linePos?.[1]?.col || position.col,
+      message: String(error.message || "Error de sintaxis YAML.")
+    };
+  });
+  const tree = serializeYamlNode(document.contents);
+  return {
+    status: problems.length ? "syntax-errors" : "valid",
+    language: "yaml",
+    tree: JSON.stringify(tree, null, 2),
+    problems,
+    hasError: problems.length > 0,
+    nodeCount: countYamlNodes(tree)
+  };
+}
+
 export async function parseSource(source, options = {}) {
   const text = String(source ?? "");
   const path = String(options.path || "");
@@ -146,6 +196,8 @@ export async function parseSource(source, options = {}) {
       message: "No se ha podido inferir un lenguaje. Selecciona uno o añade una gramática."
     };
   }
+
+  if (language === "yaml") return parseYamlSource(text);
 
   const assetBase = options.assetBase || (typeof window !== "undefined" ? "/tree-sitter-languages/" : undefined);
   let tree;
