@@ -165,7 +165,9 @@ function TabView({tab,active,navigate,history,bookmarks}){
  const[resolveError,setResolveError]=useState(null);
  const documentUrl=tab.documentUrl||tab.url;
   const scheme=protocolFor(tab.url);
- const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"})();
+ const currentHost=hostOf(tab.url).toLowerCase();
+ const isYourCode=currentHost==="yourcode.createpage.fair";
+ const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
  useEffect(()=>{
   let cancelled=false;
   setResolved(null);setResolveError(null);
