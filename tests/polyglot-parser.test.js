@@ -27,7 +27,7 @@ test("JavaScript, Rust and Zig are parsed into syntax trees", async () => {
   const examples = [
     ["javascript", "const answer = (value) => value + 42;", /lexical_declaration/],
     ["rust", "fn main() { let answer: i32 = 42; }", /function_item/],
-    ["zig", "pub fn main() void {}", /FnProto|fn_proto/]
+    ["zig", "pub fn main() void {}", /function_declaration/]
   ];
   for (const [language, source, expectedNode] of examples) {
     const result = await parseSource(source, { language });
