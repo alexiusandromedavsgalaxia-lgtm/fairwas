@@ -47,8 +47,8 @@ let initPromise;
 const parserCache = new Map();
 const languageCache = new Map();
 
-function runtimeLocation(scriptName, assetBase) {
-  if (typeof window !== "undefined") return new URL(scriptName, assetBase || "/").toString();
+function runtimeLocation(scriptName) {
+  if (typeof window !== "undefined") return new URL(scriptName, "/").toString();
   return fileURLToPath(new URL("../../node_modules/web-tree-sitter/" + scriptName, import.meta.url));
 }
 
@@ -135,15 +135,19 @@ export async function parseSource(source, options = {}) {
   try {
     const parser = await getParser(language, assetBase);
     const tree = parser.parse(text);
-    const problems = collectSyntaxProblems(tree.rootNode, text);
-    return {
+    if (!tree) throw new Error("El motor de parsing no ha devuelto un árbol sintáctico.");
+    const root = tree.rootNode;
+    const problems = collectSyntaxProblems(root, text);
+    const result = {
       status: problems.length ? "syntax-errors" : "valid",
       language,
-      tree: tree.rootNode.toString(),
+      tree: root.toString(),
       problems,
-      hasError: Boolean(tree.rootNode.hasError),
-      nodeCount: countNodes(tree.rootNode)
+      hasError: Boolean(root.hasError),
+      nodeCount: countNodes(root)
     };
+    tree.delete();
+    return result;
   } catch (error) {
     return {
       status: "grammar-unavailable",
