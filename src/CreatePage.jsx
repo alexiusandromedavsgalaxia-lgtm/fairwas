@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState}from"react";
 import { parseSource, supportedParserLanguages } from "./runtime/polyglot-parser.js";
+import { runYourCode } from "./runtime/yourcode-runtime.js";
 
 function parsePublishTarget(value){
  const raw=String(value||"").trim();
@@ -281,6 +282,8 @@ function Editor({siteId="",yourCode=false}){
  const[parserLanguage,setParserLanguage]=useState("");
  const[syntaxResult,setSyntaxResult]=useState(null);
  const[syntaxBusy,setSyntaxBusy]=useState(false);
+ const[runtimeResult,setRuntimeResult]=useState(null);
+ const[runtimeError,setRuntimeError]=useState("");
  useEffect(()=>{
   if(!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
   let current=true;
@@ -383,7 +386,19 @@ function Editor({siteId="",yourCode=false}){
    {syntaxResult?.problems?.length>0&&<div style={{display:"grid",gap:5,marginTop:10}}>{syntaxResult.problems.map((problem,index)=><div key={index} style={{fontSize:12,color:"#f0a080"}}>Línea {problem.line}, columna {problem.column}: {problem.message} {problem.token&&<code>{problem.token}</code>}</div>)}</div>}
    {syntaxResult?.status==="grammar-unavailable"&&<p style={{fontSize:12,color:"#f0a080",margin:"8px 0 0"}}>{syntaxResult.message}</p>}
    {syntaxResult?.tree&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:12}}>Ver árbol sintáctico · {syntaxResult.language}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:260,overflow:"auto",fontSize:11,color:"#c4cbd6",marginTop:8}}>{syntaxResult.tree}</pre></details>}
-  </section></div></div>
+  </section>
+  {yourCode&&<section style={{padding:14,borderTop:"1px solid rgba(255,255,255,.09)",background:"#11151b"}}>
+   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><div><b style={{fontSize:13}}>EJECUCIÓN YOURCODE</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>Interpreta instrucciones legibles y genera una vista previa real.</p></div><button type="button" className="cp-primary" onClick={()=>{try{setRuntimeError("");setRuntimeResult(runYourCode(code));setStatus("Programa ejecutado correctamente.")}catch(error){setRuntimeResult(null);setRuntimeError(error.message||String(error))}}}>▶ Ejecutar código</button></div>
+   {runtimeError&&<div className="cp-error" role="alert">{runtimeError}</div>}
+   {runtimeResult&&<div style={{display:"grid",gap:10,marginTop:12}}>
+    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:12,color:"#aeb8c6"}}><span>{runtimeResult.steps} instrucciones</span><span>{runtimeResult.ast.body.length} nodos de programa</span><span>{Object.keys(runtimeResult.variables).length} variables</span></div>
+    {runtimeResult.output.length>0&&<div><b style={{fontSize:12}}>Consola</b><pre style={{whiteSpace:"pre-wrap",padding:10,background:"#080a0d",borderRadius:8,color:"#c8f0a5"}}>{runtimeResult.output.join("\n")}</pre></div>}
+    <div><b style={{fontSize:12}}>Resultado renderizado</b><iframe title="Resultado YourCode" sandbox="" srcDoc={runtimeResult.html} style={{display:"block",width:"100%",height:320,marginTop:8,border:"1px solid #343b47",borderRadius:10,background:"#101318"}}/></div>
+    <details><summary style={{cursor:"pointer",fontSize:12}}>Árbol sintáctico interpretado</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:240,overflow:"auto",fontSize:11,color:"#c4cbd6"}}>{JSON.stringify(runtimeResult.ast,null,2)}</pre></details>
+   </div>}
+   <details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:12}}>Ver instrucciones del lenguaje YourCode</summary><pre style={{whiteSpace:"pre-wrap",fontSize:11,color:"#c4cbd6"}}>{'let nombre = "Axel"\nlet puntos = 2 + 3 * 4\nheading "Hola " + nombre\ntext "Tienes " + puntos + " puntos"\nbutton "Continuar"\nprint puntos\nif puntos > 10 { text "Has superado diez" }\nrepeat 2 { text "Repetición" }'}</pre></details>
+  </section>}
+  </div></div>
   <section className="cp-card cp-db-panel">
    <div className="cp-db-toggle-row"><div><small>ENV.DATABASE</small><b>Bases de datos</b><span>{pageDatabases.length}/20 · {pageDatabases.length===1?"1 base conectada":pageDatabases.length+" bases conectadas"}</span></div><button type="button" className="cp-db-toggle" aria-expanded={dbPanelOpen} onClick={()=>setDbPanelOpen(open=>!open)}>{dbPanelOpen?"Cerrar bases ×":"Abrir bases ⚙"}</button></div>
    {dbPanelOpen&&<>
