@@ -56,5 +56,5 @@ YourCode incorpora un motor Tree-sitter en WebAssembly. El editor analiza el con
 
 Las gramáticas disponibles se copian desde `tree-sitter-wasms` durante `npm install`. El proceso de instalación comprueba que cada lenguaje anunciado tenga un archivo WASM real y genera `public/tree-sitter-languages/manifest.json`. El runtime se sirve desde `/tree-sitter.wasm`.
 
-La compatibilidad es amplia, pero no universal: solo se analizan sintácticamente los lenguajes para los que hay una gramática instalada. Un lenguaje o DSL propio necesita su propia gramática; no se presenta una simple vista del texto como si fuera parsing.
+Además de las gramáticas conocidas, YourCode incluye un **parser universal para lenguajes inventados o desconocidos**. Cuando no se reconoce la extensión o la sintaxis, tokeniza identificadores, números, cadenas, operadores arbitrarios, comentarios y grupos anidados, y genera un árbol estructural sin exigir palabras clave ni operadores predefinidos. Detecta problemas estructurales como cadenas o grupos sin cerrar. Este modo no inventa la semántica de un lenguaje desconocido: para comprender qué significa cada construcción y validar reglas específicas, el lenguaje necesita una gramática o una definición formal.
 
