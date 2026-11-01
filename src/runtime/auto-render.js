@@ -40,8 +40,9 @@ function csvView(source){
 }
 function looksLikeJavaScript(source){
  const s=String(source).trim();
- return /^(?:import\s|export\s|(?:async\s+)?function\s|class\s|const\s|let\s|var\s|document\.|window\.|console\.|\(\s*\(\s*\)\s*=>|\(\s*function)/m.test(s) ||
-  /\b(?:document\.createElement|document\.querySelector|document\.body|addEventListener|console\.log)\b/.test(s);
+ if(!s)return false;
+ return /^(?:#!.*\\n)?(?:import\\s|export\\s|(?:async\\s+)?function\\s|class\\s|const\\s|let\\s|var\\s|document\\.|window\\.|console\\.|globalThis\\.|module\\.|exports\\.|require\\(|return\\s|if\\s*\\(|for\\s*\\(|while\\s*\\(|try\\s*\\{|\\(\\s*\\(\\s*\\)\\s*=>|\\(\\s*function)/m.test(s) ||
+  /\\b(?:document\\.(?:createElement|querySelector|querySelectorAll|body|getElementById)|window\\.(?:addEventListener|location)|addEventListener|console\\.(?:log|warn|error)|=>\\s*[{(]|\\b(?:function|class)\\s+[A-Za-z_$])/m.test(s);
 }
 function looksLikeCss(source){return /(^|})\s*[^@{}][^{]*\{\s*[^}]+:[^}]+}/.test(String(source)) && !looksLikeJavaScript(source)}
 function cssPreview(source){
@@ -71,7 +72,9 @@ export function autoRenderFile(file,{title="YourCode",hostname="",rewriteImports
  if(looksLikeJavaScript(source)||/\.(?:[cm]?js|jsx)$/i.test(path)){
   const executable=rewriteImports(source);
   const safeCode=JSON.stringify(executable).replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
-  const bootstrap="<script type=\"module\">const source="+safeCode+";const script=document.createElement('script');script.type='module';script.textContent=source;document.body.append(script);</script>";
+  const isModule=/^\s*(?:import\s|export\s)|\bimport\s*\(/m.test(executable);
+  const scriptType=isModule?"module":"text/javascript";
+  const bootstrap="<script>(function(){var panel=document.createElement('pre');panel.id='yourcode-runtime-error';panel.style.cssText='display:none;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;margin:20px 0;border:1px solid #d97757;border-radius:12px;background:#fff0eb;color:#762d1c;font:13px/1.5 ui-monospace,monospace';function report(value){panel.style.display='block';panel.textContent='YourCode no pudo ejecutar este archivo: '+String(value&&value.message||value||'error desconocido');if(!panel.isConnected)document.body.appendChild(panel)}window.addEventListener('error',function(e){report(e.error||e.message)});window.addEventListener('unhandledrejection',function(e){report(e.reason)});var source="+safeCode+";var script=document.createElement('script');script.type="+JSON.stringify(scriptType)+";script.textContent=source;script.onerror=function(e){report('No se pudo cargar un módulo o una dependencia del proyecto.')};document.body.appendChild(script)})();</script>";
   return {kind:"javascript",html:page(title,"<div id=\"yourcode-root\"></div>"+bootstrap)};
  }
  if(/^\s*<!?\s*[A-Za-z][\s\S]*>\s*$/.test(source))return {kind:"markup",html:page(title,source)};
