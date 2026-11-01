@@ -41,8 +41,8 @@ function csvView(source){
 function looksLikeJavaScript(source){
  const s=String(source).trim();
  if(!s)return false;
- return /^(?:#!.*\\n)?(?:import\\s|export\\s|(?:async\\s+)?function\\s|class\\s|const\\s|let\\s|var\\s|document\\.|window\\.|console\\.|globalThis\\.|module\\.|exports\\.|require\\(|return\\s|if\\s*\\(|for\\s*\\(|while\\s*\\(|try\\s*\\{|\\(\\s*\\(\\s*\\)\\s*=>|\\(\\s*function)/m.test(s) ||
-  /\\b(?:document\\.(?:createElement|querySelector|querySelectorAll|body|getElementById)|window\\.(?:addEventListener|location)|addEventListener|console\\.(?:log|warn|error)|=>\\s*[{(]|\\b(?:function|class)\\s+[A-Za-z_$])/m.test(s);
+ return /^(?:#!.*\n)?(?:import\s|export\s|(?:async\s+)?function\s|class\s|const\s|let\s|var\s|document\.|window\.|console\.|globalThis\.|module\.|exports\.|require\(|return\s|if\s*\(|for\s*\(|while\s*\(|try\s*\{|\(\s*\(\s*\)\s*=>|\(\s*function)/m.test(s) ||
+  /\b(?:document\.(?:createElement|querySelector|querySelectorAll|body|getElementById)|window\.(?:addEventListener|location)|addEventListener|console\.(?:log|warn|error)|=>\s*[{(]|\b(?:function|class)\s+[A-Za-z_$])/m.test(s);
 }
 function looksLikeCss(source){return /(^|})\s*[^@{}][^{]*\{\s*[^}]+:[^}]+}/.test(String(source)) && !looksLikeJavaScript(source)}
 function cssPreview(source){
