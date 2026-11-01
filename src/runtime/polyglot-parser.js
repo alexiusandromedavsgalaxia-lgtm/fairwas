@@ -9,7 +9,7 @@ const EXTENSIONS = {
   html:"html",htm:"html",xhtml:"html",css:"css",
   json:"json",jsonc:"json",yaml:"yaml",yml:"yaml",toml:"toml",
   lua:"lua",swift:"swift",kt:"kotlin",
-  kts:"kotlin",scala:"scala",ex:"elixir",exs:"elixir",hs:"haskell",
+  kts:"kotlin",scala:"scala",ex:"elixir",exs:"elixir",
   vue:"vue",m:"objc",mm:"objc",
   dart:"dart",ml:"ocaml",mli:"ocaml",el:"elisp",ql:"ql",res:"rescript",
   rdl:"systemrdl",tla:"tlaplus",sol:"solidity",ejs:"embedded_template",
@@ -26,7 +26,6 @@ const LANGUAGE_HINTS = [
   ["rust", /(?:^|\n)\s*(?:fn\s+main\s*\(|use\s+std::|let\s+mut\s+\w+|impl\s+\w+)/],
   ["go", /(?:^|\n)\s*(?:package\s+\w+|func\s+(?:main|\w+)\s*\()/],
   ["java", /(?:public|private|protected)\s+(?:static\s+)?(?:class|interface|enum)\s+\w+/],
-  ["sql", /^\s*(?:SELECT|CREATE\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET)\b/im],
   ["bash", /(?:^|\n)\s*(?:#!.*(?:bash|sh)|(?:if|for|while)\s+\[\[?|\w+\s*\(\s*\)\s*\{)/],
   ["ruby", /(?:^|\n)\s*(?:def\s+\w+|require\s+["']|puts\s+)/],
   ["php", /<\?php|\$\w+\s*=/],
@@ -34,7 +33,14 @@ const LANGUAGE_HINTS = [
   ["javascript", /\b(?:const|let|var|function|import|export)\b|=>|document\.|console\./],
   ["css", /(?:^|\})\s*[^{}]+\{\s*[^{}:]+\s*:/],
   ["json", /^\s*[\[{]/],
-  ["yaml", /^\s*[\w.-]+\s*:\s*(?:[^{}[\]]+)?$/m]
+  ["yaml", /^\s*[\w.-]+\s*:\s*(?:[^{}[\]]+)?$/m],
+  ["kotlin", /(?:^|\n)\s*(?:fun\s+main\s*\(|val\s+\w+\s*=|data\s+class\s+)/],
+  ["swift", /(?:^|\n)\s*(?:import\s+Foundation|func\s+main\s*\(|let\s+\w+\s*=)/],
+  ["dart", /(?:^|\n)\s*(?:void\s+main\s*\(|class\s+\w+\s+extends\s+StatelessWidget)/],
+  ["scala", /(?:^|\n)\s*(?:object\s+\w+|def\s+main\s*\()/],
+  ["elixir", /(?:^|\n)\s*(?:defmodule\s+\w+|defp?\s+\w+)/],
+  ["ocaml", /(?:^|\n)\s*(?:let\s+rec\s+\w+|type\s+\w+\s*=)/],
+  ["solidity", /pragma\s+solidity|contract\s+\w+\s*\{/]
 ];
 
 let initPromise;
