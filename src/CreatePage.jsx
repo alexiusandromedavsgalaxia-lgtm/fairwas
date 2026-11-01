@@ -1,4 +1,4 @@
-import React,{useEffect,useState}from"react";
+import React,{useEffect,useRef,useState}from"react";
 
 function parsePublishTarget(value){
  const raw=String(value||"").trim();
@@ -195,6 +195,80 @@ function Workers({workers}){return <><Head eyebrow="WORKERS" title="Workers" tex
 function Profile({data}){const account=data?.developer;const[name,setName]=useState(account?.display_name||"Fairwas user");const[ok,setOk]=useState(false);const[error,setError]=useState("");useEffect(()=>{setName(account?.display_name||"Fairwas user");setOk(false);setError("")},[account?.display_name]);const save=async()=>{setOk(false);setError("");try{await api("profile",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({display_name:name})});setOk(true);window.dispatchEvent(new CustomEvent("fairwas:createpage-reload"))}catch(e){setError(e.message)}};return <><Head eyebrow="MY / PROFILE" title="Mi perfil" text="Identidad de tu cuenta de desarrollador."/><div className="cp-grid two"><div className="cp-card cp-form"><label>Nombre<input value={name} onChange={e=>setName(e.target.value)}/></label><button type="button" onClick={save}>Guardar perfil</button>{ok&&<small>Guardado.</small>}{error&&<div className="cp-error">{error}</div>}</div><div className="cp-card"><h3>Cuenta</h3><p className="cp-line"><b>User ID</b><span>{account?.user_id||"—"}</span></p><p className="cp-line"><b>Developer ID</b><span>{account?.developer_id||"—"}</span></p><p className="cp-line"><b>Email</b><span>{account?.email||"—"}</span></p><p className="cp-line"><b>Estado</b><span>{account?.status||"—"}</span></p><p className="cp-line"><b>Creada</b><span>{account?.created_at||"—"}</span></p></div></div></>}
 function readIdeDraft(siteId){try{const value=JSON.parse(localStorage.getItem("fairwas:ide-draft:"+(siteId||"new"))||"null");return value&&typeof value==="object"?value:null}catch{return null}}
 
+
+function escapeEditorHtml(value){
+ return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function highlightEditorCode(source){
+ const pattern=/(\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|<\/?[A-Za-z][^>]*>|#[^\n]*|\b(?:const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|class|extends|new|this|import|export|from|default|async|await|try|catch|throw|true|false|null|undefined|public|private|static|void|int|float|string|bool|def|print|lambda|pass|in|of|as|typeof|instanceof)\b|\b\d+(?:\.\d+)?\b)/g;
+ let output="",last=0,match;
+ while((match=pattern.exec(String(source)))){
+  output+=escapeEditorHtml(source.slice(last,match.index));
+  const token=match[0];
+  let kind="syntax-keyword";
+  if(token.startsWith("//")||token.startsWith("/*")||token.startsWith("<!--")||token.startsWith("#"))kind="syntax-comment";
+  else if(token[0]==='"'||token[0]==="'")kind="syntax-string";
+  else if(token[0]==="<")kind="syntax-tag";
+  else if(/^\d/.test(token))kind="syntax-number";
+  output+='<span class="'+kind+'">'+escapeEditorHtml(token)+'</span>';
+  last=pattern.lastIndex;
+ }
+ output+=escapeEditorHtml(String(source).slice(last));
+ return output+"\n";
+}
+function CodeEditor({value,onChange,filename}){
+ const textarea=useRef(null),highlight=useRef(null);
+ const language=String(filename||"").split(".").pop().toLowerCase();
+ const handleKeyDown=event=>{
+  const el=event.currentTarget,start=el.selectionStart,end=el.selectionEnd,text=String(value||"");
+  const pairs={"{":"}","[":"]","(":")"};
+  if(event.key in pairs){
+   event.preventDefault();
+   const close=pairs[event.key],next=text.slice(start,end);
+   const insert=event.key+next+close;
+   onChange(text.slice(0,start)+insert+text.slice(end));
+   requestAnimationFrame(()=>{el.focus();el.setSelectionRange(start+1,start+1+next.length)});
+   return;
+  }
+  if([")","]","}"].includes(event.key)&&text[start]===event.key){
+   event.preventDefault();el.setSelectionRange(start+1,start+1);return;
+  }
+  if(event.key==="Tab"){
+   event.preventDefault();
+   const lineStart=text.lastIndexOf("\n",start-1)+1;
+   if(event.shiftKey){
+    const lineEnd=text.indexOf("\n",start)===-1?text.length:text.indexOf("\n",start);
+    const line=text.slice(lineStart,lineEnd);
+    const remove=line.startsWith("  ")?2:line.startsWith("\t")?1:0;
+    if(remove){onChange(text.slice(0,lineStart)+line.slice(remove)+text.slice(lineEnd));requestAnimationFrame(()=>el.setSelectionRange(Math.max(lineStart,start-remove),Math.max(lineStart,start-remove)))}
+   }else{
+    onChange(text.slice(0,start)+"  "+text.slice(end));
+    requestAnimationFrame(()=>el.setSelectionRange(start+2,start+2));
+   }
+   return;
+  }
+  if(event.key==="Enter"){
+   event.preventDefault();
+   const lineStart=text.lastIndexOf("\n",start-1)+1;
+   const before=text.slice(lineStart,start),after=text.slice(end);
+   const indent=(before.match(/^\s*/)||[""])[0];
+   const trimmed=before.trimEnd();
+   const opens=/[{\[(]\s*$/.test(trimmed);
+   const closes=/^\s*[}\])]/.test(after);
+   const inner=indent+(opens?"  ":"");
+   const insertion=opens&&closes?"\n"+inner+"\n"+indent:"\n"+inner;
+   onChange(text.slice(0,start)+insertion+text.slice(end));
+   const cursor=start+1+inner.length;
+   requestAnimationFrame(()=>{el.focus();el.setSelectionRange(cursor,cursor)});
+  }
+ };
+ const syncScroll=()=>{if(textarea.current&&highlight.current){highlight.current.scrollTop=textarea.current.scrollTop;highlight.current.scrollLeft=textarea.current.scrollLeft}};
+ return <div className="cp-code-stage" data-language={language}>
+  <pre className="cp-code-highlight" ref={highlight} aria-hidden="true" dangerouslySetInnerHTML={{__html:highlightEditorCode(value)}}/>
+  <textarea ref={textarea} className="cp-editor cp-editor-input" value={value} onChange={event=>onChange(event.target.value)} onKeyDown={handleKeyDown} onScroll={syncScroll} spellCheck="false" autoCapitalize="off" autoCorrect="off" aria-label={"Editor de "+filename}/>
+ </div>;
+}
+
 function Editor({siteId=""}){
   const [newDraftId]=useState(()=>siteId?"":"new-"+Date.now()+"-"+Math.random().toString(36).slice(2));
   const draft=siteId?readIdeDraft(siteId):null;
@@ -254,7 +328,7 @@ function Editor({siteId=""}){
  return <section className="cp-ide">
   <div className="cp-ide-top"><div className="cp-ide-heading"><small>FAIRWAS · WORKSPACE</small><h1>{siteId?"Editar página":"Nuevo proyecto"}</h1><p>{site.hostname||"Configura el dominio y empieza a editar"}</p></div><div className="cp-ide-actions"><button type="button" onClick={addFile}>＋ Archivo</button><button type="button" onClick={addFolder}>＋ Carpeta</button><button type="button" onClick={()=>setApiPanelOpen(v=>!v)}>{apiPanelOpen?"Cerrar chat":"✦ Chat IA / Backend"}</button><label className="cp-button">Importar archivos<input type="file" multiple onChange={importFiles}/></label><label className="cp-button">Importar carpeta<input type="file" multiple webkitdirectory="" onChange={importFiles}/></label><button type="button" className="cp-ide-publish" onClick={save}>{siteId?"Guardar cambios":"Publicar sitio"}</button></div></div>
   <details className="cp-ide-project-settings"><summary>Configuración del proyecto <span>Dominio, nombre, compilación e importación</span></summary><div className="cp-ide-settings-grid">{!siteId&&<><label>Repositorio Git<input placeholder="https://github.com/usuario/repositorio" value={repoUrl} onChange={e=>setRepoUrl(e.target.value)}/></label><button type="button" onClick={importRepo}>Importar Git</button><label>Migrar web estática<input placeholder="https://ejemplo.com/" value={migrateUrl} onChange={e=>setMigrateUrl(e.target.value)}/></label><button type="button" onClick={migrateStatic}>Migrar web</button></>}<label>Dominio o URL completa<input placeholder="miweb.fair o miweb.fair/tienda/producto/" value={site.hostname} onChange={e=>setSite(s=>({...s,hostname:e.target.value}))}/><small>Puedes publicar en la raíz o pegar una URL con ruta. Fairwas separa automáticamente el dominio y la ruta.</small></label><label>Nombre del sitio<input placeholder="Mi web" value={site.title} onChange={e=>setSite(s=>({...s,title:e.target.value}))}/></label><label>Raíz del proyecto<input placeholder="/" value={build.root} onChange={e=>setBuild(x=>({...x,root:e.target.value}))}/></label><label>Carpeta de salida<input placeholder="/dist" value={build.output} onChange={e=>setBuild(x=>({...x,output:e.target.value}))}/></label><label>Comando de compilación<input placeholder="npm run build" value={build.command} onChange={e=>setBuild(x=>({...x,command:e.target.value}))}/></label></div></details>
-  <div className="cp-ide-body"><aside className="cp-files" aria-label="Explorador de archivos"><div className="cp-files-title">EXPLORADOR</div>{tree.map(item=>item.folder?<div className="cp-file-folder" style={{paddingLeft:10+item.depth*14}} key={"dir:"+item.path} title={item.path}><span aria-hidden="true">▸</span> {item.path.split("/").pop()}<small>{item.path}</small></div>:<button type="button" className={selected===item.path?"active":""} style={{paddingLeft:10+item.depth*14}} key={"file:"+item.path} onClick={()=>pick(item.path)}>{item.path.split("/").pop()||"/"}<small>{item.path}</small></button>)}</aside><div className="cp-editor-wrap"><div className="cp-editor-head"><b>{selected}</b><span aria-live="polite">{status}</span><div className="cp-editor-file-actions"><button type="button" onClick={rename}>Renombrar</button><button type="button" onClick={remove}>Eliminar archivo</button></div></div><textarea className="cp-editor" value={code} onChange={e=>setCode(e.target.value)} spellCheck="false" aria-label={"Editor de "+selected}/></div></div>
+  <div className="cp-ide-body"><aside className="cp-files" aria-label="Explorador de archivos"><div className="cp-files-title">EXPLORADOR</div>{tree.map(item=>item.folder?<div className="cp-file-folder" style={{paddingLeft:10+item.depth*14}} key={"dir:"+item.path} title={item.path}><span aria-hidden="true">▸</span> {item.path.split("/").pop()}<small>{item.path}</small></div>:<button type="button" className={selected===item.path?"active":""} style={{paddingLeft:10+item.depth*14}} key={"file:"+item.path} onClick={()=>pick(item.path)}>{item.path.split("/").pop()||"/"}<small>{item.path}</small></button>)}</aside><div className="cp-editor-wrap"><div className="cp-editor-head"><b>{selected}</b><span aria-live="polite">{status}</span><div className="cp-editor-file-actions"><button type="button" onClick={rename}>Renombrar</button><button type="button" onClick={remove}>Eliminar archivo</button></div></div><CodeEditor value={code} onChange={setCode} filename={selected}/></div></div>
   <section className="cp-card cp-db-panel">
    <div className="cp-db-toggle-row"><div><small>ENV.DATABASE</small><b>Bases de datos</b><span>{pageDatabases.length}/20 · {pageDatabases.length===1?"1 base conectada":pageDatabases.length+" bases conectadas"}</span></div><button type="button" className="cp-db-toggle" aria-expanded={dbPanelOpen} onClick={()=>setDbPanelOpen(open=>!open)}>{dbPanelOpen?"Cerrar bases ×":"Abrir bases ⚙"}</button></div>
    {dbPanelOpen&&<>
