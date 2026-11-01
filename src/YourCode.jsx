@@ -1,6 +1,6 @@
 import React from "react";
-import CreatePage from "./CreatePage";
+import { YourCodePage } from "./CreatePage";
 
-export default function YourCode({onNavigate}){
- return <CreatePage url="httc://createpage.fair/ide" onNavigate={onNavigate} yourCode/>;
+export default function YourCode({url,onNavigate}){
+ return <YourCodePage url={url||"httc://yourcode.official/"} onNavigate={onNavigate}/>;
 }
