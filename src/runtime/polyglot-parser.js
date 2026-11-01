@@ -7,11 +7,11 @@ const EXTENSIONS = {
   java:"java",c:"c",h:"c",cc:"cpp",cpp:"cpp",cxx:"cpp",hpp:"cpp",
   cs:"c_sharp",rb:"ruby",php:"php",sh:"bash",bash:"bash",zsh:"bash",
   html:"html",htm:"html",xhtml:"html",css:"css",
-  json:"json",jsonc:"json",yaml:"yaml",yml:"yaml",toml:"toml",
+  json:"json",jsonc:"json",yml:"yaml",yaml:"yaml",toml:"toml",
   lua:"lua",swift:"swift",kt:"kotlin",
   kts:"kotlin",scala:"scala",ex:"elixir",exs:"elixir",
   vue:"vue",m:"objc",mm:"objc",
-  dart:"dart",elm:"elm",zig:"zig",ml:"ocaml",mli:"ocaml",el:"elisp",ql:"ql",res:"rescript",
+  dart:"dart",zig:"zig",ml:"ocaml",mli:"ocaml",el:"elisp",res:"rescript",
   rdl:"systemrdl",tla:"tlaplus",sol:"solidity",ejs:"embedded_template",
   erb:"embedded_template"
 };
@@ -33,15 +33,13 @@ const LANGUAGE_HINTS = [
   ["javascript", /\b(?:const|let|var|function|import|export)\b|=>|document\.|console\./],
   ["css", /(?:^|\})\s*[^{}]+\{\s*[^{}:]+\s*:/],
   ["json", /^\s*[\[{]/],
-  ["yaml", /^\s*[\w.-]+\s*:\s*(?:[^{}[\]]+)?$/m],
   ["kotlin", /(?:^|\n)\s*(?:fun\s+main\s*\(|val\s+\w+\s*=|data\s+class\s+)/],
   ["swift", /(?:^|\n)\s*(?:import\s+Foundation|func\s+main\s*\(|let\s+\w+\s*=)/],
   ["dart", /(?:^|\n)\s*(?:void\s+main\s*\(|class\s+\w+\s+extends\s+StatelessWidget)/],
   ["scala", /(?:^|\n)\s*(?:object\s+\w+|def\s+main\s*\()/],
   ["elixir", /(?:^|\n)\s*(?:defmodule\s+\w+|defp?\s+\w+)/],
   ["ocaml", /(?:^|\n)\s*(?:let\s+rec\s+\w+|type\s+\w+\s*=)/],
-  ["solidity", /pragma\s+solidity|contract\s+\w+\s*\{/]
-  ["elm", /(?:^|\n)\s*module\s+\w+\s+exposing\b/],
+  ["solidity", /pragma\s+solidity|contract\s+\w+\s*\{/],
   ["zig", /(?:^|\n)\s*(?:const\s+std\s*=\s*@import|pub\s+fn\s+main\s*\()/],
 ];
 
