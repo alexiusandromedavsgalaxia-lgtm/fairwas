@@ -45,6 +45,26 @@ function looksLikeJavaScript(source){
   /\b(?:document\.(?:createElement|querySelector|querySelectorAll|body|getElementById)|window\.(?:addEventListener|location)|addEventListener|console\.(?:log|warn|error)|=>\s*[{(]|\b(?:function|class)\s+[A-Za-z_$])/m.test(s);
 }
 function looksLikeCss(source){return /(^|})\s*[^@{}][^{]*\{\s*[^}]+:[^}]+}/.test(String(source)) && !looksLikeJavaScript(source)}
+const LANGUAGE_BY_EXTENSION={
+ py:"Python",pyw:"Python",pyi:"Python",ts:"TypeScript",tsx:"TSX",jsx:"JSX",mjs:"JavaScript",cjs:"JavaScript",js:"JavaScript",php:"PHP",phtml:"PHP",java:"Java",class:"Java bytecode",kt:"Kotlin",kts:"Kotlin",swift:"Swift",go:"Go",rs:"Rust",rb:"Ruby",rake:"Ruby",cs:"C#",fs:"F#",fsx:"F#",vb:"Visual Basic",c:"C",h:"C/C++",cc:"C++",cpp:"C++",cxx:"C++",hpp:"C++",hh:"C++",sql:"SQL",sh:"Shell",bash:"Bash",zsh:"Shell",ps1:"PowerShell",bat:"Batch",cmd:"Batch",lua:"Lua",r:"R",dart:"Dart",scala:"Scala",sc:"Scala",pl:"Perl",pm:"Perl",ex:"Elixir",exs:"Elixir",erl:"Erlang",hrl:"Erlang",clj:"Clojure",cljs:"ClojureScript",hs:"Haskell",lhs:"Haskell",elm:"Elm",vue:"Vue",svelte:"Svelte",astro:"Astro",graphql:"GraphQL",gql:"GraphQL",proto:"Protocol Buffers",xml:"XML",xsl:"XSLT",yaml:"YAML",yml:"YAML",toml:"TOML",ini:"INI",conf:"Configuration",env:"Environment",json:"JSON",jsonc:"JSONC",md:"Markdown",mdx:"MDX",txt:"Texto",csv:"CSV",css:"CSS",scss:"SCSS",sass:"Sass",less:"Less",html:"HTML",htm:"HTML",svg:"SVG",wasm:"WebAssembly",wat:"WebAssembly Text",sol:"Solidity",vy:"Vyper",move:"Move",tf:"Terraform",hcl:"HCL",make:"Makefile",mk:"Makefile",dockerfile:"Dockerfile"};
+function languageFor(path,source){
+ const name=String(path||"").split("/").pop().toLowerCase();
+ const ext=name.includes(".")?name.split(".").pop():name;
+ if(LANGUAGE_BY_EXTENSION[ext])return LANGUAGE_BY_EXTENSION[ext];
+ const s=String(source||"").trim();
+ if(/^#!.*\bpython\b/m.test(s)||/^\s*(?:def\s+\w+\s*\(|from\s+\w+\s+import\s|import\s+\w+\s*$)/m.test(s))return "Python";
+ if(/^\s*(?:package\s+\w+|func\s+\w+\s*\()/m.test(s))return "Go";
+ if(/^\s*(?:fn\s+main\s*\(|use\s+std::|let\s+mut\s+)/m.test(s))return "Rust";
+ if(/^\s*(?:SELECT\s|CREATE\s+TABLE\s|INSERT\s+INTO\s)/im.test(s))return "SQL";
+ if(/^\s*(?:#!.*\b(?:bash|sh)\b|set\s+-e\b)/m.test(s))return "Shell";
+ if(looksLikeJavaScript(s))return "JavaScript";
+ if(looksLikeCss(s))return "CSS";
+ return "Código";
+}
+function codePreview(source,path,title){
+ const language=languageFor(path,source);
+ return page(title,'<section style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px"><h1 style="margin:0">Vista de código</h1><span style="padding:5px 10px;border-radius:999px;background:#e5e7eb;color:#20232b;font:600 12px system-ui">'+escapeHtml(language)+'</span></section><p style="color:#667085">Archivo reconocido. Este formato se muestra sin ejecutar código incompatible con el navegador.</p><pre style="padding:18px;border-radius:12px;background:#111827;color:#e5e7eb;overflow:auto;tab-size:2"><code>'+escapeHtml(source)+'</code></pre>');
+}
 function cssPreview(source){
  const selectors=[...String(source).matchAll(/([^{}]+)\{[^{}]*\}/g)].map(match=>match[1].trim()).filter(s=>s&&!s.startsWith("@")).slice(0,12);
  const samples=selectors.map(selector=>{const tag=selector.startsWith("#")?"section":selector.startsWith(".")?"div":/^(?:h[1-6]|p|button|a|article|header|footer|main|section|nav|span|label|input|img)\b/i.test(selector)?selector.split(/[.#\s:]/)[0]:"div";return "<"+tag+(selector.startsWith("#")?' id="'+escapeHtml(selector.slice(1))+'"':selector.startsWith(".")?' class="'+escapeHtml(selector.slice(1))+'"':"")+">"+escapeHtml(selector)+"</"+tag+">"}).join("");
@@ -74,9 +94,9 @@ export function autoRenderFile(file,{title="YourCode",hostname="",rewriteImports
   const safeCode=JSON.stringify(executable).replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
   const isModule=/^\s*(?:import\s|export\s)|\bimport\s*\(/m.test(executable);
   const scriptType=isModule?"module":"text/javascript";
-  const bootstrap="<script>(function(){var panel=document.createElement('pre');panel.id='yourcode-runtime-error';panel.style.cssText='display:none;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;margin:20px 0;border:1px solid #d97757;border-radius:12px;background:#fff0eb;color:#762d1c;font:13px/1.5 ui-monospace,monospace';function report(value){panel.style.display='block';panel.textContent='YourCode no pudo ejecutar este archivo: '+String(value&&value.message||value||'error desconocido');if(!panel.isConnected)document.body.appendChild(panel)}window.addEventListener('error',function(e){report(e.error||e.message)});window.addEventListener('unhandledrejection',function(e){report(e.reason)});var source="+safeCode+";var script=document.createElement('script');script.type="+JSON.stringify(scriptType)+";script.textContent=source;script.onerror=function(e){report('No se pudo cargar un módulo o una dependencia del proyecto.')};document.body.appendChild(script)})();</script>";
+  const bootstrap="<script>(function(){var panel=document.createElement('pre');panel.id='yourcode-runtime-error';panel.style.cssText='display:none;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;margin:20px 0;border:1px solid #d97757;border-radius:12px;background:#fff0eb;color:#762d1c;font:13px/1.5 ui-monospace,monospace';function report(value){panel.style.display='block';var message=value&&value.message||value||'error desconocido';var syntax=value instanceof SyntaxError||value&&value.name==='SyntaxError';panel.textContent=syntax?'YourCode no ha podido interpretar la sintaxis de este archivo. Revisa el lenguaje y la compatibilidad del código.':'YourCode no pudo ejecutar este archivo: '+String(message).replace(/expected\s+(?:token|expression|identifier|\'[^\']+\')/ig,'sintaxis no reconocida').replace(/unexpected\s+token/ig,'elemento no reconocido');if(!panel.isConnected)document.body.appendChild(panel)}window.addEventListener('error',function(e){report(e.error||e.message)});window.addEventListener('unhandledrejection',function(e){report(e.reason)});var source="+safeCode+";var script=document.createElement('script');script.type="+JSON.stringify(scriptType)+";script.textContent=source;script.onerror=function(e){report('No se pudo cargar un módulo o una dependencia del proyecto.')};document.body.appendChild(script)})();</script>";
   return {kind:"javascript",html:page(title,"<div id=\"yourcode-root\"></div>"+bootstrap)};
  }
  if(/^\s*<!?\s*[A-Za-z][\s\S]*>\s*$/.test(source))return {kind:"markup",html:page(title,source)};
- return {kind:"unsupported",html:null,detail:"Fairwas ha detectado el archivo, pero no reconoce la gramática de su contenido. No se mostrará el código fuente como si fuera una página."};
+ return {kind:"code",html:codePreview(source,path,title),language:languageFor(path,source),executable:false,detail:"El archivo se ha reconocido como código y se muestra en una vista segura. Para ejecutarlo hace falta un runtime compatible con su lenguaje."};
 }
