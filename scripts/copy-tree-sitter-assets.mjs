@@ -15,7 +15,7 @@ const available = files
   .map(file => file.slice("tree-sitter-".length, -".wasm".length))
   .sort();
 
-const required = supportedParserLanguages();
+const required = supportedParserLanguages().filter(language => language !== "yaml");
 const missing = required.filter(language => !available.includes(language));
 if (missing.length) {
   throw new Error("Tree-sitter grammars declared by YourCode are missing from tree-sitter-wasms: " + missing.join(", "));
@@ -27,7 +27,8 @@ writeFileSync(resolve(grammarTarget, "manifest.json"), JSON.stringify({
   runtime: "web-tree-sitter",
   runtimeVersion: "0.25.10",
   grammarPackage: "tree-sitter-wasms@0.1.13",
-  languages: available
+  languages: available.filter(language => required.includes(language)),
+  dedicatedParsers: ["yaml"]
 }, null, 2) + "\n");
 
 console.log("Tree-sitter assets installed: " + required.length + " mapped grammars; " + available.length + " available grammars.");
