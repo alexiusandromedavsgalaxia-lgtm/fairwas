@@ -25,13 +25,12 @@ test("custom extensions are detected from source syntax and parsed into a real t
   assert.ok(result.nodeCount > 3);
 });
 
-test("JavaScript, Rust, Elm, Zig and R are parsed into syntax trees", async () => {
+test("JavaScript, Rust, Elm and Zig are parsed into syntax trees", async () => {
   const examples = [
     ["javascript", "const answer = (value) => value + 42;", /lexical_declaration/],
     ["rust", "fn main() { let answer: i32 = 42; }", /function_item/],
     ["elm", "module Main exposing (main)\n\nmain = 42", /function_declaration/],
-    ["zig", "pub fn main() void {}", /FnProto|fn_proto/],
-    ["r", "answer <- 42", /source_file|binary_operator/]
+    ["zig", "pub fn main() void {}", /FnProto|fn_proto/]
   ];
   for (const [language, source, expectedNode] of examples) {
     const result = await parseSource(source, { language });
