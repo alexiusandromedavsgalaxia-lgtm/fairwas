@@ -29,7 +29,7 @@ function App(){
  const[panel,setPanel]=useState(null);const[addressFocused,setAddressFocused]=useState(false);
  const tab=tabs[active]||tabs[tabs.length-1]||makeTab();
  const scheme=protocolFor(tab.url);
- const isCreatePage=(()=>{const host=hostOf(tab.url).toLowerCase();return host==="createpage.fair"||host==="docs.createpage.fair"||host==="yourcode.createpage.fair"})();
+ const currentHost=hostOf(tab.url).toLowerCase();\n const isYourCode=currentHost==="yourcode.createpage.fair";\n const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home,compactChrome},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,compactChrome,tabs,active,tab?.url]);
  useEffect(()=>setAddress(displayAddress(tab.url,mobile)),[tab.id,tab.url,mobile]);
@@ -192,7 +192,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
  },[tab.id,documentUrl,tab.reloadToken]);
  if(!active)return null;
  return <div className="tab-view">
-  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate} retry={()=>setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1}:x))}/>:null}
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isYourCode?<YourCode onNavigate={navigate}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate} retry={()=>setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1}:x))}/>:null}
  </div>
 }
 
