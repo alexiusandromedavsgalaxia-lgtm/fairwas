@@ -41,6 +41,9 @@ const LANGUAGE_HINTS = [
   ["elixir", /(?:^|\n)\s*(?:defmodule\s+\w+|defp?\s+\w+)/],
   ["ocaml", /(?:^|\n)\s*(?:let\s+rec\s+\w+|type\s+\w+\s*=)/],
   ["solidity", /pragma\s+solidity|contract\s+\w+\s*\{/]
+  ["elm", /(?:^|\n)\s*module\s+\w+\s+exposing\b/],
+  ["zig", /(?:^|\n)\s*(?:const\s+std\s*=\s*@import|pub\s+fn\s+main\s*\()/],
+  ["r", /(?:^|\n)\s*[A-Za-z.][\w.]*\s*(?:<-|=)\s*(?:function\s*\(|c\()/],
 ];
 
 let initPromise;
