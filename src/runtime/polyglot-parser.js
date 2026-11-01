@@ -182,10 +182,6 @@ function parseYamlSource(source) {
   };
 }
 
-const OPEN_TO_CLOSE = { "(": ")", "[": "]", "{": "}" };
-const CLOSE_TO_OPEN = { ")": "(", "]": "[", "}": "{" };
-const MULTI_OPERATORS = ["...", "===", "!==", ">>>", "<<=", ">>=", "=>", "->", "::", ":=", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "**", "++", "--", "+=", "-=", "*=", "/=", "%=", "<<", ">>", "|>", "<|", "&&=", "||=", "??="];
-
 function universalParse(source) {
   const text = String(source ?? "");
   const root = { type: "Document", children: [] };
@@ -286,4 +282,71 @@ function universalParse(source) {
     nodeCount: count(root),
     message: "Análisis estructural universal. Se conservan tokens y grupos sin exigir una gramática conocida."
   };
+}
+
+export async function parseSource(source, options = {}) {
+  const text = String(source ?? "");
+  const path = String(options.path || "");
+  const requestedLanguage = String(options.language || inferSourceLanguage(path, text) || "").toLowerCase();
+  const language = GRAMMAR_ALIASES[requestedLanguage] || requestedLanguage;
+  if (!language || language === "universal" || language === "unknown") return universalParse(text);
+
+  if (language === "yaml") return parseYamlSource(text);
+
+  const assetBase = options.assetBase || (typeof window !== "undefined" ? "/tree-sitter-languages/" : undefined);
+  let tree;
+  try {
+    const parser = await getParser(language, assetBase);
+    tree = parser.parse(text);
+    if (!tree) throw new Error("El motor de parsing no ha devuelto un árbol sintáctico.");
+    const root = tree.rootNode;
+    const hasError = Boolean(root.hasError);
+    const problems = collectSyntaxProblems(root, text);
+    if (hasError && problems.length === 0) {
+      const position = root.startPosition || { row: 0, column: 0 };
+      problems.push({
+        type: "unexpected",
+        node: root.type,
+        token: "",
+        line: position.row + 1,
+        column: position.column + 1,
+        endLine: position.row + 1,
+        endColumn: position.column + 1,
+        message: "El árbol sintáctico contiene errores que la gramática no ha podido localizar con más precisión."
+      });
+    }
+    return {
+      status: hasError || problems.length ? "syntax-errors" : "valid",
+      language,
+      tree: root.toString(),
+      problems,
+      hasError,
+      nodeCount: countNodes(root)
+    };
+  } catch (error) {
+    return {
+      status: "grammar-unavailable",
+      language,
+      tree: null,
+      problems: [],
+      message: "No se ha podido cargar o ejecutar la gramática " + language + ": " + String(error?.message || error)
+    };
+  } finally {
+    tree?.delete();
+  }
+}
+
+function countNodes(root) {
+  let count = 0;
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    count += 1;
+    for (const child of node.children || []) stack.push(child);
+  }
+  return count;
+}
+
+export function supportedParserLanguages() {
+  return ["universal", ...new Set(Object.values(EXTENSIONS))];
 }
