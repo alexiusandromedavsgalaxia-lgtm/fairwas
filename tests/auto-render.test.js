@@ -8,12 +8,13 @@ test("YourCode detects HTML inside a custom extension", () => {
   assert.match(result.html,/<h1>Hola<\/h1>/);
 });
 
-test("YourCode renders JavaScript from a custom extension as an executable page", () => {
-  const result=autoRenderFile({path:"/logic.faircode",content:"document.body.innerHTML = '<h1>Rendered</h1>'"});
-  assert.equal(result.kind,"javascript");
-  assert.match(result.html,/script\.type=/);
-  assert.match(result.html,/yourcode-runtime-error/);
-  assert.match(result.html,/Rendered/);
+test("YourCode does not guess JavaScript from code in an unknown extension", () => {
+  const source="document.body.innerHTML = '<h1>Rendered</h1>'";
+  const result=autoRenderFile({path:"/logic.faircode",content:source});
+  assert.equal(result.kind,"code");
+  assert.equal(result.executable,false);
+  assert.match(result.html,/document\.body/);
+  assert.match(result.html,/No se ha supuesto una gramática/);
 });
 
 test("YourCode renders Markdown and JSON data instead of showing source", () => {
@@ -33,7 +34,7 @@ test("unknown custom grammars render a safe code view instead of a blank page", 
   assert.match(result.html,/Vista de código/);
 });
 
-test("YourCode recognises common non-browser languages by extension", () => {
+test("YourCode recognises common non-browser languages by extension without trying to execute them", () => {
   for (const [path,language] of [["/app.py","Python"],["/main.rs","Rust"],["/query.sql","SQL"],["/Main.java","Java"],["/app.ts","TypeScript"],["/script.sh","Shell"]]) {
     const result=autoRenderFile({path,content:"print(42)"});
     assert.equal(result.kind,"code");
@@ -42,17 +43,27 @@ test("YourCode recognises common non-browser languages by extension", () => {
   }
 });
 
-test("YourCode executes ordinary JavaScript as a classic script and module syntax as a module", () => {
-  const classic=autoRenderFile({path:"/logic.custom",content:"const node = document.createElement('h1'); node.textContent = 'Hello'; document.body.append(node);"});
+test("valid JavaScript files use the browser runtime", () => {
+  const classic=autoRenderFile({path:"/logic.js",content:"const node = document.createElement('h1'); node.textContent = 'Hello'; document.body.append(node);"});
   assert.equal(classic.kind,"javascript");
   assert.match(classic.html,/"text\/javascript"/);
-  const module=autoRenderFile({path:"/logic.any",content:"export const answer = 42;"});
+  const module=autoRenderFile({path:"/logic.mjs",content:"export const answer = 42;"});
   assert.equal(module.kind,"javascript");
   assert.match(module.html,/"module"/);
 });
 
-test("YourCode recognises JavaScript expressions in arbitrary extensions", () => {
-  const result=autoRenderFile({path:"/logic.ax",content:"const app = () => { document.body.textContent = 'ready'; }; app();"});
-  assert.equal(result.kind,"javascript");
-  assert.match(result.html,/ready/);
+test("invalid JavaScript syntax is preserved as code instead of producing a parser rejection", () => {
+  const source="const app = () => { document.body.textContent = 'ready' } THIS_IS_NOT_JS";
+  const result=autoRenderFile({path:"/logic.js",content:source});
+  assert.equal(result.kind,"code");
+  assert.equal(result.executable,false);
+  assert.match(result.html,/THIS_IS_NOT_JS/);
+});
+
+test("JavaScript-like syntax in arbitrary extensions is not automatically executed", () => {
+  const source="const app = () => { document.body.textContent = 'ready'; }; app();";
+  const result=autoRenderFile({path:"/logic.ax",content:source});
+  assert.equal(result.kind,"code");
+  assert.equal(result.executable,false);
+  assert.match(result.html,/document\.body/);
 });
