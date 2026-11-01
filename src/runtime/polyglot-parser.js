@@ -189,113 +189,101 @@ const MULTI_OPERATORS = ["...", "===", "!==", ">>>", "<<=", ">>=", "=>", "->", "
 function universalParse(source) {
   const text = String(source ?? "");
   const root = { type: "Document", children: [] };
-  const stack = [{ close: null, node: root }];
+  const containers = [{ node: root, close: null, statement: { type: "Statement", children: [] } }];
   const problems = [];
-  let statement = { type: "Statement", children: [] };
   let i = 0, row = 0, column = 0;
   const position = () => ({ row: row + 1, column: column + 1 });
-  const advance = value => { for (const char of value) { if (char === "\n") { row++; column = 0; } else column++; } i += value.length; };
-  const add = node => stack[stack.length - 1].node.children.push(node);
-  const flush = () => { if (statement.children.length) { statement.start = statement.children[0].start; statement.end = statement.children[statement.children.length - 1].end; add(statement); statement = { type: "Statement", children: [] }; } };
+  const advance = value => {
+    for (const char of value) { if (char === "\n") { row++; column = 0; } else column++; }
+    i += value.length;
+  };
+  const current = () => containers[containers.length - 1];
+  const push = node => current().statement.children.push(node);
+  const flush = () => {
+    const entry = current(), statement = entry.statement;
+    if (!statement.children.length) return;
+    statement.start = statement.children[0].start;
+    statement.end = statement.children[statement.children.length - 1].end;
+    entry.node.children.push(statement);
+    entry.statement = { type: "Statement", children: [] };
+  };
   const token = (type, value, start) => ({ type, value, start, end: position() });
   const readQuoted = (quote, triple = false) => {
-    const start = position(), marker = quote.repeat(triple ? 3 : 1); advance(marker); let value = marker, closed = false;
-    while (i < text.length) { const ch = text[i]; if (ch === "\\") { const part = text.slice(i, Math.min(text.length, i + 2)); value += part; advance(part); continue; } if (text.startsWith(marker, i)) { value += marker; advance(marker); closed = true; break; } value += ch; advance(ch); }
-    if (!closed) problems.push({ type: "unclosed-string", line: start.row, column: start.column, message: "Cadena sin cerrar. El parser universal no presupone las reglas de comillas de tu lenguaje." });
+    const start = position(), marker = quote.repeat(triple ? 3 : 1);
+    advance(marker);
+    let value = marker, closed = false;
+    while (i < text.length) {
+      const ch = text[i];
+      if (ch === "\\") { const part = text.slice(i, Math.min(text.length, i + 2)); value += part; advance(part); continue; }
+      if (text.startsWith(marker, i)) { value += marker; advance(marker); closed = true; break; }
+      value += ch; advance(ch);
+    }
+    if (!closed) problems.push({ type: "unclosed-string", line: start.row, column: start.column, message: "Cadena sin cerrar." });
     return token("String", value, start);
   };
   while (i < text.length) {
     const ch = text[i];
     if (ch === "\r") { advance(ch); continue; }
-    if (ch === "\n" || ch === ";") { const start = position(); advance(ch); flush(); if (ch === ";") add(token("Terminator", ";", start)); continue; }
+    if (ch === "\n" || ch === ";") {
+      const start = position(); advance(ch); flush();
+      if (ch === ";") current().node.children.push(token("Terminator", ";", start));
+      continue;
+    }
     if (/\s/u.test(ch)) { advance(ch); continue; }
     const start = position();
-    if (ch === "\"" || ch === "'" || ch === String.fromCharCode(96)) { const triple = text.startsWith(ch.repeat(3), i); statement.children.push(readQuoted(ch, triple)); continue; }
-    if (text.startsWith("//", i) || ch === "#") { const end = text.indexOf("\n", i), value = text.slice(i, end < 0 ? text.length : end); statement.children.push(token("Comment", value, start)); advance(value); continue; }
-    if (text.startsWith("/*", i)) { const end = text.indexOf("*/", i + 2), value = end < 0 ? text.slice(i) : text.slice(i, end + 2); statement.children.push(token("Comment", value, start)); advance(value); if (end < 0) problems.push({ type: "unclosed-comment", line: start.row, column: start.column, message: "Comentario de bloque sin cerrar." }); continue; }
-    if (OPEN_TO_CLOSE[ch]) { const node = { type: "Group", delimiter: ch + OPEN_TO_CLOSE[ch], children: [], start }; statement.children.push(node); stack.push({ close: OPEN_TO_CLOSE[ch], node, start }); advance(ch); continue; }
-    if (CLOSE_TO_OPEN[ch]) { advance(ch); const current = stack[stack.length - 1]; if (stack.length > 1 && current.close === ch) { current.node.end = position(); stack.pop(); } else { problems.push({ type: "unexpected-closer", line: start.row, column: start.column, token: ch, message: "Cierre sin apertura compatible; se conserva como token." }); statement.children.push(token("UnknownPunctuation", ch, start)); } continue; }
-    const rest = text.slice(i), word = rest.match(/^[\p{L}_$@][\p{L}\p{N}_$@!?-]*/u);
-    if (word) { statement.children.push(token("Identifier", word[0], start)); advance(word[0]); continue; }
+    if (ch === "\"" || ch === "'" || ch === String.fromCharCode(96)) {
+      push(readQuoted(ch, text.startsWith(ch.repeat(3), i))); continue;
+    }
+    if (text.startsWith("//", i) || ch === "#") {
+      const end = text.indexOf("\n", i), value = text.slice(i, end < 0 ? text.length : end);
+      push(token("Comment", value, start)); advance(value); continue;
+    }
+    if (text.startsWith("/*", i)) {
+      const end = text.indexOf("*/", i + 2), value = end < 0 ? text.slice(i) : text.slice(i, end + 2);
+      push(token("Comment", value, start)); advance(value);
+      if (end < 0) problems.push({ type: "unclosed-comment", line: start.row, column: start.column, message: "Comentario de bloque sin cerrar." });
+      continue;
+    }
+    if (OPEN_TO_CLOSE[ch]) {
+      const node = { type: "Group", delimiter: ch + OPEN_TO_CLOSE[ch], children: [], start };
+      push(node); advance(ch);
+      containers.push({ node, close: OPEN_TO_CLOSE[ch], statement: { type: "Statement", children: [] } });
+      continue;
+    }
+    if (CLOSE_TO_OPEN[ch]) {
+      advance(ch);
+      if (containers.length > 1 && current().close === ch) {
+        flush(); current().node.end = position(); containers.pop();
+      } else {
+        problems.push({ type: "unexpected-closer", line: start.row, column: start.column, token: ch, message: "Cierre sin apertura compatible; se conserva como token." });
+        push(token("UnknownPunctuation", ch, start));
+      }
+      continue;
+    }
+    const rest = text.slice(i);
+    const word = rest.match(/^[\p{L}_$@][\p{L}\p{N}_$@!?-]*/u);
+    if (word) { push(token("Identifier", word[0], start)); advance(word[0]); continue; }
     const number = rest.match(/^(?:0[xX][\da-fA-F_]+|0[bB][01_]+|(?:\d[\d_]*\.?[\d_]*|\.\d[\d_]*)(?:[eE][+-]?\d[\d_]*)?)/);
-    if (number) { statement.children.push(token("Number", number[0], start)); advance(number[0]); continue; }
+    if (number) { push(token("Number", number[0], start)); advance(number[0]); continue; }
     const operator = MULTI_OPERATORS.find(value => rest.startsWith(value));
-    if (operator) { statement.children.push(token("Operator", operator, start)); advance(operator); continue; }
-    if (/[^\p{L}\p{N}_\s]/u.test(ch)) { statement.children.push(token("Operator", ch, start)); advance(ch); continue; }
-    statement.children.push(token("Character", ch, start)); advance(ch);
+    if (operator) { push(token("Operator", operator, start)); advance(operator); continue; }
+    if (/[^\p{L}\p{N}_\s]/u.test(ch)) { push(token("Operator", ch, start)); advance(ch); continue; }
+    push(token("Character", ch, start)); advance(ch);
+  }
+  while (containers.length > 1) {
+    flush();
+    const open = containers.pop();
+    problems.push({ type: "unclosed-group", line: open.node.start.row, column: open.node.start.column, token: open.node.delimiter[0], message: "Grupo abierto sin cierre correspondiente." });
   }
   flush();
-  while (stack.length > 1) { const open = stack.pop(), start = open.start; problems.push({ type: "unclosed-group", line: start.row, column: start.column, token: open.node.delimiter[0], message: "Grupo abierto sin cierre correspondiente." }); }
   const count = node => 1 + (node.children || []).reduce((sum, child) => sum + count(child), 0);
-  return { status: problems.length ? "syntax-errors" : "valid", language: "universal", tree: JSON.stringify(root, null, 2), problems, hasError: problems.length > 0, nodeCount: count(root), message: "Análisis estructural universal. Se conservan tokens y grupos sin exigir una gramática conocida." };
-}
-export async function parseSource(source, options = {}) {
-  const text = String(source ?? "");
-  const path = String(options.path || "");
-  const requestedLanguage = String(options.language || inferSourceLanguage(path, text) || "").toLowerCase();
-  const language = GRAMMAR_ALIASES[requestedLanguage] || requestedLanguage;
-  if (!language || language === "universal" || language === "unknown") return universalParse(text);
-
-  if (language === "yaml") return parseYamlSource(text);
-
-  const assetBase = options.assetBase || (typeof window !== "undefined" ? "/tree-sitter-languages/" : undefined);
-  let tree;
-  try {
-    const parser = await getParser(language, assetBase);
-    tree = parser.parse(text);
-    if (!tree) throw new Error("El motor de parsing no ha devuelto un árbol sintáctico.");
-    const root = tree.rootNode;
-    const hasError = Boolean(root.hasError);
-    const problems = collectSyntaxProblems(root, text);
-    if (hasError && problems.length === 0) {
-      const position = root.startPosition || { row: 0, column: 0 };
-      problems.push({
-        type: "unexpected",
-        node: root.type,
-        token: "",
-        line: position.row + 1,
-        column: position.column + 1,
-        endLine: position.row + 1,
-        endColumn: position.column + 1,
-        message: "El árbol sintáctico contiene errores que la gramática no ha podido localizar con más precisión."
-      });
-    }
-    return {
-      status: hasError || problems.length ? "syntax-errors" : "valid",
-      language,
-      tree: root.toString(),
-      problems,
-      hasError,
-      nodeCount: countNodes(root)
-    };
-  } catch (error) {
-    return {
-      status: "grammar-unavailable",
-      language,
-      tree: null,
-      problems: [],
-      message: "No se ha podido cargar o ejecutar la gramática " + language + ": " + String(error?.message || error)
-    };
-  } finally {
-    tree?.delete();
-  }
-}
-
-function countNodes(root) {
-  let count = 0;
-  const stack = [root];
-  while (stack.length) {
-    const node = stack.pop();
-    count += 1;
-    for (const child of node.children || []) stack.push(child);
-  }
-  return count;
-}
-
-export function supportedParserLanguages() {
-  return ["universal", ...Object.keys(EXTENSIONS).reduce((result, extension) => {
-    const language = EXTENSIONS[extension];
-    if (!result.includes(language)) result.push(language);
-    return result;
-  }, []);
+  return {
+    status: problems.length ? "syntax-errors" : "valid",
+    language: "universal",
+    tree: JSON.stringify(root, null, 2),
+    problems,
+    hasError: problems.length > 0,
+    nodeCount: count(root),
+    message: "Análisis estructural universal. Se conservan tokens y grupos sin exigir una gramática conocida."
+  };
 }
