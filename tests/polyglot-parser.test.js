@@ -2,10 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { inferSourceLanguage, parseSource, supportedParserLanguages } from "../src/runtime/polyglot-parser.js";
 
-test("polyglot parser exposes a broad grammar registry", () => {
+test("every language advertised by YourCode has a real, loadable WASM grammar", async () => {
   const languages = supportedParserLanguages();
-  for (const language of ["javascript", "typescript", "python", "rust", "go", "java", "cpp", "toml", "html", "css", "json", "yaml"]) {
-    assert.ok(languages.includes(language), "missing parser for " + language);
+  assert.ok(languages.length >= 30, "the grammar registry unexpectedly shrank");
+  for (const language of languages) {
+    const result = await parseSource("", { language });
+    assert.notEqual(
+      result.status,
+      "grammar-unavailable",
+      language + " is advertised but its grammar failed to load: " + result.message
+    );
   }
 });
 
@@ -19,13 +25,19 @@ test("custom extensions are detected from source syntax and parsed into a real t
   assert.ok(result.nodeCount > 3);
 });
 
-test("JavaScript and Rust are parsed into syntax trees", async () => {
-  const js = await parseSource("const answer = (value) => value + 42;", { path: "/main.js" });
-  assert.equal(js.status, "valid");
-  assert.match(js.tree, /lexical_declaration/);
-  const rust = await parseSource("fn main() { let answer: i32 = 42; }", { path: "/main.rs" });
-  assert.equal(rust.status, "valid");
-  assert.match(rust.tree, /function_item/);
+test("JavaScript, Rust, Elm, Zig and R are parsed into syntax trees", async () => {
+  const examples = [
+    ["javascript", "const answer = (value) => value + 42;", /lexical_declaration/],
+    ["rust", "fn main() { let answer: i32 = 42; }", /function_item/],
+    ["elm", "module Main exposing (main)\n\nmain = 42", /function_declaration/],
+    ["zig", "pub fn main() void {}", /FnProto|fn_proto/],
+    ["r", "answer <- 42", /source_file|binary_operator/]
+  ];
+  for (const [language, source, expectedNode] of examples) {
+    const result = await parseSource(source, { language });
+    assert.equal(result.status, "valid", language + ": " + JSON.stringify(result.problems));
+    assert.match(result.tree, expectedNode, language + " did not produce the expected syntax tree");
+  }
 });
 
 test("syntax errors produce source positions instead of parser Expected-token messages", async () => {
