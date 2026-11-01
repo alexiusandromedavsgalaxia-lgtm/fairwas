@@ -21,7 +21,8 @@
     "acorn": "^8.15.0",
     "postcss-value-parser": "^4.2.0",
     "web-tree-sitter": "0.25.10",
-    "tree-sitter-wasms": "0.1.13"
+    "tree-sitter-wasms": "0.1.13",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {}
 }
