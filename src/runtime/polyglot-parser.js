@@ -182,20 +182,120 @@ function parseYamlSource(source) {
   };
 }
 
+const OPEN_TO_CLOSE = { "(": ")", "[": "]", "{": "}" };
+const CLOSE_TO_OPEN = { ")": "(", "]": "[", "}": "{" };
+const MULTI_OPERATORS = ["...", "===", "!==", ">>>", "<<=", ">>=", "=>", "->", "::", ":=", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "**", "++", "--", "+=", "-=", "*=", "/=", "%=", "<<", ">>", "|>", "<|", "&&=", "||=", "??="];
+
+function universalParse(source) {
+  const text = String(source ?? "");
+  const root = { type: "Document", children: [] };
+  const containers = [{ node: root, close: null, statement: { type: "Statement", children: [] } }];
+  const problems = [];
+  let i = 0, row = 0, column = 0;
+  const position = () => ({ row: row + 1, column: column + 1 });
+  const advance = value => {
+    for (const char of value) { if (char === "\n") { row++; column = 0; } else column++; }
+    i += value.length;
+  };
+  const current = () => containers[containers.length - 1];
+  const push = node => current().statement.children.push(node);
+  const flush = () => {
+    const entry = current(), statement = entry.statement;
+    if (!statement.children.length) return;
+    statement.start = statement.children[0].start;
+    statement.end = statement.children[statement.children.length - 1].end;
+    entry.node.children.push(statement);
+    entry.statement = { type: "Statement", children: [] };
+  };
+  const token = (type, value, start) => ({ type, value, start, end: position() });
+  const readQuoted = (quote, triple = false) => {
+    const start = position(), marker = quote.repeat(triple ? 3 : 1);
+    advance(marker);
+    let value = marker, closed = false;
+    while (i < text.length) {
+      const ch = text[i];
+      if (ch === "\\") { const part = text.slice(i, Math.min(text.length, i + 2)); value += part; advance(part); continue; }
+      if (text.startsWith(marker, i)) { value += marker; advance(marker); closed = true; break; }
+      value += ch; advance(ch);
+    }
+    if (!closed) problems.push({ type: "unclosed-string", line: start.row, column: start.column, message: "Cadena sin cerrar." });
+    return token("String", value, start);
+  };
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\r") { advance(ch); continue; }
+    if (ch === "\n" || ch === ";") {
+      const start = position(); advance(ch); flush();
+      if (ch === ";") current().node.children.push(token("Terminator", ";", start));
+      continue;
+    }
+    if (/\s/u.test(ch)) { advance(ch); continue; }
+    const start = position();
+    if (ch === "\"" || ch === "'" || ch === String.fromCharCode(96)) {
+      push(readQuoted(ch, text.startsWith(ch.repeat(3), i))); continue;
+    }
+    if (text.startsWith("//", i) || (ch === "#" && text.slice(text.lastIndexOf("\n", i - 1) + 1, i).trim() === "")) {
+      const end = text.indexOf("\n", i), value = text.slice(i, end < 0 ? text.length : end);
+      push(token("Comment", value, start)); advance(value); continue;
+    }
+    if (text.startsWith("/*", i)) {
+      const end = text.indexOf("*/", i + 2), value = end < 0 ? text.slice(i) : text.slice(i, end + 2);
+      push(token("Comment", value, start)); advance(value);
+      if (end < 0) problems.push({ type: "unclosed-comment", line: start.row, column: start.column, message: "Comentario de bloque sin cerrar." });
+      continue;
+    }
+    if (OPEN_TO_CLOSE[ch]) {
+      const node = { type: "Group", delimiter: ch + OPEN_TO_CLOSE[ch], children: [], start };
+      push(node); advance(ch);
+      containers.push({ node, close: OPEN_TO_CLOSE[ch], statement: { type: "Statement", children: [] } });
+      continue;
+    }
+    if (CLOSE_TO_OPEN[ch]) {
+      advance(ch);
+      if (containers.length > 1 && current().close === ch) {
+        flush(); current().node.end = position(); containers.pop();
+      } else {
+        problems.push({ type: "unexpected-closer", line: start.row, column: start.column, token: ch, message: "Cierre sin apertura compatible; se conserva como token." });
+        push(token("UnknownPunctuation", ch, start));
+      }
+      continue;
+    }
+    const rest = text.slice(i);
+    const word = rest.match(/^[\p{L}_$@][\p{L}\p{N}_$@!?-]*/u);
+    if (word) { push(token("Identifier", word[0], start)); advance(word[0]); continue; }
+    const number = rest.match(/^(?:0[xX][\da-fA-F_]+|0[bB][01_]+|(?:\d[\d_]*\.?[\d_]*|\.\d[\d_]*)(?:[eE][+-]?\d[\d_]*)?)/);
+    if (number) { push(token("Number", number[0], start)); advance(number[0]); continue; }
+    const operator = MULTI_OPERATORS.find(value => rest.startsWith(value));
+    if (operator) { push(token("Operator", operator, start)); advance(operator); continue; }
+    const operatorRun = rest.match(/^[^\p{L}\p{N}_\s()[\]{}"'\x60;,]+/u);
+    if (operatorRun) { push(token("Operator", operatorRun[0], start)); advance(operatorRun[0]); continue; }
+    if (/[^\p{L}\p{N}_\s]/u.test(ch)) { push(token("Operator", ch, start)); advance(ch); continue; }
+    push(token("Character", ch, start)); advance(ch);
+  }
+  while (containers.length > 1) {
+    flush();
+    const open = containers.pop();
+    problems.push({ type: "unclosed-group", line: open.node.start.row, column: open.node.start.column, token: open.node.delimiter[0], message: "Grupo abierto sin cierre correspondiente." });
+  }
+  flush();
+  const count = node => 1 + (node.children || []).reduce((sum, child) => sum + count(child), 0);
+  return {
+    status: problems.length ? "syntax-errors" : "valid",
+    language: "universal",
+    tree: JSON.stringify(root, null, 2),
+    problems,
+    hasError: problems.length > 0,
+    nodeCount: count(root),
+    message: "Análisis estructural universal. Se conservan tokens y grupos sin exigir una gramática conocida."
+  };
+}
+
 export async function parseSource(source, options = {}) {
   const text = String(source ?? "");
   const path = String(options.path || "");
   const requestedLanguage = String(options.language || inferSourceLanguage(path, text) || "").toLowerCase();
   const language = GRAMMAR_ALIASES[requestedLanguage] || requestedLanguage;
-  if (!language) {
-    return {
-      status: "unknown-language",
-      language: null,
-      tree: null,
-      problems: [],
-      message: "No se ha podido inferir un lenguaje. Selecciona uno o añade una gramática."
-    };
-  }
+  if (!language || language === "universal" || language === "unknown") return universalParse(text);
 
   if (language === "yaml") return parseYamlSource(text);
 
@@ -254,9 +354,5 @@ function countNodes(root) {
 }
 
 export function supportedParserLanguages() {
-  return Object.keys(EXTENSIONS).reduce((result, extension) => {
-    const language = EXTENSIONS[extension];
-    if (!result.includes(language)) result.push(language);
-    return result;
-  }, []);
+  return ["universal", ...new Set(Object.values(EXTENSIONS))];
 }

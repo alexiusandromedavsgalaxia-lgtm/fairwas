@@ -30,7 +30,7 @@ function App(){
  const tab=tabs[active]||tabs[tabs.length-1]||makeTab();
  const scheme=protocolFor(tab.url);
  const currentHost=hostOf(tab.url).toLowerCase();
- const isYourCode=currentHost==="yourcode.createpage.fair";
+ const isYourCode=currentHost==="yourcode.official"||currentHost==="yourcode.createpage.fair";
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home,compactChrome},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,compactChrome,tabs,active,tab?.url]);
@@ -92,7 +92,7 @@ function App(){
    if((e.ctrlKey||e.metaKey)&&e.key==="h"){e.preventDefault();setPanel("history")}
    if((e.ctrlKey||e.metaKey)&&e.key==="b"){e.preventDefault();setPanel("bookmarks")}
   };
-  const onCreatePageNavigate=e=>{const url=e?.detail;if(typeof url==="string"&&(url.startsWith("httc://createpage.fair")||url.startsWith("httc://yourcode.createpage.fair")))navigate(url)};
+  const onCreatePageNavigate=e=>{const url=e?.detail;if(typeof url==="string"&&(url.startsWith("httc://createpage.fair")||url.startsWith("httc://yourcode.createpage.fair")||url.startsWith("httc://yourcode.official")))navigate(url)};
   window.addEventListener("message",onMessage);
   window.addEventListener("keydown",key);
   window.addEventListener("fairwas:navigate",onCreatePageNavigate);
@@ -166,7 +166,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
  const documentUrl=tab.documentUrl||tab.url;
   const scheme=protocolFor(tab.url);
  const currentHost=hostOf(tab.url).toLowerCase();
- const isYourCode=currentHost==="yourcode.createpage.fair";
+ const isYourCode=currentHost==="yourcode.official"||currentHost==="yourcode.createpage.fair";
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
  useEffect(()=>{
   let cancelled=false;
@@ -196,7 +196,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
  },[tab.id,documentUrl,tab.reloadToken]);
  if(!active)return null;
  return <div className="tab-view">
-  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isYourCode?<YourCode onNavigate={navigate}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate} retry={()=>setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1}:x))}/>:null}
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isYourCode?<YourCode url={tab.url} onNavigate={navigate}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate} retry={()=>setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1}:x))}/>:null}
  </div>
 }
 

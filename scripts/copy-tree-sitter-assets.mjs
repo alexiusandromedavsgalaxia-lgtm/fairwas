@@ -15,7 +15,7 @@ const available = files
   .map(file => file.slice("tree-sitter-".length, -".wasm".length))
   .sort();
 
-const required = supportedParserLanguages().filter(language => language !== "yaml");
+const required = supportedParserLanguages().filter(language => !["yaml", "universal"].includes(language));
 const missing = required.filter(language => !available.includes(language));
 if (missing.length) {
   throw new Error("Tree-sitter grammars declared by YourCode are missing from tree-sitter-wasms: " + missing.join(", "));
