@@ -6,12 +6,14 @@ const EXTENSIONS = {
   ts:"typescript",tsx:"tsx",py:"python",pyw:"python",rs:"rust",go:"go",
   java:"java",c:"c",h:"c",cc:"cpp",cpp:"cpp",cxx:"cpp",hpp:"cpp",
   cs:"c_sharp",rb:"ruby",php:"php",sh:"bash",bash:"bash",zsh:"bash",
-  sql:"sql",html:"html",htm:"html",xhtml:"html",css:"css",scss:"scss",
+  sql:"sql",html:"html",htm:"html",xhtml:"html",css:"css",
   json:"json",jsonc:"json",yaml:"yaml",yml:"yaml",toml:"toml",
   md:"markdown",markdown:"markdown",lua:"lua",swift:"swift",kt:"kotlin",
   kts:"kotlin",scala:"scala",ex:"elixir",exs:"elixir",hs:"haskell",
-  graphql:"graphql",gql:"graphql",vue:"vue",xml:"xml",proto:"proto",
-  dockerfile:"dockerfile",cmake:"cmake",make:"make",mk:"make",r:"r",dart:"dart",pl:"perl",pm:"perl",ex:"elixir",exs:"elixir",erl:"erlang",clj:"clojure",cljs:"clojurescript",hs:"haskell",lhs:"haskell",jl:"julia",f:"fortran",for:"fortran",f90:"fortran",nix:"nix",hcl:"hcl",tf:"hcl",proto:"proto",graphql:"graphql",gql:"graphql",elm:"elm",ml:"ocaml",mli:"ocaml",vim:"vim",tex:"latex",latex:"latex",sol:"solidity",move:"move",objc:"objc",mm:"objc",groovy:"groovy",gradle:"groovy",fish:"fish",ps1:"powershell",psm1:"powershell"
+  graphql:"graphql",gql:"graphql",vue:"vue",xml:"html",m:"objc",mm:"objc",
+  dart:"dart",ml:"ocaml",mli:"ocaml",el:"elisp",ql:"ql",res:"rescript",
+  rdl:"systemrdl",tla:"tlaplus",sol:"solidity",ejs:"embedded_template",
+  erb:"embedded_template"
 };
 
 const GRAMMAR_ALIASES = {
