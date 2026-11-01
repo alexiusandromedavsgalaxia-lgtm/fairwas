@@ -267,6 +267,8 @@ function universalParse(source) {
     if (number) { push(token("Number", number[0], start)); advance(number[0]); continue; }
     const operator = MULTI_OPERATORS.find(value => rest.startsWith(value));
     if (operator) { push(token("Operator", operator, start)); advance(operator); continue; }
+    const operatorRun = rest.match(/^[^\p{L}\p{N}_\s()[\]{}"'\x60;,]+/u);
+    if (operatorRun) { push(token("Operator", operatorRun[0], start)); advance(operatorRun[0]); continue; }
     if (/[^\p{L}\p{N}_\s]/u.test(ch)) { push(token("Operator", ch, start)); advance(ch); continue; }
     push(token("Character", ch, start)); advance(ch);
   }
