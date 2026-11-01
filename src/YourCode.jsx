@@ -38,23 +38,26 @@ function compileYourCode(source){
   const line=raw.trim();if(!line||line.startsWith("#"))return;
   const split=line.search(/\s/);const command=(split<0?line:line.slice(0,split)).toLowerCase();
   const args=argsOf(split<0?"":line.slice(split+1));
-  const need=(count)=>{if(args.length<count){errors.push({line:index+1,message:command+" necesita "+count+" texto(s) entre comillas."});return false}return true};
-  if(command==="site"&&need(1))model.site=args[0];
-  else if(command==="background"&&need(1))model.background=safeColor(args[0],model.background);
-  else if(command==="accent"&&need(1))model.accent=safeColor(args[0],model.accent);
-  else if(command==="title"&&need(1))model.title=args[0];
-  else if(command==="text"&&need(1))model.blocks.push({type:"text",text:args[0]});
-  else if(command==="button"&&need(2)){
-   const href=safeLink(args[1]);if(!href)errors.push({line:index+1,message:"button necesita una dirección http:// o https:// válida."});
-   else model.blocks.push({type:"button",label:args[0],href});
+  const required={site:1,background:1,accent:1,title:1,text:1,button:2,card:2,image:2,footer:1};
+  if(!(command in required)){errors.push({line:index+1,message:"Instrucción desconocida: "+command});return}
+  if(args.length<required[command]){errors.push({line:index+1,message:command+" necesita "+required[command]+" texto(s) entre comillas."});return}
+  switch(command){
+   case "site":model.site=args[0];break;
+   case "background":model.background=safeColor(args[0],model.background);break;
+   case "accent":model.accent=safeColor(args[0],model.accent);break;
+   case "title":model.title=args[0];break;
+   case "text":model.blocks.push({type:"text",text:args[0]});break;
+   case "button":{
+    const href=safeLink(args[1]);if(!href)errors.push({line:index+1,message:"button necesita una dirección http:// o https:// válida."});
+    else model.blocks.push({type:"button",label:args[0],href});break;
+   }
+   case "card":model.blocks.push({type:"card",title:args[0],text:args[1]});break;
+   case "image":{
+    const src=safeLink(args[0]);if(!src)errors.push({line:index+1,message:"image necesita una dirección http:// o https:// válida."});
+    else model.blocks.push({type:"image",src,alt:args[1]});break;
+   }
+   case "footer":model.footer=args[0];break;
   }
-  else if(command==="card"&&need(2))model.blocks.push({type:"card",title:args[0],text:args[1]});
-  else if(command==="image"&&need(2)){
-   const src=safeLink(args[0]);if(!src)errors.push({line:index+1,message:"image necesita una dirección http:// o https:// válida."});
-   else model.blocks.push({type:"image",src,alt:args[1]});
-  }
-  else if(command==="footer"&&need(1))model.footer=args[0];
-  else errors.push({line:index+1,message:"Instrucción desconocida: "+command});
  });
  const blocks=model.blocks.map(block=>{
   if(block.type==="text")return '<p class="copy">'+escapeHtml(block.text)+'</p>';
