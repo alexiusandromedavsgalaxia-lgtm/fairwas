@@ -11,7 +11,7 @@ const EXTENSIONS = {
   md:"markdown",markdown:"markdown",lua:"lua",swift:"swift",kt:"kotlin",
   kts:"kotlin",scala:"scala",ex:"elixir",exs:"elixir",hs:"haskell",
   graphql:"graphql",gql:"graphql",vue:"vue",xml:"xml",proto:"proto",
-  dockerfile:"dockerfile",cmake:"cmake",make:"make"
+  dockerfile:"dockerfile",cmake:"cmake",make:"make",mk:"make",r:"r",dart:"dart",pl:"perl",pm:"perl",ex:"elixir",exs:"elixir",erl:"erlang",clj:"clojure",cljs:"clojurescript",hs:"haskell",lhs:"haskell",jl:"julia",f:"fortran",for:"fortran",f90:"fortran",nix:"nix",hcl:"hcl",tf:"hcl",proto:"proto",graphql:"graphql",gql:"graphql",elm:"elm",ml:"ocaml",mli:"ocaml",vim:"vim",tex:"latex",latex:"latex",sol:"solidity",move:"move",objc:"objc",mm:"objc",groovy:"groovy",gradle:"groovy",fish:"fish",ps1:"powershell",psm1:"powershell"
 };
 
 const GRAMMAR_ALIASES = {
