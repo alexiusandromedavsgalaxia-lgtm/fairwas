@@ -13,7 +13,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.1"
-        buildConfigField("String", "FAIRWAS_BASE_URL", "\"https://fairwas.pages.dev\"")
+        val configuredBaseUrl = providers.gradleProperty("fairwasBaseUrl").orElse("https://fairwas.pages.dev").get()
+        val escapedBaseUrl = configuredBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "FAIRWAS_BASE_URL", "\"$escapedBaseUrl\"")
     }
 
     buildFeatures { buildConfig = true }
