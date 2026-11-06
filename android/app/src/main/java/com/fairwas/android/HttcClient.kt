@@ -56,6 +56,16 @@ class HttcClient(private val baseUrl: String) {
         val uri = request.url
         val virtualHost = uri.host ?: return null
         if (!virtualHost.endsWith(".httc.local")) return null
+        if (!request.method.equals("GET", ignoreCase = true)) {
+            return WebResourceResponse(
+                "text/plain",
+                "UTF-8",
+                405,
+                "Method Not Allowed",
+                mapOf("Allow" to "GET"),
+                "Este recurso HTTC solo admite GET desde el navegador Android.".byteInputStream()
+            )
+        }
         val path = uri.encodedPath ?: "/"
         return try {
             val endpoint = if (path == "/api/resolve" || path == "/api/proxy" || path == "/api/createpage") {
@@ -69,9 +79,19 @@ class HttcClient(private val baseUrl: String) {
             connection.connectTimeout = 10_000
             connection.readTimeout = 15_000
             val code = connection.responseCode
-            val mime = connection.contentType?.substringBefore(';') ?: "application/octet-stream"
+            val contentType = connection.contentType ?: "application/octet-stream"
+            val mime = contentType.substringBefore(';').trim()
+            val isText = mime.startsWith("text/") ||
+                mime.contains("json") ||
+                mime.contains("javascript") ||
+                mime.contains("xml") ||
+                mime == "image/svg+xml"
+            val charset = Regex("charset=([^;]+)", RegexOption.IGNORE_CASE)
+                .find(contentType)?.groupValues?.getOrNull(1)?.trim()?.trim('"')
+            val encoding = if (isText) charset ?: "UTF-8" else null
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            WebResourceResponse(mime, "UTF-8", code, connection.responseMessage, mapOf("Access-Control-Allow-Origin" to "*"), stream)
+                ?: ByteArray(0).inputStream()
+            WebResourceResponse(mime, encoding, code, connection.responseMessage, mapOf("Access-Control-Allow-Origin" to "*"), stream)
         } catch (_: Exception) { null }
     }
 
