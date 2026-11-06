@@ -78,8 +78,12 @@ export async function onRequestPost({ request }) {
     return json({ ok: false, error: "invalid_endpoint", detail: error.message }, 400);
   }
 
+  const renderMode = body.mode === "yourcode-render";
+  const systemContent = renderMode
+    ? "Eres el motor semántico de YourCode. Interpretas lenguajes inventados completamente libres, sin gramática fija, sin palabras reservadas y sin presuponer lenguajes existentes. Analiza el código completo, sus símbolos, relaciones, contexto y estructura. Genera una página HTML completa, visual y funcional que exprese la intención inferida. No muestres ni reproduzcas el código como contenido, no generes tokens, tarjetas ni AST. Si es ambiguo, crea la interpretación visual más coherente. Devuelve únicamente HTML completo, sin Markdown ni explicaciones."
+    : makeSystemMessage(body.project || {}, body.files);
   const messages = [
-    { role: "system", content: makeSystemMessage(body.project || {}, body.files) },
+    { role: "system", content: systemContent },
     ...body.messages.slice(-12).map(message => ({
       role: message?.role === "assistant" ? "assistant" : "user",
       content: String(message?.content || "").slice(0, 12000)
