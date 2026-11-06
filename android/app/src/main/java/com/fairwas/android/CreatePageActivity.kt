@@ -33,7 +33,6 @@ class CreatePageActivity : Activity() {
     private lateinit var web: WebView
     private lateinit var appBaseUrl: String
     private var initialWorkspaceInstalled = false
-    private var workspaceStyleInstalled = false
 
     private val background = Color.rgb(14, 16, 22)
     private val surface = Color.rgb(29, 33, 42)
@@ -135,8 +134,7 @@ class CreatePageActivity : Activity() {
                     if (!initialWorkspaceInstalled) {
                         initialWorkspaceInstalled = true
                         installWorkspaceState(startUrl())
-                    } else if (!workspaceStyleInstalled) {
-                        workspaceStyleInstalled = true
+                    } else {
                         applyPhoneWorkspaceStyle()
                     }
                 }
