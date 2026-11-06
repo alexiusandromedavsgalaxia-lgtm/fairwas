@@ -116,3 +116,26 @@ test("invalid custom grammar returns grammar diagnostics instead of crashing", a
   assert.equal(result.status, "grammar-errors");
   assert.match(result.problems[0].message, /regla inexistente/);
 });
+
+test("free mode keeps language-specific comment markers as unknown symbols", async () => {
+  const source = "// alpha\n# beta\n/* gamma */\nvalue := 7";
+  const result = await parseSource(source, { mode: "free" });
+  assert.equal(result.status, "valid");
+  assert.ok(result.stats.tokens > 0);
+  assert.ok(result.stats.statements >= 3);
+  assert.match(result.tree, /"value": "\/\//);
+  assert.match(result.tree, /"value": "#"/);
+  assert.match(result.tree, /"value": "\/\*"/);
+  assert.equal(result.sourceLength, source.length);
+  assert.equal(result.lineCount, 4);
+});
+
+test("free parser exposes a structured AST and useful counts for invented syntax", async () => {
+  const result = await parseSource("zalle::kren [a %% b] -> render(42)", { mode: "free" });
+  assert.equal(result.language, "universal");
+  assert.equal(result.treeData.type, "Document");
+  assert.ok(result.stats.groups >= 2);
+  assert.ok(result.stats.identifiers >= 3);
+  assert.ok(result.stats.operators >= 2);
+  assert.ok(result.nodeCount > result.stats.tokens);
+});
