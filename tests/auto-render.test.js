@@ -67,3 +67,20 @@ test("JavaScript-like syntax in arbitrary extensions is rendered visually and ne
   assert.ok(result.html.includes("visual-block"));
   assert.ok(!result.html.includes("document.body"));
 });
+
+
+test("JavaScript console output is visible in the rendered page", () => {
+  const result=autoRenderFile({path:"/main.js",content:'console.log("Hola mundo");'});
+  assert.equal(result.kind,"javascript");
+  assert.ok(result.html.includes("yourcode-runtime-output"));
+  assert.ok(result.html.includes("showOutput"));
+});
+
+test("plain text and invented-language snippets always get a visible preview", () => {
+  for (const source of ["Hola","print(1 + 1)","CREATE A BLUE WINDOW"]) {
+    const result=autoRenderFile({path:"/main.your",content:source});
+    assert.equal(result.kind,"universal");
+    assert.ok(result.html.includes("visual-canvas"));
+    assert.ok(result.html.includes("visual-block"));
+  }
+});
