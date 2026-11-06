@@ -38,11 +38,14 @@ async function getLoadedEngine(runtime, modelId, onProgress) {
         if (typeof onProgress === "function") onProgress(report);
       }
     });
-    enginePromise = pending.catch(error => {
-      if (enginePromise === pending || enginePromise) {
+    const wrapped = pending.catch(error => {
+      if (enginePromise === wrapped) {
         enginePromise = null;
         activeModelId = "";
       }
+      throw error;
+    });
+    enginePromise = wrapped;
       throw error;
     });
   }
@@ -103,8 +106,8 @@ export async function renderYourCodeLocally(source, { title = "YourCode", onProg
   const result = await task;
 
   const text = String(result?.choices?.[0]?.message?.content || "").trim();
-  const html = text.replace(/^\`\`\`(?:html)?\\s*/i, "").replace(/\\s*\`\`\`$/, "");
-  if (!/^<!doctype html|^<html\\b/i.test(html)) {
+  const html = text.replace(/^\`\`\`(?:html)?\s*/i, "").replace(/\s*\`\`\`$/, "");
+  if (!/^<!doctype html|^<html\b/i.test(html)) {
     throw new Error("El modelo local no ha generado un documento HTML válido. Prueba a simplificar el código o vuelve a interpretarlo.");
   }
   return html;
