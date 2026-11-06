@@ -39,7 +39,8 @@ class CreatePageActivity : Activity() {
         root.addView(button("Crear sitio HTTC") {
             val host = hostField.text.toString().trim()
             val title = titleField.text.toString().trim().ifBlank { host }
-            val html = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width'><title>" + title + "</title></head><body><main><h1>" + title + "</h1><p>Publicado con Fairwas para Android.</p></main></body></html>"
+            val safeTitle = escapeHtml(title)
+            val html = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width'><title>" + safeTitle + "</title></head><body><main><h1>" + safeTitle + "</h1><p>Publicado con Fairwas para Android.</p></main></body></html>"
             runRequest { api.createSite(host, title, html) }
         })
         root.addView(button("Actualizar lista") { refreshSites() })
@@ -90,6 +91,13 @@ class CreatePageActivity : Activity() {
             } catch (e: Exception) { runOnUiThread { toast(e.message ?: "No se pudieron cargar los sitios") } }
         }
     }
+
+    private fun escapeHtml(value: String): String = value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;")
 
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     override fun onDestroy() { worker.shutdownNow(); super.onDestroy() }
