@@ -77,7 +77,7 @@ class BrowserActivity : Activity() {
             imeOptions = EditorInfo.IME_ACTION_GO
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_URI
-            selectAllOnFocus = true
+            setSelectAllOnFocus(true)
             setOnEditorActionListener { _, action, _ ->
                 if (action == EditorInfo.IME_ACTION_GO) {
                     open(text.toString())
