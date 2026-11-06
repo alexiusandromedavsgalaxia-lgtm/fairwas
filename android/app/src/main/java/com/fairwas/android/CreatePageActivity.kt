@@ -4,300 +4,296 @@ import android.app.Activity
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
-import android.util.Patterns
 import android.view.Gravity
-import android.widget.EditText
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.view.ViewCompat
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
+import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.Executors
 
-/** Phone-first CreatePage dashboard. */
+/**
+ * Runs Fairwas' real deployed React workspace inside Android WebView.
+ *
+ * CreatePage and YourCode are not reimplemented here: the same production
+ * React components, routes, editor, parsers and API are loaded from Fairwas.
+ */
 class CreatePageActivity : Activity() {
-    private val worker = Executors.newSingleThreadExecutor()
-    private lateinit var api: CreatePageClient
-    private lateinit var content: LinearLayout
-    private lateinit var nameField: EditText
-    private lateinit var emailField: EditText
-    private lateinit var hostField: EditText
-    private lateinit var titleField: EditText
+    companion object {
+        const val EXTRA_START_URL = "com.fairwas.android.START_WORKSPACE_URL"
+        private const val STORAGE_KEY = "fairwas:v1"
+    }
 
-    private val pageBackground = Color.rgb(14, 16, 22)
-    private val cardBackground = Color.rgb(29, 33, 42)
-    private val muted = Color.rgb(166, 174, 188)
+    private lateinit var web: WebView
+    private lateinit var appBaseUrl: String
+    private var initialWorkspaceInstalled = false
+    private var workspaceStyleInstalled = false
+
+    private val background = Color.rgb(14, 16, 22)
+    private val surface = Color.rgb(29, 33, 42)
+    private val textColor = Color.rgb(245, 247, 251)
     private val accent = Color.rgb(185, 242, 139)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        api = CreatePageClient(BuildConfig.FAIRWAS_BASE_URL)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.statusBarColor = background
+        window.navigationBarColor = background
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
-        val scroll = ScrollView(this).apply {
-            fillViewport = true
-            clipToPadding = false
-            setBackgroundColor(pageBackground)
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
+        appBaseUrl = BuildConfig.FAIRWAS_BASE_URL.trimEnd('/')
+        val baseUri = Uri.parse(appBaseUrl)
+        if (!baseUri.scheme.equals("https", true) || baseUri.host.isNullOrBlank()) {
+            showFatal("La dirección de Fairwas debe ser una URL HTTPS válida.")
+            return
         }
 
+        buildUi()
+        installBackNavigation()
+        web.loadUrl("$appBaseUrl/")
+    }
+
+    private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(18), dp(18), dp(24))
+            setBackgroundColor(background)
         }
-        scroll.addView(root, ScrollView.LayoutParams(-1, -2))
 
-        root.addView(TextView(this).apply {
-            text = "CreatePage"
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(4), dp(14), dp(4))
+            setBackgroundColor(background)
+        }
+        val back = TextView(this).apply {
+            text = "‹"
             textSize = 30f
-            typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            setTextColor(Color.WHITE)
-        })
-        root.addView(TextView(this).apply {
-            text = "Tus proyectos HTTC, desde Android."
-            textSize = 14f
-            setTextColor(muted)
-            setPadding(0, dp(4), 0, dp(20))
-        })
-
-        val developerCard = sectionCard()
-        developerCard.addView(sectionTitle("Desarrollador"))
-        developerCard.addView(description("Registra tus datos para gestionar tus sitios."))
-        nameField = field("Nombre de desarrollador")
-        emailField = field("Correo electrónico").apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            gravity = Gravity.CENTER
+            setTextColor(textColor)
+            minWidth = dp(44)
+            minHeight = dp(44)
+            contentDescription = "Volver al navegador"
+            setOnClickListener { finish() }
         }
-        developerCard.addView(nameField, fieldParams())
-        developerCard.addView(emailField, fieldParams())
-        developerCard.addView(primaryButton("Registrar desarrollador") {
-            val name = nameField.text.toString().trim()
-            val email = emailField.text.toString().trim()
-            if (name.isBlank()) {
-                toast("Introduce el nombre del desarrollador")
-            } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                toast("Introduce un correo electrónico válido")
-            } else {
-                runRequest { api.registerDeveloper(name, email) }
-            }
-        }, buttonParams())
-        root.addView(developerCard, sectionParams())
-
-        val siteCard = sectionCard()
-        siteCard.addView(sectionTitle("Nuevo sitio"))
-        siteCard.addView(description("Crea y publica un nuevo dominio HTTC."))
-        hostField = field("dominio.fair")
-        titleField = field("Nombre del sitio")
-        siteCard.addView(hostField, fieldParams())
-        siteCard.addView(titleField, fieldParams())
-        siteCard.addView(primaryButton("Crear sitio HTTC") {
-            val host = hostField.text.toString().trim().lowercase()
-            val title = titleField.text.toString().trim().ifBlank { host }
-            if (!isValidHostname(host)) {
-                toast("Introduce un dominio válido, por ejemplo sitio.fair")
-            } else {
-                val safeTitle = escapeHtml(title)
-                val html = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>$safeTitle</title></head><body><main><h1>$safeTitle</h1><p>Publicado con Fairwas para Android.</p></main></body></html>"
-                runRequest { api.createSite(host, title, html) }
-            }
-        }, buttonParams())
-        siteCard.addView(secondaryButton("Actualizar lista") { refreshSites() }, buttonParams())
-        root.addView(siteCard, sectionParams())
-
-        val sitesCard = sectionCard()
-        sitesCard.addView(sectionTitle("Mis sitios"))
-        sitesCard.addView(description("Tus dominios registrados aparecerán aquí."))
-        content = LinearLayout(this).apply {
+        toolbar.addView(back, LinearLayout.LayoutParams(dp(48), dp(48)))
+        toolbar.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-        }
-        sitesCard.addView(content, LinearLayout.LayoutParams(-1, -2))
-        root.addView(sitesCard, sectionParams())
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@CreatePageActivity).apply {
+                text = "Fairwas Workspace"
+                textSize = 15f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(textColor)
+            })
+            addView(TextView(this@CreatePageActivity).apply {
+                text = "CreatePage · YourCode"
+                textSize = 11f
+                setTextColor(accent)
+            })
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(56)))
 
-        root.addView(secondaryButton("←  Volver al navegador") { finish() }, buttonParams())
-        setContentView(scroll)
-        ViewCompat.requestApplyInsets(scroll)
-        refreshSites()
+        web = WebView(this).apply {
+            setBackgroundColor(background)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.loadsImagesAutomatically = true
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.safeBrowsingEnabled = true
+            webChromeClient = WebChromeClient()
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    val uri = request.url
+                    if (uri.scheme.equals("https", true) && uri.host.equals(Uri.parse(appBaseUrl).host, true)) {
+                        return false
+                    }
+                    if (uri.scheme.equals("httc", true)) {
+                        val host = uri.host?.lowercase().orEmpty()
+                        if (host == "createpage.fair" || host == "yourcode.official" ||
+                            host == "yourcode.createpage.fair" || host == "docs.createpage.fair") {
+                            installWorkspaceState(uri.toString())
+                            return true
+                        }
+                    }
+                    return true
+                }
+
+                override fun onPageFinished(view: WebView, url: String) {
+                    super.onPageFinished(view, url)
+                    if (!isTrustedAppUrl(url)) return
+                    if (!initialWorkspaceInstalled) {
+                        initialWorkspaceInstalled = true
+                        installWorkspaceState(startUrl())
+                    } else if (!workspaceStyleInstalled) {
+                        workspaceStyleInstalled = true
+                        applyPhoneWorkspaceStyle()
+                    }
+                }
+
+                override fun onReceivedError(
+                    view: WebView,
+                    request: WebResourceRequest,
+                    error: android.webkit.WebResourceError
+                ) {
+                    super.onReceivedError(view, request, error)
+                    if (request.isForMainFrame && !isFinishing && !isDestroyed) {
+                        Toast.makeText(
+                            this@CreatePageActivity,
+                            "No se pudo conectar con Fairwas. Comprueba tu conexión.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
+        root.addView(web, LinearLayout.LayoutParams(-1, 0, 1f))
+        setContentView(root)
+    }
+
+    private fun startUrl(): String {
+        return intent.getStringExtra(EXTRA_START_URL)
+            ?.takeIf { it.startsWith("httc://") }
+            ?: "httc://createpage.fair/"
+    }
+
+    private fun isTrustedAppUrl(raw: String): Boolean {
+        val uri = Uri.parse(raw)
+        return uri.scheme.equals("https", true) &&
+            uri.host.equals(Uri.parse(appBaseUrl).host, true)
+    }
+
+    private fun installWorkspaceState(targetUrl: String) {
+        if (!::web.isInitialized || isFinishing || isDestroyed) return
+        val title = if (targetUrl.contains("yourcode", true)) "YourCode" else "CreatePage"
+        val tab = JSONObject()
+            .put("id", "android-workspace")
+            .put("url", targetUrl)
+            .put("documentUrl", targetUrl)
+            .put("title", title)
+            .put("back", JSONArray())
+            .put("forward", JSONArray())
+        val state = JSONObject()
+            .put("history", JSONArray())
+            .put("bookmarks", JSONArray())
+            .put("settings", JSONObject()
+                .put("dark", true)
+                .put("home", "httc://home")
+                .put("search", "")
+                .put("compactChrome", true))
+            .put("tabs", JSONArray().put(tab))
+            .put("activeTab", 0)
+            .put("currentPage", targetUrl)
+            .put("activity", "browsing")
+
+        val stateLiteral = JSONObject.quote(state.toString())
+        val rootLiteral = JSONObject.quote("$appBaseUrl/")
+        web.evaluateJavascript(
+            "(function(){localStorage.setItem('$STORAGE_KEY',$stateLiteral);location.replace($rootLiteral);})();",
+            null
+        )
+    }
+
+    private fun applyPhoneWorkspaceStyle() {
+        val css = """
+            html,body,#root,.app,.viewport,.tab-view {
+                width:100%!important; min-width:0!important;
+                min-height:100%!important; height:100%!important;
+                overflow-x:hidden!important;
+            }
+            .chrome { display:none!important; }
+            .app { min-height:100dvh!important; height:100dvh!important; }
+            .viewport { min-height:100dvh!important; height:100dvh!important; overflow:auto!important; }
+            .tab-view { min-height:100%!important; }
+            .cp-shell { min-height:100%!important; grid-template-columns:minmax(0,1fr)!important; }
+            .cp-side { position:relative!important; top:auto!important; padding:10px 12px!important;
+                border-right:0!important; border-bottom:1px solid rgba(255,255,255,.08)!important; }
+            .cp-brand { padding:3px 6px 9px!important; }
+            .cp-side nav { display:flex!important; flex-direction:row!important; overflow-x:auto!important;
+                flex-wrap:nowrap!important; gap:4px!important; scrollbar-width:none; }
+            .cp-side nav button { flex:none!important; white-space:nowrap!important; }
+            .cp-side-foot { display:none!important; }
+            .cp-content { width:100%!important; max-width:none!important;
+                padding:20px 14px max(26px,env(safe-area-inset-bottom))!important; }
+            .cp-grid.four,.cp-grid.three { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
+            .cp-grid.two { grid-template-columns:minmax(0,1fr)!important; }
+            .cp-ide { position:relative!important; inset:auto!important; min-height:100%!important; }
+            .cp-ide-top { padding:12px!important; align-items:flex-start!important; flex-direction:column!important; }
+            .cp-ide-actions { width:100%!important; overflow-x:auto!important; flex-wrap:nowrap!important; }
+            .cp-ide-actions button { flex:none!important; min-height:42px!important; }
+            .cp-ide-import { grid-template-columns:minmax(0,1fr)!important; }
+            .cp-ide-body { grid-template-columns:minmax(96px,30%) minmax(0,1fr)!important; min-height:55vh!important; }
+            .cp-files { padding:6px!important; }
+            .cp-files button { overflow-wrap:anywhere!important; font-size:11px!important; }
+            .cp-editor { min-width:0!important; padding:12px!important; font-size:12px!important; }
+            .yc-app { min-height:100%!important; }
+            .yc-header { position:relative!important; flex-wrap:wrap!important; gap:8px!important; padding:12px!important; }
+            .yc-nav { max-width:100%!important; overflow-x:auto!important; }
+            .yc-content { padding:18px 13px max(26px,env(safe-area-inset-bottom))!important; }
+            .yc-hero { grid-template-columns:minmax(0,1fr)!important; }
+            .yc-hero-art { display:none!important; }
+            .yc-workspace { grid-template-columns:minmax(0,1fr)!important; min-height:0!important; }
+            .yc-preview { grid-column:auto!important; }
+            .yc-pane { min-height:320px!important; }
+            .yc-pane textarea { min-height:260px!important; }
+            .yc-preview iframe { min-height:360px!important; }
+            button,input,select,textarea { max-width:100%; }
+            img,iframe,pre { max-width:100%; }
+            @media(max-width:420px) {
+                .cp-grid.four,.cp-grid.three { grid-template-columns:minmax(0,1fr)!important; }
+                .cp-ide-body { grid-template-columns:92px minmax(0,1fr)!important; }
+                .cp-editor { font-size:11px!important; }
+            }
+        """.trimIndent()
+        val cssLiteral = JSONObject.quote(css)
+        web.evaluateJavascript(
+            "(function(){var id='fairwas-android-phone-style';var s=document.getElementById(id);if(!s){s=document.createElement('style');s.id=id;document.head.appendChild(s);}s.textContent=$cssLiteral;})();",
+            null
+        )
+    }
+
+    private fun installBackNavigation() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (::web.isInitialized && web.canGoBack()) web.goBack() else finish()
+            }
+        })
+    }
+
+    private fun showFatal(message: String) {
+        val label = TextView(this).apply {
+            text = message
+            textSize = 15f
+            setTextColor(textColor)
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+        }
+        setContentView(LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            setBackgroundColor(background)
+            addView(label)
+        })
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    private fun roundedBackground(color: Int, radiusDp: Int) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = dp(radiusDp).toFloat()
-    }
-
-    private fun sectionCard() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(18), dp(16), dp(18))
-        background = roundedBackground(cardBackground, 18)
-    }
-
-    private fun sectionTitle(value: String) = TextView(this).apply {
-        text = value
-        textSize = 19f
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        setTextColor(Color.WHITE)
-    }
-
-    private fun description(value: String) = TextView(this).apply {
-        text = value
-        textSize = 13f
-        setTextColor(muted)
-        setPadding(0, dp(4), 0, dp(12))
-    }
-
-    private fun field(hintText: String) = EditText(this).apply {
-        hint = hintText
-        setSingleLine(true)
-        textSize = 15f
-        setTextColor(Color.WHITE)
-        setHintTextColor(muted)
-        background = roundedBackground(Color.rgb(40, 45, 56), 12)
-        setPadding(dp(14), 0, dp(14), 0)
-        minHeight = dp(50)
-    }
-
-    private fun fieldParams() = LinearLayout.LayoutParams(-1, dp(52)).apply {
-        bottomMargin = dp(10)
-    }
-
-    private fun primaryButton(label: String, action: () -> Unit) = TextView(this).apply {
-        text = label
-        gravity = Gravity.CENTER
-        textSize = 14f
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        setTextColor(Color.rgb(20, 26, 18))
-        background = roundedBackground(accent, 14)
-        minHeight = dp(50)
-        isClickable = true
-        isFocusable = true
-        setOnClickListener { action() }
-    }
-
-    private fun secondaryButton(label: String, action: () -> Unit) = TextView(this).apply {
-        text = label
-        gravity = Gravity.CENTER
-        textSize = 14f
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        setTextColor(Color.WHITE)
-        background = roundedBackground(Color.rgb(43, 48, 59), 14)
-        minHeight = dp(50)
-        isClickable = true
-        isFocusable = true
-        setOnClickListener { action() }
-    }
-
-    private fun buttonParams() = LinearLayout.LayoutParams(-1, dp(50)).apply {
-        topMargin = dp(4)
-        bottomMargin = dp(6)
-    }
-
-    private fun sectionParams() = LinearLayout.LayoutParams(-1, -2).apply {
-        bottomMargin = dp(16)
-    }
-
-    private fun isValidHostname(host: String): Boolean {
-        if (host.isBlank() || host.length > 253) return false
-        return host.matches(
-            Regex("^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)+$")
-        )
-    }
-
-    private fun runRequest(action: () -> JSONObject) {
-        worker.execute {
-            try {
-                action()
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed) {
-                        toast("Operación completada")
-                        refreshSites()
-                    }
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed) toast(e.message ?: "Error de CreatePage")
-                }
-            }
-        }
-    }
-
-    private fun refreshSites() {
-        if (!::content.isInitialized || isFinishing || isDestroyed) return
-        worker.execute {
-            try {
-                val sites = api.listSites()
-                val siteItems = (0 until sites.length()).map { sites.getJSONObject(it) }
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    content.removeAllViews()
-                    siteItems.forEach { site ->
-                        val host = site.optString("hostname")
-                        val title = site.optString("title").ifBlank { host }
-                        val status = site.optString("status")
-                        val item = LinearLayout(this).apply {
-                            orientation = LinearLayout.VERTICAL
-                            setPadding(dp(13), dp(13), dp(13), dp(13))
-                            background = roundedBackground(Color.rgb(40, 45, 56), 13)
-                        }
-                        item.addView(TextView(this).apply {
-                            text = title
-                            textSize = 16f
-                            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                            setTextColor(Color.WHITE)
-                        })
-                        item.addView(TextView(this).apply {
-                            text = "httc://$host"
-                            textSize = 13f
-                            setTextColor(accent)
-                            setPadding(0, dp(4), 0, 0)
-                        })
-                        item.addView(TextView(this).apply {
-                            text = status
-                            textSize = 12f
-                            setTextColor(muted)
-                            setPadding(0, dp(4), 0, 0)
-                        })
-                        content.addView(item, LinearLayout.LayoutParams(-1, -2).apply {
-                            bottomMargin = dp(9)
-                        })
-                    }
-                    if (siteItems.isEmpty()) content.addView(TextView(this).apply {
-                        text = "Todavía no hay sitios. Crea tu primer dominio arriba."
-                        textSize = 13f
-                        setTextColor(muted)
-                        setPadding(0, dp(8), 0, dp(4))
-                    })
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    if (!isFinishing && !isDestroyed) toast(e.message ?: "No se pudieron cargar los sitios")
-                }
-            }
-        }
-    }
-
-    private fun escapeHtml(value: String): String = value
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\"", "&quot;")
-        .replace("'", "&#39;")
-
-    private fun toast(message: String) {
-        if (!isFinishing && !isDestroyed) Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-    }
-
     override fun onDestroy() {
-        worker.shutdownNow()
+        if (::web.isInitialized) {
+            web.stopLoading()
+            web.destroy()
+        }
         super.onDestroy()
     }
 }
