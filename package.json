@@ -22,7 +22,8 @@
     "postcss-value-parser": "^4.2.0",
     "web-tree-sitter": "0.25.10",
     "tree-sitter-wasms": "0.1.13",
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.1",
+    "@mlc-ai/web-llm": "^0.2.87"
   },
   "devDependencies": {}
 }
