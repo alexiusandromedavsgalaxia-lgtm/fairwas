@@ -1,6 +1,7 @@
 package com.fairwas.android
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -11,6 +12,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ValueCallback
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -28,11 +30,13 @@ class CreatePageActivity : Activity() {
     companion object {
         const val EXTRA_START_URL = "com.fairwas.android.START_WORKSPACE_URL"
         private const val STORAGE_KEY = "fairwas:v1"
+        private const val FILE_CHOOSER_REQUEST = 4102
     }
 
     private lateinit var web: WebView
     private lateinit var appBaseUrl: String
     private var initialWorkspaceInstalled = false
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
 
     private val background = Color.rgb(14, 16, 22)
     private val surface = Color.rgb(29, 33, 42)
@@ -110,7 +114,24 @@ class CreatePageActivity : Activity() {
             settings.setSupportMultipleWindows(false)
             settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.safeBrowsingEnabled = true
-            webChromeClient = WebChromeClient()
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    webView: WebView,
+                    filePathCallback: ValueCallback<Array<Uri>>,
+                    fileChooserParams: FileChooserParams
+                ): Boolean {
+                    this@CreatePageActivity.fileChooserCallback?.onReceiveValue(null)
+                    this@CreatePageActivity.fileChooserCallback = filePathCallback
+                    return try {
+                        startActivityForResult(fileChooserParams.createIntent(), FILE_CHOOSER_REQUEST)
+                        true
+                    } catch (_: ActivityNotFoundException) {
+                        this@CreatePageActivity.fileChooserCallback = null
+                        filePathCallback.onReceiveValue(null)
+                        false
+                    }
+                }
+            }
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     val uri = request.url
@@ -260,6 +281,24 @@ class CreatePageActivity : Activity() {
         )
     }
 
+    @Deprecated("Deprecated in Android, retained for WebView file chooser compatibility")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        if (requestCode == FILE_CHOOSER_REQUEST) {
+            val results: Array<Uri>? = if (resultCode == RESULT_OK && data != null) {
+                val clip = data.clipData
+                when {
+                    clip != null -> Array(clip.itemCount) { index -> clip.getItemAt(index).uri }
+                    data.data != null -> arrayOf(data.data!!)
+                    else -> null
+                }
+            } else null
+            fileChooserCallback?.onReceiveValue(results)
+            fileChooserCallback = null
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         if (::web.isInitialized && web.canGoBack()) web.goBack() else super.onBackPressed()
@@ -283,6 +322,8 @@ class CreatePageActivity : Activity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
+        fileChooserCallback?.onReceiveValue(null)
+        fileChooserCallback = null
         if (::web.isInitialized) {
             web.stopLoading()
             web.destroy()
