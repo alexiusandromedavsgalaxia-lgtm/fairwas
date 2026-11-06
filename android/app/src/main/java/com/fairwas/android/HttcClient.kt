@@ -28,11 +28,43 @@ class HttcClient(baseUrl: String) {
             else -> "httc://$value"
         }
 
-        val parsed = URI(candidate)
-        require(parsed.scheme.equals("httc", ignoreCase = true) && !parsed.host.isNullOrBlank()) {
+        // URI.host rejects underscores even though Fairwas hostnames allow them.
+        // Validate the authority explicitly so Android accepts the same host syntax as the web app.
+        val parsed = URI(candidate.replace(" ", "%20"))
+        val authority = parsed.rawAuthority.orEmpty()
+        require(parsed.scheme.equals("httc", ignoreCase = true) && authority.isNotBlank()) {
             "Dirección HTTC no válida."
         }
-        require(parsed.userInfo == null) { "No se permiten credenciales dentro de la dirección." }
+        require(!authority.contains("@")) {
+            "No se permiten credenciales dentro de la dirección."
+        }
+
+        val closingBracket = if (authority.startsWith("[")) authority.indexOf(']') else -1
+        val host: String
+        val portText: String?
+        if (closingBracket >= 0) {
+            require(closingBracket > 1) { "Dirección HTTC no válida." }
+            host = authority.substring(1, closingBracket)
+            val suffix = authority.substring(closingBracket + 1)
+            portText = if (suffix.isEmpty()) null else suffix.removePrefix(":").takeIf {
+                suffix.startsWith(":") && it.isNotEmpty()
+            }
+            require(suffix.isEmpty() || portText != null) { "Dirección HTTC no válida." }
+        } else {
+            val hasPort = authority.matches(Regex("^.+:\\d+$"))
+            host = if (hasPort) authority.substringBeforeLast(":") else authority
+            portText = if (hasPort) authority.substringAfterLast(":") else null
+        }
+
+        val hostnamePattern = Regex("^[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?(?:\\.[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?)*$")
+        val validIpv6 = closingBracket >= 0 && parsed.host != null
+        require(host.isNotBlank() && (hostnamePattern.matches(host) || validIpv6)) {
+            "Dirección HTTC no válida."
+        }
+        if (portText != null) {
+            val port = portText.toIntOrNull()
+            require(port != null && port in 0..65535) { "Puerto HTTC no válido." }
+        }
         return parsed.toASCIIString()
     }
 
