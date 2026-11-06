@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState}from"react";
 import { parseSource, supportedParserLanguages } from "./runtime/polyglot-parser.js";
+import { autoRenderFile } from "./runtime/auto-render.js";
 import UniversalTreeView from "./runtime/UniversalTreeView.jsx";
 
 function parsePublishTarget(value){
@@ -280,7 +281,6 @@ function Editor({siteId="",yourCode=false}){
   const[selected,setSelected]=useState(()=>draft?.selected||(yourCode?"":"/routes/mainpage/index.html"));
  const[code,setCode]=useState(()=>(draft?.code??draft?.files?.find(file=>file.path===draft?.selected)?.content) ?? (yourCode?"":"<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Inicio</title></head>\n<body><h1>Hola desde CreatePage</h1><p>Ruta principal: /</p></body>\n</html>"));
  const[parserLanguage,setParserLanguage]=useState("");
- const[directPreview,setDirectPreview]=useState(false);
  const[syntaxResult,setSyntaxResult]=useState(null);
  const[syntaxBusy,setSyntaxBusy]=useState(false);
  useEffect(()=>{
@@ -367,6 +367,7 @@ function Editor({siteId="",yourCode=false}){
   }catch(error){setStatus(error instanceof Error?error.message:"No se pudo publicar el proyecto.")}
  };
  const tree=(()=>{const dirs=new Set(folders);files.forEach(file=>{const parts=file.path.split("/").filter(Boolean);for(let i=1;i<parts.length;i++)dirs.add("/"+parts.slice(0,i).join("/"))});const entries=[...Array.from(dirs,path=>({path,folder:true})),...files.map(file=>({path:file.path,folder:false}))];return entries.sort((a,b)=>a.path.localeCompare(b.path)||(a.folder?-1:1)).map(item=>({...item,depth:Math.max(0,item.path.split("/").filter(Boolean).length-1)}))})();
+ const livePreview=(()=>{if(!yourCode)return null;try{return autoRenderFile({path:selected||"/untitled.txt",content:code},{title:site.title||"YourCode",hostname:site.hostname||""})}catch(error){return{kind:"error",html:"<!doctype html><html><body style=\"font:16px system-ui;padding:24px\"><h1>No se pudo generar la vista previa</h1><p>"+String(error?.message||error)+"</p></body></html>"}}})();
  if(!loaded)return <section className="cp-ide"><div className="cp-card cp-empty">Cargando página…</div></section>;
  return <section className="cp-ide">
   <div className="cp-ide-top"><div className="cp-ide-heading"><small>FAIRWAS · WORKSPACE</small><h1>{yourCode?"YourCode":siteId?"Editar página":"Nuevo proyecto"}</h1><p>{site.hostname||"Configura el dominio y empieza a editar"}</p></div><div className="cp-ide-actions"><button type="button" onClick={addFile}>＋ Archivo</button><button type="button" onClick={addFolder}>＋ Carpeta</button><button type="button" onClick={()=>setApiPanelOpen(v=>!v)}>{apiPanelOpen?"Cerrar chat":"✦ Chat IA / Backend"}</button><label className="cp-button">Importar archivos<input type="file" multiple onChange={importFiles}/></label><label className="cp-button">Importar carpeta<input type="file" multiple webkitdirectory="" onChange={importFiles}/></label><button type="button" className="cp-ide-publish" onClick={save}>{yourCode?(siteId?"Actualizar publicación":"Publicar código"):siteId?"Guardar cambios":"Publicar sitio"}</button></div></div>
@@ -382,10 +383,10 @@ function Editor({siteId="",yourCode=false}){
   </section>
   <section style={{padding:14,borderTop:"1px solid rgba(255,255,255,.09)",background:"#11151b",display:"grid",gap:12}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-    <div><b style={{fontSize:13}}>RENDERIZADO DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>El HTML se muestra como página. Los lenguajes inventados se representan en el árbol estructural sin imponerles una gramática ni atribuirles significados falsos.</p></div>
-    <button type="button" className="cp-primary" disabled={!code.length} onClick={()=>setDirectPreview(true)}>Renderizar HTML</button>
+    <div><b style={{fontSize:13}}>RENDERIZADO EN DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>La vista se actualiza al escribir. HTML se muestra como página; JavaScript se ejecuta en un entorno aislado; otros lenguajes y sintaxis libres se convierten en una representación visual.</p></div>
+    <span style={{fontSize:11,color:"#a8e66b",fontWeight:700}}>{livePreview?.kind==="universal"?"VISTA UNIVERSAL":livePreview?.kind==="javascript"?"JAVASCRIPT":String(livePreview?.kind||"").toUpperCase()}</span>
    </div>
-   {directPreview&&<><div style={{fontSize:11,color:"#8d9bad"}}>Vista previa aislada</div><iframe title="Vista previa HTML de YourCode" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={code} style={{display:"block",width:"100%",height:560,border:"1px solid #3c4654",borderRadius:10,background:"#fff"}}/><div style={{display:"flex",justifyContent:"flex-end"}}><button type="button" onClick={()=>setDirectPreview(false)}>Cerrar vista previa</button></div></>}
+   <iframe title="Renderizado en directo de YourCode" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={livePreview?.html||"<!doctype html><html><body></body></html>"} style={{display:"block",width:"100%",height:520,border:"1px solid #3c4654",borderRadius:10,background:"#fff"}}/>
   </section></>}  </div></div>
   <section className="cp-card cp-db-panel">
    <div className="cp-db-toggle-row"><div><small>ENV.DATABASE</small><b>Bases de datos</b><span>{pageDatabases.length}/20 · {pageDatabases.length===1?"1 base conectada":pageDatabases.length+" bases conectadas"}</span></div><button type="button" className="cp-db-toggle" aria-expanded={dbPanelOpen} onClick={()=>setDbPanelOpen(open=>!open)}>{dbPanelOpen?"Cerrar bases ×":"Abrir bases ⚙"}</button></div>
