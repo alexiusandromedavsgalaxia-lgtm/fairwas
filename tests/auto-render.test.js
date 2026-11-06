@@ -26,12 +26,15 @@ test("YourCode renders Markdown and JSON data instead of showing source", () => 
   assert.match(json.html,/Fairwas/);
 });
 
-test("unknown custom grammars render a safe code view instead of a blank page", () => {
+test("unknown custom grammars render visual blocks instead of a source-code page", () => {
   const result=autoRenderFile({path:"/page.xyz",content:"MAKE WINDOW WITH BLUE SKY"});
-  assert.equal(result.kind,"code");
+  assert.equal(result.kind,"universal");
   assert.equal(result.language,"Código");
-  assert.match(result.html,/MAKE WINDOW WITH BLUE SKY/);
-  assert.match(result.html,/Vista de código/);
+  assert.match(result.html,/MAKE/);
+  assert.match(result.html,/WINDOW/);
+  assert.match(result.html,/visual-block/);
+  assert.doesNotMatch(result.html,/Vista de código/);
+  assert.doesNotMatch(result.html,/<pre[^>]*><code>/);
 });
 
 test("YourCode recognises common non-browser languages by extension without trying to execute them", () => {
@@ -52,12 +55,14 @@ test("valid JavaScript files use the browser runtime", () => {
   assert.match(module.html,/"module"/);
 });
 
-test("invalid JavaScript syntax is preserved as code instead of producing a parser rejection", () => {
+test("invalid JavaScript syntax gets a visual structure instead of a raw code page", () => {
   const source="const app = () => { document.body.textContent = 'ready' } THIS_IS_NOT_JS";
   const result=autoRenderFile({path:"/logic.js",content:source});
-  assert.equal(result.kind,"code");
+  assert.equal(result.kind,"universal");
   assert.equal(result.executable,false);
-  assert.match(result.html,/THIS_IS_NOT_JS/);
+  assert.match(result.html,/visual-block/);
+  assert.doesNotMatch(result.html,/Vista de código/);
+  assert.doesNotMatch(result.html,/document\\.body/);
 });
 
 test("JavaScript-like syntax in arbitrary extensions is not automatically executed", () => {
