@@ -18,15 +18,13 @@ test("YourCode renders Markdown and JSON data instead of showing source", () => 
   assert.ok(json.html.includes("Fairwas"));
 });
 
-test("unknown custom languages render visual blocks, never a code listing", () => {
+test("invented YourCode creates a real window with a blue sky", () => {
   const result=autoRenderFile({path:"/page.xyz",content:"MAKE WINDOW WITH BLUE SKY"});
-  assert.equal(result.kind,"universal");
-  assert.equal(result.language,"Código");
-  assert.ok(result.html.includes("MAKE"));
-  assert.ok(result.html.includes("WINDOW"));
-  assert.ok(result.html.includes("visual-block"));
-  assert.ok(!result.html.includes("Vista de código"));
-  assert.ok(!result.html.includes("<pre"));
+  assert.equal(result.kind,"invented");
+  assert.ok(result.html.includes("yc-window"));
+  assert.ok(result.html.includes("yc-sky"));
+  assert.ok(result.html.includes("linear-gradient(#258fe5"));
+  assert.ok(!result.html.includes("MAKE WINDOW WITH BLUE SKY"));
 });
 
 test("common non-browser languages are rendered as visual structures without execution", () => {
@@ -76,11 +74,11 @@ test("JavaScript console output is visible in the rendered page", () => {
   assert.ok(result.html.includes("showOutput"));
 });
 
-test("plain text and invented-language snippets always get a visible preview", () => {
+test("invented-language snippets render a semantic page instead of token cards", () => {
   for (const source of ["Hola","print(1 + 1)","CREATE A BLUE WINDOW"]) {
     const result=autoRenderFile({path:"/main.your",content:source});
-    assert.equal(result.kind,"universal");
-    assert.ok(result.html.includes("visual-canvas"));
-    assert.ok(result.html.includes("visual-block"));
+    assert.equal(result.kind,"invented");
+    assert.ok(result.html.includes("yc-stage"));
+    assert.ok(!result.html.includes("visual-block"));
   }
 });
