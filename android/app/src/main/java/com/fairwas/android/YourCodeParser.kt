@@ -23,12 +23,17 @@ object YourCodeParser {
             if (c == '\n') { line++; column = 1 } else column++
             return c
         }
+
         fun add(kind: Kind, start: Int, startLine: Int, startColumn: Int) {
             tokens += Token(kind, source.substring(start, i), startLine, startColumn)
         }
-        val opening = setOf('(', '[', '{', '<')
-        val closing = setOf(')', ']', '}', '>')
-        val pairs = mapOf(')' to '(', ']' to '[', '}' to '{', '>' to '<')
+
+        // Angle brackets are operators in many languages (a < b, a > b).
+        // Only unambiguous grouping delimiters are paired here.
+        val opening = setOf('(', '[', '{')
+        val closing = setOf(')', ']', '}')
+        val pairs = mapOf(')' to '(', ']' to '[', '}' to '{')
+        val operatorChars = "+-*/%=!&|^~?:;,.@<>"
 
         while (i < source.length) {
             val start = i
@@ -50,11 +55,15 @@ object YourCodeParser {
                     add(Kind.COMMENT, start, startLine, startColumn)
                 }
                 c == '/' && i + 1 < source.length && source[i + 1] == '*' -> {
-                    advance(); advance()
+                    advance()
+                    advance()
                     var closed = false
                     while (i < source.length) {
                         if (source[i] == '*' && i + 1 < source.length && source[i + 1] == '/') {
-                            advance(); advance(); closed = true; break
+                            advance()
+                            advance()
+                            closed = true
+                            break
                         }
                         advance()
                     }
@@ -66,20 +75,26 @@ object YourCodeParser {
                     var closed = false
                     while (i < source.length) {
                         val next = advance()
-                        if (next == '\\' && i < source.length) advance()
-                        else if (next == quote) { closed = true; break }
+                        if (next == '\\' && i < source.length) {
+                            advance()
+                        } else if (next == quote) {
+                            closed = true
+                            break
+                        }
                     }
                     add(Kind.STRING, start, startLine, startColumn)
                     if (!closed) diagnostics += Diagnostic("Cadena sin cerrar", startLine, startColumn)
                 }
                 c.isLetter() || c == '_' || c == '$' -> {
                     advance()
-                    while (i < source.length && (source[i].isLetterOrDigit() || source[i] == '_' || source[i] == '$')) advance()
+                    while (i < source.length &&
+                        (source[i].isLetterOrDigit() || source[i] == '_' || source[i] == '$')) advance()
                     add(Kind.IDENTIFIER, start, startLine, startColumn)
                 }
                 c.isDigit() -> {
                     advance()
-                    while (i < source.length && (source[i].isLetterOrDigit() || source[i] == '.' || source[i] == '_')) advance()
+                    while (i < source.length &&
+                        (source[i].isLetterOrDigit() || source[i] == '.' || source[i] == '_')) advance()
                     add(Kind.NUMBER, start, startLine, startColumn)
                 }
                 c in opening -> {
@@ -92,21 +107,29 @@ object YourCodeParser {
                     advance()
                     tokens += Token(Kind.CLOSE_GROUP, source.substring(start, i), startLine, startColumn)
                     val expected = pairs[c]
-                    if (groups.isEmpty()) diagnostics += Diagnostic("Cierre sin apertura: $c", startLine, startColumn)
-                    else if (groups.last().text.first() == expected) groups.removeLast()
-                    else diagnostics += Diagnostic("Cierre no coincidente: $c", startLine, startColumn)
+                    if (groups.isEmpty()) {
+                        diagnostics += Diagnostic("Cierre sin apertura: $c", startLine, startColumn)
+                    } else if (groups.last().text.first() == expected) {
+                        groups.removeLast()
+                    } else {
+                        diagnostics += Diagnostic("Cierre no coincidente: $c", startLine, startColumn)
+                    }
+                }
+                c in operatorChars -> {
+                    advance()
+                    while (i < source.length && source[i] in operatorChars) advance()
+                    add(Kind.OPERATOR, start, startLine, startColumn)
                 }
                 else -> {
                     advance()
-                    while (i < source.length && !source[i].isWhitespace() &&
-                        !source[i].isLetterOrDigit() && source[i] !in opening &&
-                        source[i] !in closing && source[i] !in listOf('"', '\'', '`', '#')) advance()
-                    val kind = if (source.substring(start, i).any { it in "+-*/%=!&|^~?:;,.@" }) Kind.OPERATOR else Kind.UNKNOWN
-                    add(kind, start, startLine, startColumn)
+                    add(Kind.UNKNOWN, start, startLine, startColumn)
                 }
             }
         }
-        groups.reversed().forEach { diagnostics += Diagnostic("Grupo sin cerrar: " + it.text, it.line, it.column) }
+
+        groups.reversed().forEach {
+            diagnostics += Diagnostic("Grupo sin cerrar: " + it.text, it.line, it.column)
+        }
         return Result(tokens, diagnostics)
     }
 }
