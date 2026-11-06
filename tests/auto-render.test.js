@@ -27,7 +27,7 @@ test("unknown invented syntax is not faked by keyword matching or token cards", 
   assert.ok(!result.html.includes("MAKE WINDOW WITH BLUE SKY"));
 });
 
-test("common non-browser languages are rendered as visual structures without execution", () => {
+test("common non-browser languages never get guessed or executed by the generic preview", () => {
   for (const [path,language] of [["/app.py","Python"],["/main.rs","Rust"],["/query.sql","SQL"],["/Main.java","Java"],["/app.ts","TypeScript"],["/script.sh","Shell"]]) {
     const result=autoRenderFile({path,content:"print(42)"});
     assert.equal(result.kind,"universal");
@@ -57,12 +57,12 @@ test("invalid JavaScript syntax gets visual rendering instead of a raw code page
   assert.ok(!result.html.includes("document.body"));
 });
 
-test("JavaScript-like syntax in arbitrary extensions is rendered visually and never auto-executed", () => {
+test("JavaScript-like syntax in arbitrary extensions is not auto-executed or shown as token cards", () => {
   const source="const app = () => { document.body.textContent = 'ready'; }; app();";
   const result=autoRenderFile({path:"/logic.ax",content:source});
   assert.equal(result.kind,"universal");
   assert.equal(result.executable,false);
-  assert.ok(result.html.includes("visual-block"));
+  assert.ok(result.html.includes("preview-required"));
   assert.ok(!result.html.includes("document.body"));
 });
 
