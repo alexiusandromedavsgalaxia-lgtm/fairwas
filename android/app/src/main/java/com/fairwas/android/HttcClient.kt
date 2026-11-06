@@ -22,7 +22,7 @@ class HttcClient(baseUrl: String) {
         require(value.isNotEmpty()) { "Introduce una dirección" }
 
         val candidate = when {
-            value.startsWith("httc://", true) -> value
+            value.startsWith("httc://", true) -> "httc://" + value.substringAfter("://")
             value.startsWith("http://", true) -> "httc://" + value.substringAfter("://")
             value.startsWith("https://", true) -> "httc://" + value.substringAfter("://")
             else -> "httc://$value"
