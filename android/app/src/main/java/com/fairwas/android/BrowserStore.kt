@@ -41,20 +41,24 @@ class BrowserStore(context: Context) {
     fun isBookmarked(url: String): Boolean = url in readOrdered("bookmarks")
 
     private fun readOrdered(key: String): List<String> {
-        val raw = prefs.getString(key, null) ?: return emptyList()
-        return try {
-            val json = JSONArray(raw)
-            buildList {
-                for (index in 0 until json.length()) {
-                    val value = json.optString(index)
-                    if (value.isNotBlank() && value !in this) add(value)
+        return when (val stored = prefs.all[key]) {
+            is String -> try {
+                val json = JSONArray(stored)
+                buildList {
+                    for (index in 0 until json.length()) {
+                        val value = json.optString(index)
+                        if (value.isNotBlank() && value !in this) add(value)
+                    }
                 }
+            } catch (_: Exception) {
+                emptyList()
             }
-        } catch (_: Exception) {
-            // Migrate data written by the previous StringSet implementation.
-            val legacy = prefs.getStringSet(key, emptySet()).orEmpty().toList()
-            writeOrdered(key, legacy)
-            legacy
+            is Set<*> -> {
+                val legacy = stored.filterIsInstance<String>().filter(String::isNotBlank)
+                writeOrdered(key, legacy)
+                legacy
+            }
+            else -> emptyList()
         }
     }
 
