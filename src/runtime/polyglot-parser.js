@@ -1,7 +1,6 @@
 import { Parser, Language } from "web-tree-sitter";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
-import { parseWithGrammar } from "./custom-grammar-parser.js";
 
 const EXTENSIONS = {
   js:"javascript",mjs:"javascript",cjs:"javascript",jsx:"javascript",
@@ -293,8 +292,8 @@ function universalParse(source) {
 
 export async function parseSource(source, options = {}) {
   const text = String(source ?? "");
-  if (String(options.grammar || "").trim()) return parseWithGrammar(text, options.grammar);
   const path = String(options.path || "");
+  if (options.mode === "free") return universalParse(text);
   const requestedLanguage = String(options.language || inferSourceLanguage(path, text) || "").toLowerCase();
   const language = GRAMMAR_ALIASES[requestedLanguage] || requestedLanguage;
   if (!language || language === "universal" || language === "unknown") return universalParse(text);
