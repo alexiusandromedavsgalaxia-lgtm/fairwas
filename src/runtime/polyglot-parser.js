@@ -234,16 +234,8 @@ function universalParse(source) {
     if (ch === "\"" || ch === "'" || ch === String.fromCharCode(96)) {
       push(readQuoted(ch, text.startsWith(ch.repeat(3), i))); continue;
     }
-    if (text.startsWith("//", i) || (ch === "#" && text.slice(text.lastIndexOf("\n", i - 1) + 1, i).trim() === "")) {
-      const end = text.indexOf("\n", i), value = text.slice(i, end < 0 ? text.length : end);
-      push(token("Comment", value, start)); advance(value); continue;
-    }
-    if (text.startsWith("/*", i)) {
-      const end = text.indexOf("*/", i + 2), value = end < 0 ? text.slice(i) : text.slice(i, end + 2);
-      push(token("Comment", value, start)); advance(value);
-      if (end < 0) problems.push({ type: "unclosed-comment", line: start.row, column: start.column, message: "Comentario de bloque sin cerrar." });
-      continue;
-    }
+    // In free mode comment markers are not reserved: they remain ordinary symbols.
+    // A language-neutral reader must not decide that //, # or /* always mean comments.
     if (OPEN_TO_CLOSE[ch]) {
       const node = { type: "Group", delimiter: ch + OPEN_TO_CLOSE[ch], children: [], start };
       push(node); advance(ch);
@@ -279,10 +271,26 @@ function universalParse(source) {
   }
   flush();
   const count = node => 1 + (node.children || []).reduce((sum, child) => sum + count(child), 0);
+  const stats = { tokens: 0, statements: 0, groups: 0, identifiers: 0, operators: 0, strings: 0, numbers: 0 };
+  const measure = node => {
+    if (node.type === "Statement") stats.statements++;
+    else if (node.type === "Group") stats.groups++;
+    else if (node.type === "Identifier") stats.identifiers++;
+    else if (node.type === "Operator" || node.type === "UnknownPunctuation") stats.operators++;
+    else if (node.type === "String") stats.strings++;
+    else if (node.type === "Number") stats.numbers++;
+    if (["Identifier", "Operator", "UnknownPunctuation", "String", "Number", "Terminator", "Character"].includes(node.type)) stats.tokens++;
+    for (const child of node.children || []) measure(child);
+  };
+  measure(root);
   return {
     status: problems.length ? "syntax-errors" : "valid",
     language: "universal",
     tree: JSON.stringify(root, null, 2),
+    treeData: root,
+    stats,
+    sourceLength: text.length,
+    lineCount: text ? text.split(/\\r\\n|\\r|\\n/).length : 0,
     problems,
     hasError: problems.length > 0,
     nodeCount: count(root),
