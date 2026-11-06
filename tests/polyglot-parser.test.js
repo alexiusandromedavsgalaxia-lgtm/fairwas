@@ -75,3 +75,44 @@ test("YAML uses a real document parser and reports malformed input", async () =>
   assert.ok(invalid.problems.length > 0);
   assert.ok(invalid.problems[0].line >= 1);
 });
+
+
+test("YourCode EBNF engine parses a fully invented language from user-defined rules", async () => {
+  const grammar = `
+    Program = Statement* ;
+    Statement = "make" Identifier "with" Value "using" Identifier ;
+    Value = Number | String | Identifier ;
+  `;
+  const result = await parseSource('make nebula with 42 using violet', { grammar });
+  assert.equal(result.status, "valid");
+  assert.equal(result.language, "custom");
+  assert.equal(result.grammar, "Program");
+  assert.match(result.tree, /"type": "Statement"/);
+  assert.match(result.tree, /"value": "nebula"/);
+  assert.ok(result.nodeCount > 4);
+});
+
+test("invented language grammar reports source position when syntax does not match", async () => {
+  const grammar = 'Program = "crear" Identifier "con" Number ;';
+  const result = await parseSource("crear proyecto con azul", { grammar });
+  assert.equal(result.status, "syntax-errors");
+  assert.equal(result.language, "custom");
+  assert.ok(result.problems[0].line >= 1);
+  assert.ok(result.problems[0].column >= 1);
+});
+
+test("invented grammar supports regex terminals, alternatives and repetition", async () => {
+  const grammar = `
+    Program = "§" Name ("+" Name)* ;
+    Name = /[a-z]+/ ;
+  `;
+  const result = await parseSource("§ alpha + beta + gamma", { grammar });
+  assert.equal(result.status, "valid");
+  assert.match(result.tree, /"type": "Name"/);
+});
+
+test("invalid custom grammar returns grammar diagnostics instead of crashing", async () => {
+  const result = await parseSource("anything", { grammar: "Program = MissingRule ;" });
+  assert.equal(result.status, "grammar-errors");
+  assert.match(result.problems[0].message, /regla inexistente/);
+});
