@@ -18,12 +18,12 @@ test("YourCode renders Markdown and JSON data instead of showing source", () => 
   assert.ok(json.html.includes("Fairwas"));
 });
 
-test("invented YourCode creates a real window with a blue sky", () => {
+test("unknown invented syntax is not faked by keyword matching or token cards", () => {
   const result=autoRenderFile({path:"/page.xyz",content:"MAKE WINDOW WITH BLUE SKY"});
-  assert.equal(result.kind,"invented");
-  assert.ok(result.html.includes("yc-window"));
-  assert.ok(result.html.includes("yc-sky"));
-  assert.ok(result.html.includes("linear-gradient(#258fe5"));
+  assert.equal(result.kind,"universal");
+  assert.ok(result.html.includes("preview-required"));
+  assert.ok(!result.html.includes("yc-window"));
+  assert.ok(!result.html.includes("visual-block"));
   assert.ok(!result.html.includes("MAKE WINDOW WITH BLUE SKY"));
 });
 
@@ -31,9 +31,9 @@ test("common non-browser languages are rendered as visual structures without exe
   for (const [path,language] of [["/app.py","Python"],["/main.rs","Rust"],["/query.sql","SQL"],["/Main.java","Java"],["/app.ts","TypeScript"],["/script.sh","Shell"]]) {
     const result=autoRenderFile({path,content:"print(42)"});
     assert.equal(result.kind,"universal");
-    assert.equal(result.language,language);
+    assert.equal(result.language,"Código");
     assert.equal(result.executable,false);
-    assert.ok(result.html.includes("visual-block"));
+    assert.ok(result.html.includes("preview-required"));
     assert.ok(!result.html.includes("print(42)"));
   }
 });
@@ -52,7 +52,7 @@ test("invalid JavaScript syntax gets visual rendering instead of a raw code page
   const result=autoRenderFile({path:"/logic.js",content:source});
   assert.equal(result.kind,"universal");
   assert.equal(result.executable,false);
-  assert.ok(result.html.includes("visual-block"));
+  assert.ok(result.html.includes("preview-required"));
   assert.ok(!result.html.includes("Vista de código"));
   assert.ok(!result.html.includes("document.body"));
 });
@@ -74,11 +74,11 @@ test("JavaScript console output is visible in the rendered page", () => {
   assert.ok(result.html.includes("showOutput"));
 });
 
-test("invented-language snippets render a semantic page instead of token cards", () => {
+test("invented-language snippets require the semantic local interpreter instead of token cards", () => {
   for (const source of ["Hola","print(1 + 1)","CREATE A BLUE WINDOW"]) {
     const result=autoRenderFile({path:"/main.your",content:source});
-    assert.equal(result.kind,"invented");
-    assert.ok(result.html.includes("yc-stage"));
+    assert.equal(result.kind,"universal");
+    assert.ok(result.html.includes("preview-required"));
     assert.ok(!result.html.includes("visual-block"));
   }
 });
