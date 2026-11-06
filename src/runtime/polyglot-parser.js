@@ -293,6 +293,7 @@ function universalParse(source) {
 export async function parseSource(source, options = {}) {
   const text = String(source ?? "");
   const path = String(options.path || "");
+  if (options.mode === "free") return universalParse(text);
   const requestedLanguage = String(options.language || inferSourceLanguage(path, text) || "").toLowerCase();
   const language = GRAMMAR_ALIASES[requestedLanguage] || requestedLanguage;
   if (!language || language === "universal" || language === "unknown") return universalParse(text);
