@@ -54,8 +54,9 @@ class HttcClient(private val baseUrl: String) {
     /** Forward published-site asset requests to the same resolver used by the web browser. */
     fun intercept(request: WebResourceRequest): WebResourceResponse? {
         val uri = request.url
-        if (uri.host != "httc.local") return null
-        val host = uri.getQueryParameter("__host") ?: return null
+        val virtualHost = uri.host ?: return null
+        if (!virtualHost.endsWith(".httc.local")) return null
+        val host = virtualHost.removeSuffix(".httc.local")
         val path = uri.encodedPath ?: "/"
         val target = "httc://$host$path" + (uri.encodedQuery?.let { "?$it" } ?: "")
         return try {
