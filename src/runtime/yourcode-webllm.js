@@ -46,8 +46,6 @@ async function getLoadedEngine(runtime, modelId, onProgress) {
       throw error;
     });
     enginePromise = wrapped;
-      throw error;
-    });
   }
   return enginePromise;
 }
