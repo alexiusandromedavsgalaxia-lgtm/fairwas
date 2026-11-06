@@ -1,25 +1,34 @@
 # Fairwas for Android
 
-Native Android application written in Kotlin. The Android project is isolated under `android/`; the existing React/Vite web application is unchanged.
+Android application written in Kotlin. The Android browser shell is native; the CreatePage and YourCode workspaces use the **real Fairwas React application**, not reduced Kotlin mock screens.
 
-## Included native modules
+## Android shell
 
-- Android Gradle application (JDK 17, min SDK 26, target SDK 35)
-- Native browser shell with address bar, back/forward, reload and home
+- Native phone-first browser chrome, address bar, navigation, history and bookmarks
 - HTTC URL normalization and Cloudflare resolver client
-- Published-page HTML and Fairwas API response rendering
-- HTTC virtual-host resource proxy for GET requests
-- Ordered, persistent local history and bookmarks, including migration from the older preference format
-- CreatePage developer registration, site listing and basic site creation
-- Initial YourCode universal lexer with token positions and structural diagnostics
-- Android system-bar insets handling for edge-to-edge layouts
-- JVM regression tests for URL normalization and lexer grouping
+- Published-page HTML and virtual-host GET resource proxy
+- Edge-to-edge/system-bar handling and mobile keyboard resizing
+- JVM regression tests for URL normalization and the legacy language-neutral lexer
+
+## Real CreatePage and YourCode workspaces
+
+When the user opens `httc://createpage.fair`, `httc://yourcode.official`, or `httc://yourcode.createpage.fair`, Android opens the workspace activity and loads the configured Fairwas web deployment.
+
+The activity initializes the original Fairwas browser state (`fairwas:v1`) to the requested HTTC workspace URL, then loads the deployed React application. This runs the existing components and backend integration, including:
+
+- CreatePage developer registration, dashboard, site/project management and publishing
+- Visual Studio and the full web IDE, file/folder management, code editing, preview and local drafts
+- Project import, static-site migration, publishing and update flows supported by the web backend
+- CreatePage databases, API endpoints, servers, workers and account/profile screens present in the web app
+- YourCode's actual workspace, project list, editor, original language/runtime integration and preview
+
+The Android activity applies phone-specific CSS to the real workspace: narrow navigation, vertically stacked forms, scrollable toolbars, compact file tree/editor layout and a single-column YourCode editor/preview flow. It does not replace the React components or their API with placeholder implementations.
+
+**Network/deployment requirement:** these workspaces are loaded from `FAIRWAS_BASE_URL`, so the device needs internet access and that URL must serve the current Fairwas web app and its `/api/*` functions. They are not bundled for offline use. The default remains `https://fairwas.pages.dev`; verify that this is the correct production deployment URL.
 
 ## Backend configuration
 
-The resolver URL is configurable with the Gradle property `fairwasBaseUrl`. The default remains `https://fairwas.pages.dev`; confirm that this is the actual deployed Fairwas Pages URL before using the app against production.
-
-For a local build, pass the property with:
+The resolver and workspace URL are configurable with the Gradle property `fairwasBaseUrl`.
 
 ```bash
 gradle -PfairwasBaseUrl=https://YOUR-DEPLOYMENT.example :app:assembleDebug
@@ -31,17 +40,13 @@ Do not put private API keys or credentials in this property.
 
 Open this `android/` directory in Android Studio with JDK 17 and sync Gradle. GitHub Actions runs `:app:testDebugUnitTest`, builds `:app:assembleDebug`, uploads the APK artifact, and copies it to the repository's root `app/fairwas-android-debug.apk` path.
 
-The workflow uses an installed Gradle distribution; the repository does not yet include a Gradle Wrapper. A successful workflow run is still required before the APK can be considered verified.
+The workflow uses an installed Gradle distribution; the repository does not yet include a Gradle Wrapper. A successful workflow run is required before the APK can be considered verified.
 
-## Known limitations
+## Remaining Android limitations
 
-This is a partial native port, not yet a feature-complete Android equivalent of the web platform.
-
-- Android's `WebResourceRequest` does not expose POST request bodies. The current virtual-host proxy therefore forwards GET resources and explicitly rejects other methods with HTTP 405. Supporting POST requires a separate request bridge or backend-compatible WebView architecture.
-- The CreatePage screen currently supports developer registration, listing and basic site creation. A full IDE, project import, update/unpublish/delete UI and deployment history remain outstanding.
-- Cloud and Server management, API keys, identity/storage screens, MCP/REST tooling and account/profile flows are not yet ported.
-- YourCode is a universal lexical/structural lexer, not a full parser or semantic analyzer for every language.
-- Multi-tab/session management, downloads, permissions, browser settings and complete history/bookmark screens remain outstanding.
-- Instrumented UI/device tests and an actual successful CI build are still required.
+- The core Fairwas web workspace is real, but it currently runs in an online WebView rather than being bundled as an offline Android feature.
+- The native browser's HTTC resource interception still forwards GET requests only. Android's `WebResourceRequest` does not expose request bodies, so POST/PUT/PATCH/DELETE resource requests require a separate bridge. The CreatePage workspace's own same-origin `/api/*` requests are not subject to that GET-only HTTC asset proxy.
+- Browser features such as native multi-window tabs, downloads and Android-specific permissions still need further work.
+- Instrumented tests on actual Android phones are still required.
 
 The app reuses the existing Fairwas Cloudflare Pages Functions and D1 services. It does not create a second server-side database or replace the web backend.
