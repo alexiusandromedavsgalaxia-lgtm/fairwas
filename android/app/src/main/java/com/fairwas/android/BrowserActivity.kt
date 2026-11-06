@@ -116,6 +116,10 @@ class BrowserActivity : Activity() {
                     val uri = request.url
                     if (uri.scheme.equals("https", true) &&
                         uri.host?.endsWith(".httc.local", true) == true) return false
+                    if (uri.scheme.equals("httc", true) && uri.host.equals("createpage.fair", true)) {
+                        openCreatePage()
+                        return true
+                    }
                     open(uri.toString())
                     return true
                 }
@@ -146,7 +150,33 @@ class BrowserActivity : Activity() {
         setOnClickListener { action() }
     }
 
+    private fun openCreatePage() {
+        if (!isFinishing && !isDestroyed) {
+            startActivity(android.content.Intent(this, CreatePageActivity::class.java))
+        }
+    }
+
+    private fun syncAddressFromWebView(rawUrl: String) {
+        if (isFinishing || isDestroyed) return
+        val uri = Uri.parse(rawUrl)
+        val virtualHost = uri.host ?: return
+        if (!virtualHost.endsWith(".httc.local", true)) return
+        val host = virtualHost.removeSuffix(".httc.local")
+        val path = uri.encodedPath?.ifEmpty { "/" } ?: "/"
+        val query = uri.encodedQuery?.let { "?$it" } ?: ""
+        val fragment = uri.encodedFragment?.let { "#$it" } ?: ""
+        val target = if (host.equals("home", true)) "httc://home" else "httc://$host$path$query$fragment"
+        currentAddress = target
+        if (address.text.toString() != target) address.setText(target)
+        store.record(target)
+    }
+
     private fun open(raw: String) {
+        val candidate = Uri.parse(raw.trim())
+        if (candidate.scheme.equals("httc", true) && candidate.host.equals("createpage.fair", true)) {
+            openCreatePage()
+            return
+        }
         val target = try {
             httc.normalize(raw)
         } catch (e: Exception) {
@@ -158,6 +188,26 @@ class BrowserActivity : Activity() {
         currentAddress = target
         address.setText(target)
         store.record(target)
+
+        if (target.equals("httc://home", true)) {
+            val home = """
+                <!doctype html><html lang="es"><head><meta charset="utf-8">
+                <meta name="viewport" content="width=device-width,initial-scale=1">
+                <title>Fairwas</title>
+                <style>
+                *{box-sizing:border-box}body{margin:0;background:#0e1016;color:#f4f6fa;font:16px system-ui}
+                main{max-width:760px;margin:8vh auto;padding:28px}h1{font-size:clamp(36px,8vw,64px);margin:0 0 8px}
+                p{color:#aeb6c5;line-height:1.6}.card{background:#222630;border:1px solid #343b49;border-radius:16px;padding:20px;margin-top:22px}
+                a{display:inline-block;color:#b9f28b;text-decoration:none;font-weight:650;margin:8px 18px 0 0}
+                small{color:#929bad}
+                </style></head><body><main><small>ANDROID EDITION</small><h1>Fairwas</h1>
+                <p>Tu navegador para la web HTTC. Escribe un dominio HTTC en la barra superior para empezar.</p>
+                <section class="card"><b>Accesos rápidos</b><p><a href="httc://createpage.fair">CreatePage</a></p></section>
+                <p><small>Versión Android en desarrollo.</small></p></main></body></html>
+            """.trimIndent()
+            web.loadDataWithBaseURL("https://home.httc.local/", home, "text/html", "UTF-8", null)
+            return
+        }
 
         worker.execute {
             try {
