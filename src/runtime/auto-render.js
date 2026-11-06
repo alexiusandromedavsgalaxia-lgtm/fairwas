@@ -1,5 +1,4 @@
 import { canParseJavaScript } from "./parsers.js";
-import { interpretInventedCode } from "./yourcode-semantic.js";
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const page = (title, body, extra = "") => '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escapeHtml(title)+'</title><style>html{color-scheme:light dark}body{margin:0;padding:24px;font:16px/1.55 system-ui,sans-serif;background:#f7f8fb;color:#171923}main{max-width:960px;margin:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%}td,th{padding:8px 10px;border:1px solid #ccd1dc;text-align:left}h1,h2{line-height:1.2}'+extra+'</style></head><body><main>'+body+'</main></body></html>';
 
@@ -141,6 +140,5 @@ export function autoRenderFile(file,{title="YourCode",hostname="",rewriteImports
   return {kind:"javascript",html:page(title,"<div id=\"yourcode-root\"></div>"+bootstrap)};
  }
  if(/^\s*<!?\s*[A-Za-z][\s\S]*>\s*$/.test(source))return {kind:"markup",html:page(title,source)};
- const interpreted=interpretInventedCode(source,{title});
- return {...interpreted,language:"YourCode",executable:false,detail:"Código inventado interpretado y convertido en una página visual."};
+ return universalVisualPreview(source,title);
 }
