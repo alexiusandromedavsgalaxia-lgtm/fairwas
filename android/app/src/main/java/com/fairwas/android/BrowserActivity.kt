@@ -71,6 +71,7 @@ class BrowserActivity : Activity() {
         controls.addView(actionButton("›") { if (::web.isInitialized && web.canGoForward()) web.goForward() })
         controls.addView(actionButton("↻") { open(currentAddress) })
         controls.addView(actionButton("Inicio") { open("httc://home") })
+        controls.addView(actionButton("CreatePage") { startActivity(android.content.Intent(this@BrowserActivity, CreatePageActivity::class.java)) })
         controls.addView(actionButton("Historial") {
             val items = store.history().take(8)
             toast(if (items.isEmpty()) "El historial está vacío" else items.joinToString("\n"))
