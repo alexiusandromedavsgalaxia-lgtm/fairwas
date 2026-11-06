@@ -56,11 +56,15 @@ class HttcClient(private val baseUrl: String) {
         val uri = request.url
         val virtualHost = uri.host ?: return null
         if (!virtualHost.endsWith(".httc.local")) return null
-        val host = virtualHost.removeSuffix(".httc.local")
         val path = uri.encodedPath ?: "/"
-        val target = "httc://$host$path" + (uri.encodedQuery?.let { "?$it" } ?: "")
         return try {
-            val endpoint = "$base/api/resolve?url=${enc(target)}&asset=${enc(path)}"
+            val endpoint = if (path == "/api/resolve" || path == "/api/proxy" || path == "/api/createpage") {
+                base + path + (uri.encodedQuery?.let { "?$it" } ?: "")
+            } else {
+                val host = virtualHost.removeSuffix(".httc.local")
+                val target = "httc://$host$path" + (uri.encodedQuery?.let { "?$it" } ?: "")
+                "$base/api/resolve?url=${enc(target)}&asset=${enc(path)}"
+            }
             val connection = URL(endpoint).openConnection() as HttpURLConnection
             connection.connectTimeout = 10_000
             connection.readTimeout = 15_000
