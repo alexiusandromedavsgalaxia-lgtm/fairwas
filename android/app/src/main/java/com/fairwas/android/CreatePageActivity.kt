@@ -103,12 +103,10 @@ class CreatePageActivity : Activity() {
     }
 
     private fun isValidHostname(host: String): Boolean {
-        if (host.isBlank() || host.length > 253 || host.startsWith('.') || host.endsWith('.')) return false
-        return host.split('.').all { label ->
-            label.isNotBlank() && label.length <= 63 &&
-                label.first().isLetterOrDigit() && label.last().isLetterOrDigit() &&
-                label.all { it.isLetterOrDigit() || it == '-' }
-        }
+        if (host.isBlank() || host.length > 253) return false
+        return host.matches(
+            Regex("^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)+$")
+        )
     }
 
     private fun field(hintText: String) = EditText(this).apply {
