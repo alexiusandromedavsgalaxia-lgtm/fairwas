@@ -64,7 +64,7 @@ class CreatePageActivity : Activity() {
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(background)
+            setBackgroundColor(this@CreatePageActivity.background)
         }
 
         val toolbar = LinearLayout(this).apply {
