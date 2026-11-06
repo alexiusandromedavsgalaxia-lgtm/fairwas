@@ -283,11 +283,11 @@ function Editor({siteId="",yourCode=false}){
  const[syntaxResult,setSyntaxResult]=useState(null);
  const[syntaxBusy,setSyntaxBusy]=useState(false);
  useEffect(()=>{
-  if(yourCode||!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
+  if(!yourCode||!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
   let current=true;
   const timer=setTimeout(()=>{
    setSyntaxBusy(true);
-   parseSource(code,{path:selected,language:parserLanguage||undefined})
+   parseSource(code,{mode:"free"})
     .then(result=>{if(current)setSyntaxResult(result)})
     .catch(error=>{if(current)setSyntaxResult({status:"parser-error",message:String(error?.message||error),problems:[]})})
     .finally(()=>{if(current)setSyntaxBusy(false)});
