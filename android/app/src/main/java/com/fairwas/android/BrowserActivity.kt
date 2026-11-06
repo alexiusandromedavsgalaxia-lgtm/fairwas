@@ -57,7 +57,7 @@ class BrowserActivity : Activity() {
         }
         address = EditText(this).apply {
             setSingleLine(true)
-            hint = "Buscar o introducir dirección HTTC"
+            hint = "Introducir dirección HTTC"
             setTextColor(Color.WHITE)
             setHintTextColor(Color.LTGRAY)
             setBackgroundColor(Color.rgb(37, 41, 51))
@@ -91,12 +91,10 @@ class BrowserActivity : Activity() {
             startActivity(android.content.Intent(this@BrowserActivity, CreatePageActivity::class.java))
         })
         controls.addView(actionButton("Historial") {
-            val items = store.history().take(8)
-            toast(if (items.isEmpty()) "El historial está vacío" else items.joinToString("\n"))
+            showAddressList("Historial", store.history().take(30))
         })
         controls.addView(actionButton("Favoritos") {
-            val items = store.bookmarks().take(8)
-            toast(if (items.isEmpty()) "No hay favoritos guardados" else items.joinToString("\n"))
+            showAddressList("Favoritos", store.bookmarks())
         })
         root.addView(controls)
 
@@ -253,6 +251,19 @@ class BrowserActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun showAddressList(title: String, items: List<String>) {
+        if (isFinishing || isDestroyed) return
+        if (items.isEmpty()) {
+            toast(if (title == "Historial") "El historial está vacío" else "No hay favoritos guardados")
+            return
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(items.toTypedArray()) { _, which -> open(items[which]) }
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 
     private fun toast(message: String) {
