@@ -62,51 +62,9 @@ function languageFor(path,source){
  return "Código";
 }
 function universalVisualPreview(source,path,title){
- const language=languageFor(path,source);
- const tokenize=line=>{
-  const tokens=[];
-  let i=0;
-  const isLetter=ch=>/[\p{L}_$@]/u.test(ch);
-  const isDigit=ch=>/[0-9]/.test(ch);
-  while(i<line.length){
-   const ch=line[i];
-   if(/\s/u.test(ch)){i++;continue}
-   let value="",kind="symbol";
-   if(ch==='"'||ch==="'"||ch===String.fromCharCode(96)){
-    const quote=ch;value=ch;i++;
-    while(i<line.length){
-     const next=line[i];value+=next;i++;
-     if(next==="\\\\"&&i<line.length){value+=line[i];i++;continue}
-     if(next===quote)break;
-    }
-    kind="text";value=value.length>1?value.slice(1,value.endsWith(quote)?-1:undefined):value;
-   }else if(isLetter(ch)){
-    const begin=i++;
-    while(i<line.length&&(/[\p{L}\p{N}_$@!?-]/u.test(line[i])))i++;
-    value=line.slice(begin,i);kind="word";
-   }else if(isDigit(ch)){
-    const begin=i++;
-    while(i<line.length&&/[0-9._]/.test(line[i]))i++;
-    value=line.slice(begin,i);kind="number";
-   }else{
-    value=ch;i++;
-    if("=+-*/%<>!&|^~?:.".includes(ch)){
-     while(i<line.length&&"=+-*/%<>!&|^~?:.".includes(line[i])){value+=line[i];i++}
-    }
-   }
-   tokens.push('<span class="token token-'+kind+'">'+escapeHtml(value)+'</span>');
-  }
-  return tokens.join("");
- };
- const lines=String(source).replace(/\r/g,"").split("\n");
- const statements=lines.map((line,index)=>({line,index})).filter(item=>item.line.trim());
- const blocks=statements.map(({line,index},position)=>{
-  const tokens=tokenize(line);
-  return '<article class="visual-block"><div class="visual-block-meta"><span>ELEMENTO '+String(position+1).padStart(2,"0")+'</span><span>LÍNEA '+(index+1)+'</span></div><div class="visual-block-content">'+(tokens||'<span class="token token-empty">Elemento vacío</span>')+'</div></article>';
- }).join("");
- const body='<header class="visual-hero"><span class="visual-kicker">YOURCODE · REPRESENTACIÓN UNIVERSAL</span><h1>'+escapeHtml(title||"YourCode")+'</h1><p>Contenido convertido en elementos visuales. No se muestra el archivo fuente.</p><div class="visual-stats"><span>'+statements.length+' bloques</span><span>'+String(source).length+' caracteres</span><span>'+escapeHtml(language)+'</span></div></header><section class="visual-canvas">'+(blocks||'<div class="visual-empty">Este archivo todavía no contiene elementos para representar.</div>')+'</section>';
- const styles='.visual-hero{padding:clamp(24px,5vw,52px);border-radius:24px;background:linear-gradient(135deg,#17251e,#17202d);color:#f5f7f4;margin-bottom:20px}.visual-kicker{font-size:10px;letter-spacing:.18em;font-weight:800;color:#a8e66b}.visual-hero h1{font-size:clamp(28px,5vw,48px);margin:12px 0 8px}.visual-hero p{color:#c0c9c4;margin:0}.visual-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}.visual-stats span{font-size:11px;padding:7px 10px;border-radius:999px;background:#ffffff18;color:#e6eee8}.visual-canvas{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}.visual-block{min-width:0;padding:18px;border:1px solid #dce2e9;border-radius:16px;background:#fff;box-shadow:0 8px 28px #17202d0a}.visual-block-meta{display:flex;justify-content:space-between;gap:8px;color:#8993a1;font-size:9px;letter-spacing:.1em;font-weight:800}.visual-block-content{display:flex;align-items:center;align-content:flex-start;flex-wrap:wrap;gap:8px;margin-top:18px;min-height:32px}.token{display:inline-flex;align-items:center;max-width:100%;overflow-wrap:anywhere;padding:8px 10px;border-radius:9px;font:600 13px/1.35 system-ui,sans-serif}.token-word{background:#edf3e8;color:#28452c}.token-text{background:#e9efff;color:#304b8a}.token-number{background:#fff0dc;color:#875016;font-size:16px}.token-symbol{background:#f0edf5;color:#67537e;min-width:25px;justify-content:center}.token-empty{color:#8993a1;background:#f3f5f7}.visual-empty{padding:32px;border:1px dashed #b9c2cd;border-radius:16px;text-align:center;color:#687386}@media(prefers-color-scheme:dark){.visual-block{background:#171b22;border-color:#343d49}.visual-block-meta{color:#98a4b3}.token-word{background:#243528;color:#c3e8bd}.token-text{background:#263552;color:#c6d7ff}.token-number{background:#4a3421;color:#ffd4a1}.token-symbol{background:#342c40;color:#e0cef4}.visual-empty{color:#aeb8c6;border-color:#505b69}}';
- return {html:page(title,body,'<style>'+styles+'</style>'),language,kind:"universal",executable:false,detail:"Representación visual universal de la estructura. El archivo fuente no se expone como página de código."};
+ const body='<section class="preview-required"><h1>Vista previa no disponible</h1><p>Este archivo usa sintaxis que el renderizador genérico no interpreta. Abre el proyecto en YourCode para generar una página con el motor de IA local.</p></section>';
+ const styles='.preview-required{max-width:680px;margin:8vh auto;padding:clamp(24px,5vw,44px);border:1px solid #cbd5e1;border-radius:20px;background:#fff;color:#172033;font:16px/1.6 system-ui,sans-serif}.preview-required h1{margin-top:0;font-size:clamp(24px,4vw,36px)}.preview-required p{color:#526071}';
+ return {html:page(title,body,'<style>'+styles+'</style>'),language:'Código',kind:'universal',executable:false,detail:'Este archivo necesita interpretación semántica mediante el motor local de YourCode.'};
 }
 function cssPreview(source){
  const selectors=[...String(source).matchAll(/([^{}]+)\{[^{}]*\}/g)].map(match=>match[1].trim()).filter(s=>s&&!s.startsWith("@")).slice(0,12);
