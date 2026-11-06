@@ -21,22 +21,11 @@ class HttcClient(baseUrl: String) {
         val value = input.trim()
         require(value.isNotEmpty()) { "Introduce una dirección" }
 
-        val candidate = if (value.startsWith("httc://", true)) {
-            value
-        } else if (value.startsWith("http://", true) || value.startsWith("https://", true)) {
-            val parsed = URI(value)
-            require(!parsed.host.isNullOrBlank()) { "La dirección no contiene un dominio válido." }
-            URI(
-                "httc",
-                parsed.userInfo,
-                parsed.host,
-                parsed.port,
-                parsed.rawPath?.ifEmpty { "/" } ?: "/",
-                parsed.rawQuery,
-                parsed.rawFragment
-            ).toASCIIString()
-        } else {
-            "httc://$value"
+        val candidate = when {
+            value.startsWith("httc://", true) -> value
+            value.startsWith("http://", true) -> "httc://" + value.substringAfter("://")
+            value.startsWith("https://", true) -> "httc://" + value.substringAfter("://")
+            else -> "httc://$value"
         }
 
         val parsed = URI(candidate)
