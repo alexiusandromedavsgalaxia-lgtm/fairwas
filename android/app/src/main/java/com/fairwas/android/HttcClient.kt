@@ -12,8 +12,8 @@ import java.net.URLEncoder
 /** Kotlin client for the existing Fairwas HTTC resolver. */
 class HttcClient(baseUrl: String) {
     private val base = baseUrl.trimEnd('/').also {
-        require(it.startsWith("https://", true) || it.startsWith("http://", true)) {
-            "FAIRWAS_BASE_URL debe ser una URL HTTP o HTTPS."
+        require(it.startsWith("https://", true)) {
+            "FAIRWAS_BASE_URL debe usar HTTPS."
         }
     }
 
