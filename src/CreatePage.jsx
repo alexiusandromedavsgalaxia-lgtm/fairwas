@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState}from"react";
 import { parseSource, supportedParserLanguages } from "./runtime/polyglot-parser.js";
+import UniversalTreeView from "./runtime/UniversalTreeView.jsx";
 
 function parsePublishTarget(value){
  const raw=String(value||"").trim();
@@ -377,11 +378,11 @@ function Editor({siteId="",yourCode=false}){
    </div>
    <p style={{fontSize:12,color:"#9da8b7",margin:"5px 0 0"}}>Modo libre: no exige un lenguaje conocido, palabras reservadas ni una gramática definida.</p>
    {syntaxResult?.problems?.length>0&&<div style={{display:"grid",gap:5,marginTop:10}}>{syntaxResult.problems.map((problem,index)=><div key={index} style={{fontSize:12,color:"#f0a080"}}>Línea {problem.line}, columna {problem.column}: {problem.message} {problem.token&&<code>{problem.token}</code>}</div>)}</div>}
-   {syntaxResult?.tree&&<details style={{marginTop:10}} open><summary style={{cursor:"pointer",fontSize:12}}>Árbol estructural completo · {syntaxResult.nodeCount} nodos</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:420,overflow:"auto",fontSize:11,color:"#c4cbd6",marginTop:8}}>{syntaxResult.tree}</pre></details>}
+   {syntaxResult?.tree&&<><UniversalTreeView result={syntaxResult}/><details style={{marginTop:9}}><summary style={{cursor:"pointer",fontSize:11,color:"#8995a5"}}>Ver datos AST en bruto</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:300,overflow:"auto",fontSize:10,color:"#aeb8c6",marginTop:8}}>{syntaxResult.tree}</pre></details></>}
   </section>
   <section style={{padding:14,borderTop:"1px solid rgba(255,255,255,.09)",background:"#11151b",display:"grid",gap:12}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-    <div><b style={{fontSize:13}}>RENDERIZADO DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>Vista previa aislada del contenido como HTML. El parser estructural no transforma ni inventa el significado del lenguaje.</p></div>
+    <div><b style={{fontSize:13}}>RENDERIZADO DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>El HTML se muestra como página. Los lenguajes inventados se representan en el árbol estructural sin imponerles una gramática ni atribuirles significados falsos.</p></div>
     <button type="button" className="cp-primary" disabled={!code.length} onClick={()=>setDirectPreview(true)}>Renderizar HTML</button>
    </div>
    {directPreview&&<><div style={{fontSize:11,color:"#8d9bad"}}>Vista previa aislada</div><iframe title="Vista previa HTML de YourCode" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={code} style={{display:"block",width:"100%",height:560,border:"1px solid #3c4654",borderRadius:10,background:"#fff"}}/><div style={{display:"flex",justifyContent:"flex-end"}}><button type="button" onClick={()=>setDirectPreview(false)}>Cerrar vista previa</button></div></>}
