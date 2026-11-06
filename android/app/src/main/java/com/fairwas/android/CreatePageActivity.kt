@@ -71,7 +71,7 @@ class CreatePageActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(4), dp(14), dp(4))
-            setBackgroundColor(background)
+            setBackgroundColor(this@CreatePageActivity.background)
         }
         val back = TextView(this).apply {
             text = "‹"
@@ -102,7 +102,7 @@ class CreatePageActivity : Activity() {
         root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(56)))
 
         web = WebView(this).apply {
-            setBackgroundColor(background)
+            setBackgroundColor(this@CreatePageActivity.background)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.loadsImagesAutomatically = true
@@ -314,7 +314,7 @@ class CreatePageActivity : Activity() {
         }
         setContentView(LinearLayout(this).apply {
             gravity = Gravity.CENTER
-            setBackgroundColor(background)
+            setBackgroundColor(this@CreatePageActivity.background)
             addView(label)
         })
     }
