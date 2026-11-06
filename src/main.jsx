@@ -39,12 +39,14 @@ function App(){
  useEffect(()=>{
   const onMessage=e=>{
    const data=e?.data;
+   const frame=document.querySelector(".published-frame iframe");
+   // Never trust a postMessage payload until its sender is the active published page.
+   // The storage bridge writes into the browser's origin-wide localStorage namespace.
+   if(!frame||e.source!==frame.contentWindow)return;
    if(data?.type==="fairwas:storage"&&typeof data.host==="string"&&data.host&&data.data&&typeof data.data==="object"&&!Array.isArray(data.data)){
     try{window.localStorage.setItem("__fairwas_localStorage:"+data.host.toLowerCase(),JSON.stringify(data.data));if(data.sessionData&&typeof data.sessionData==="object"&&!Array.isArray(data.sessionData))window.localStorage.setItem("__fairwas_sessionStorage:"+data.host.toLowerCase(),JSON.stringify(data.sessionData))}catch{}
     return;
    }
-   const frame=document.querySelector(".published-frame iframe");
-   if(!frame||e.source!==frame.contentWindow)return;
    let currentHost="";
    try{currentHost=new URL(tab.url).hostname.toLowerCase()}catch{}
    if(data?.type==="fairwas:auth"&&typeof data.requestId==="string"&&data.request&&typeof data.request==="object"){
