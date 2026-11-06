@@ -1,37 +1,47 @@
 # Fairwas for Android
 
-Native Android application written in Kotlin. This project is isolated under `android/`; the existing React/Vite web application is unchanged.
+Native Android application written in Kotlin. The Android project is isolated under `android/`; the existing React/Vite web application is unchanged.
 
-## Native modules in this branch
+## Included native modules
 
-- Android Studio / Gradle application scaffold (JDK 17, min SDK 26)
-- Native browser activity with address bar, back/forward, reload and home
-- Kotlin HTTC address normalization and resolver client
+- Android Gradle application (JDK 17, min SDK 26, target SDK 35)
+- Native browser shell with address bar, back/forward, reload and home
+- HTTC URL normalization and Cloudflare resolver client
 - Published-page HTML and Fairwas API response rendering
-- HTTC virtual-host resource routing through the existing Cloudflare resolver
-- Persistent local history and bookmarks
-- CreatePage client and native dashboard for developer registration, site listing and basic site creation
-- Initial Kotlin YourCode universal lexer with token positions and structural diagnostics
+- HTTC virtual-host resource proxy for GET requests
+- Ordered, persistent local history and bookmarks, including migration from the older preference format
+- CreatePage developer registration, site listing and basic site creation
+- Initial YourCode universal lexer with token positions and structural diagnostics
+- Android system-bar insets handling for edge-to-edge layouts
+- JVM regression tests for URL normalization and lexer grouping
 
-## Backend integration
+## Backend configuration
 
-The app reuses the existing Cloudflare Pages Functions and D1 services for HTTC resolution and CreatePage. It does not duplicate the server's database, publishing, identity or routing logic locally.
+The resolver URL is configurable with the Gradle property `fairwasBaseUrl`. The default remains `https://fairwas.pages.dev`; confirm that this is the actual deployed Fairwas Pages URL before using the app against production.
 
-The resolver URL is configured through `FAIRWAS_BASE_URL` in `app/build.gradle.kts`. The current default is `https://fairwas.pages.dev`; replace it with the actual deployed Fairwas Pages URL if different.
+For a local build, pass the property with:
 
-## Build
+```bash
+gradle -PfairwasBaseUrl=https://YOUR-DEPLOYMENT.example :app:assembleDebug
+```
 
-Open this `android/` directory in Android Studio with JDK 17 and sync Gradle. Build the `app` run configuration. This repository branch does not yet include a Gradle wrapper, and a local Android build has not been run as part of this initial port.
+Do not put private API keys or credentials in this property.
 
-## Remaining port
+## Build and CI
 
-This is an initial native foundation, not yet a feature-complete Android equivalent of the web platform. Remaining work includes:
+Open this `android/` directory in Android Studio with JDK 17 and sync Gradle. GitHub Actions runs `:app:testDebugUnitTest`, builds `:app:assembleDebug`, uploads the APK artifact, and copies it to the repository's root `app/fairwas-android-debug.apk` path.
 
-1. Full CreatePage IDE: file tree, code editor, project import, publish/update/unpublish/delete and deployment history.
-2. Cloud and Server management, API routes, keys, identity and storage UI.
-3. Full YourCode editor, language detection, Tree-sitter WASM-equivalent native parsers and diagnostics.
-4. Multi-tab/session management, downloads, permissions, browser settings and complete bookmark/history screens.
-5. MCP/REST developer tooling and account/profile flows.
-6. Instrumented tests, parser tests, Gradle wrapper and an actual debug/release build.
+The workflow uses an installed Gradle distribution; the repository does not yet include a Gradle Wrapper. A successful workflow run is still required before the APK can be considered verified.
 
-The universal Kotlin lexer only reports lexical and structural information for unknown languages. It does not claim to understand the semantics of an arbitrary invented language.
+## Known limitations
+
+This is a partial native port, not yet a feature-complete Android equivalent of the web platform.
+
+- Android's `WebResourceRequest` does not expose POST request bodies. The current virtual-host proxy therefore forwards GET resources and explicitly rejects other methods with HTTP 405. Supporting POST requires a separate request bridge or backend-compatible WebView architecture.
+- The CreatePage screen currently supports developer registration, listing and basic site creation. A full IDE, project import, update/unpublish/delete UI and deployment history remain outstanding.
+- Cloud and Server management, API keys, identity/storage screens, MCP/REST tooling and account/profile flows are not yet ported.
+- YourCode is a universal lexical/structural lexer, not a full parser or semantic analyzer for every language.
+- Multi-tab/session management, downloads, permissions, browser settings and complete history/bookmark screens remain outstanding.
+- Instrumented UI/device tests and an actual successful CI build are still required.
+
+The app reuses the existing Fairwas Cloudflare Pages Functions and D1 services. It does not create a second server-side database or replace the web backend.
