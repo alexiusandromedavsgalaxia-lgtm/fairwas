@@ -75,3 +75,26 @@ test("YAML uses a real document parser and reports malformed input", async () =>
   assert.ok(invalid.problems.length > 0);
   assert.ok(invalid.problems[0].line >= 1);
 });
+
+test("free mode keeps language-specific comment markers as unknown symbols", async () => {
+  const source = "// alpha\n# beta\n/* gamma */\nvalue := 7";
+  const result = await parseSource(source, { mode: "free" });
+  assert.equal(result.status, "valid");
+  assert.ok(result.stats.tokens > 0);
+  assert.ok(result.stats.statements >= 3);
+  assert.match(result.tree, /"value": "\/\//);
+  assert.match(result.tree, /"value": "#"/);
+  assert.match(result.tree, /"value": "\/\*"/);
+  assert.equal(result.sourceLength, source.length);
+  assert.equal(result.lineCount, 4);
+});
+
+test("free parser exposes a structured AST and useful counts for invented syntax", async () => {
+  const result = await parseSource("zalle::kren [a %% b] -> render(42)", { mode: "free" });
+  assert.equal(result.language, "universal");
+  assert.equal(result.treeData.type, "Document");
+  assert.ok(result.stats.groups >= 2);
+  assert.ok(result.stats.identifiers >= 3);
+  assert.ok(result.stats.operators >= 2);
+  assert.ok(result.nodeCount > result.stats.tokens);
+});
