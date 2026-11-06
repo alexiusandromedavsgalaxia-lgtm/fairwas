@@ -109,8 +109,8 @@ class BrowserActivity : Activity() {
                     val uri = request.url
                     if (uri.scheme.equals("https", true) &&
                         uri.host?.endsWith(".httc.local", true) == true) return false
-                    if (uri.scheme.equals("httc", true) && uri.host.equals("createpage.fair", true)) {
-                        openCreatePage()
+                    if (uri.scheme.equals("httc", true) && isWorkspaceHost(uri.host)) {
+                        openWorkspace(uri.toString())
                         return true
                     }
                     open(uri.toString())
@@ -122,8 +122,8 @@ class BrowserActivity : Activity() {
                     val uri = Uri.parse(url)
                     if (uri.scheme.equals("https", true) &&
                         uri.host?.endsWith(".httc.local", true) == true) return false
-                    if (uri.scheme.equals("httc", true) && uri.host.equals("createpage.fair", true)) {
-                        openCreatePage()
+                    if (uri.scheme.equals("httc", true) && isWorkspaceHost(uri.host)) {
+                        openWorkspace(uri.toString())
                         return true
                     }
                     open(url)
@@ -222,11 +222,21 @@ class BrowserActivity : Activity() {
         }
     }
 
-    private fun openCreatePage() {
-        if (!isFinishing && !isDestroyed) {
-            startActivity(android.content.Intent(this, CreatePageActivity::class.java))
-        }
+    private fun isWorkspaceHost(host: String?): Boolean {
+        return host.equals("createpage.fair", true) ||
+            host.equals("docs.createpage.fair", true) ||
+            host.equals("yourcode.official", true) ||
+            host.equals("yourcode.createpage.fair", true)
     }
+
+    private fun openWorkspace(rawUrl: String) {
+        if (isFinishing || isDestroyed) return
+        val intent = android.content.Intent(this, CreatePageActivity::class.java)
+            .putExtra(CreatePageActivity.EXTRA_START_URL, rawUrl)
+        startActivity(intent)
+    }
+
+    private fun openCreatePage() = openWorkspace("httc://createpage.fair/")
 
     private fun syncAddressFromWebView(rawUrl: String) {
         if (isFinishing || isDestroyed) return
@@ -245,8 +255,8 @@ class BrowserActivity : Activity() {
 
     private fun open(raw: String) {
         val candidate = Uri.parse(raw.trim())
-        if (candidate.scheme.equals("httc", true) && candidate.host.equals("createpage.fair", true)) {
-            openCreatePage()
+        if (candidate.scheme.equals("httc", true) && isWorkspaceHost(candidate.host)) {
+            openWorkspace(candidate.toString())
             return
         }
         val target = try {
