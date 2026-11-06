@@ -56,7 +56,7 @@ class BrowserActivity : Activity() {
             setPadding(10, 10, 10, 8)
         }
         address = EditText(this).apply {
-            singleLine = true
+            setSingleLine(true)
             hint = "Buscar o introducir dirección HTTC"
             setTextColor(Color.WHITE)
             setHintTextColor(Color.LTGRAY)
@@ -170,8 +170,9 @@ class BrowserActivity : Activity() {
                     val query = parsed.encodedQuery?.let { "?$it" } ?: ""
                     val virtualBase = "https://$host.httc.local$path$query"
                     val baseTag = "<base href=\"https://$host.httc.local$path\">"
-                    val html = if (page.html.contains("<head", true)) {
-                        page.html.replaceFirst(Regex("<head[^>]*>", RegexOption.IGNORE_CASE)) { it.value + baseTag }
+                    val headTag = Regex("<head[^>]*>", RegexOption.IGNORE_CASE).find(page.html)
+                    val html = if (headTag != null) {
+                        page.html.replaceRange(headTag.range, headTag.value + baseTag)
                     } else {
                         "<!doctype html><html><head>$baseTag</head><body>${page.html}</body></html>"
                     }
