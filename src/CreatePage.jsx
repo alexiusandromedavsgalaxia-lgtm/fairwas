@@ -275,7 +275,7 @@ function CodeEditor({value,onChange,filename}){
 
 async function interpretYourCode(source, title, onProgress){
  let html=await renderYourCodeLocally(source,{title:title||"YourCode",onProgress});
- html=String(html||"").trim().replace(/^```(?:html)?\\s*/i,"").replace(/\\s*```$/,"");
+ html=String(html||"").trim().replace(/^```(?:html)?\s*/i,"").replace(/\s*```$/,"");
  if(!/^<!doctype html|^<html\\b/i.test(html))throw new Error("WebLLM no ha devuelto una página HTML válida.");
  return html;
 }
