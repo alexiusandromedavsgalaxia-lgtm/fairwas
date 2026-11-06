@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState}from"react";
 import { parseSource, supportedParserLanguages } from "./runtime/polyglot-parser.js";
+import UniversalTreeView from "./runtime/UniversalTreeView.jsx";
 
 function parsePublishTarget(value){
  const raw=String(value||"").trim();
@@ -283,11 +284,11 @@ function Editor({siteId="",yourCode=false}){
  const[syntaxResult,setSyntaxResult]=useState(null);
  const[syntaxBusy,setSyntaxBusy]=useState(false);
  useEffect(()=>{
-  if(!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
+  if(!yourCode||!selected||!code.trim()){setSyntaxResult(null);setSyntaxBusy(false);return}
   let current=true;
   const timer=setTimeout(()=>{
    setSyntaxBusy(true);
-   parseSource(code,yourCode?{mode:"free"}:{path:selected,language:parserLanguage||undefined})
+   parseSource(code,{mode:"free"})
     .then(result=>{if(current)setSyntaxResult(result)})
     .catch(error=>{if(current)setSyntaxResult({status:"parser-error",message:String(error?.message||error),problems:[]})})
     .finally(()=>{if(current)setSyntaxBusy(false)});
@@ -377,7 +378,7 @@ function Editor({siteId="",yourCode=false}){
    </div>
    {directPreview&&<><div style={{fontSize:11,color:"#8d9bad"}}>Vista previa del contenido original · Aislada</div><iframe title="Renderizado directo de YourCode" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={code} style={{display:"block",width:"100%",height:560,border:"1px solid #3c4654",borderRadius:10,background:"#fff"}}/><div style={{display:"flex",justifyContent:"flex-end"}}><button type="button" onClick={()=>setDirectPreview(false)}>Cerrar vista previa</button></div></>}
   </section>}
-  <section aria-live="polite" style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,.09)",background:"rgba(255,255,255,.025)"}}>
+  {yourCode&&<section aria-live="polite" style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,.09)",background:"rgba(255,255,255,.025)"}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
     <b style={{fontSize:12}}>MOTOR DE PARSEO REAL</b>
     <span style={{fontSize:12,color:syntaxBusy?"#d6b46a":syntaxResult?.status==="valid"?"#65d6a0":syntaxResult?.status==="syntax-errors"?"#f0a080":"#aab2c0"}}>{syntaxBusy?"Analizando…":syntaxResult?.status==="valid"?"Sintaxis válida · "+syntaxResult.nodeCount+" nodos":syntaxResult?.status==="syntax-errors"?"Se han encontrado "+syntaxResult.problems.length+" incidencias":syntaxResult?.message||"Esperando código"}</span>
@@ -390,8 +391,8 @@ function Editor({siteId="",yourCode=false}){
    </label>}
    {syntaxResult?.problems?.length>0&&<div style={{display:"grid",gap:5,marginTop:10}}>{syntaxResult.problems.map((problem,index)=><div key={index} style={{fontSize:12,color:"#f0a080"}}>Línea {problem.line}, columna {problem.column}: {problem.message} {problem.token&&<code>{problem.token}</code>}</div>)}</div>}
    {syntaxResult?.status==="grammar-unavailable"&&<p style={{fontSize:12,color:"#f0a080",margin:"8px 0 0"}}>{syntaxResult.message}</p>}
-   {syntaxResult?.tree&&<details style={{marginTop:10}}><summary style={{cursor:"pointer",fontSize:12}}>Ver árbol sintáctico · {syntaxResult.language}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:260,overflow:"auto",fontSize:11,color:"#c4cbd6",marginTop:8}}>{syntaxResult.tree}</pre></details>}
-  </section>  </div></div>
+   {syntaxResult?.tree&&<><UniversalTreeView result={syntaxResult}/><details style={{marginTop:9}}><summary style={{cursor:"pointer",fontSize:11,color:"#8995a5"}}>Ver datos AST en bruto</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:300,overflow:"auto",fontSize:10,color:"#aeb8c6",marginTop:8}}>{syntaxResult.tree}</pre></details></> }
+  </section>}  </div></div>
   <section className="cp-card cp-db-panel">
    <div className="cp-db-toggle-row"><div><small>ENV.DATABASE</small><b>Bases de datos</b><span>{pageDatabases.length}/20 · {pageDatabases.length===1?"1 base conectada":pageDatabases.length+" bases conectadas"}</span></div><button type="button" className="cp-db-toggle" aria-expanded={dbPanelOpen} onClick={()=>setDbPanelOpen(open=>!open)}>{dbPanelOpen?"Cerrar bases ×":"Abrir bases ⚙"}</button></div>
    {dbPanelOpen&&<>
