@@ -129,8 +129,17 @@ class BrowserActivity : Activity() {
                     val uri = Uri.parse(url)
                     if (uri.scheme.equals("https", true) &&
                         uri.host?.endsWith(".httc.local", true) == true) return false
+                    if (uri.scheme.equals("httc", true) && uri.host.equals("createpage.fair", true)) {
+                        openCreatePage()
+                        return true
+                    }
                     open(url)
                     return true
+                }
+
+                override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    syncAddressFromWebView(url)
                 }
 
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
