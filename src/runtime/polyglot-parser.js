@@ -290,7 +290,7 @@ function universalParse(source) {
     treeData: root,
     stats,
     sourceLength: text.length,
-    lineCount: text ? text.split(/\\r\\n|\\r|\\n/).length : 0,
+    lineCount: text ? text.split(/\r\n|\r|\n/).length : 0,
     problems,
     hasError: problems.length > 0,
     nodeCount: count(root),
