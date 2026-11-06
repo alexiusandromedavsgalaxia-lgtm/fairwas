@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState}from"react";
 import { parseSource, supportedParserLanguages } from "./runtime/polyglot-parser.js";
 import { autoRenderFile } from "./runtime/auto-render.js";
+import { renderYourCodeLocally, getYourCodeModelName } from "./runtime/yourcode-webllm.js";
 import UniversalTreeView from "./runtime/UniversalTreeView.jsx";
 
 function parsePublishTarget(value){
@@ -272,23 +273,10 @@ function CodeEditor({value,onChange,filename}){
  </div>;
 }
 
-async function interpretYourCode(source, settings, title){
- const messages=[{role:"user",content:[
-  "Interpreta este código como un lenguaje inventado completamente libre.",
-  "No existe gramática obligatoria, lista de palabras reservadas ni lenguaje base. No presupongas JavaScript, Python, HTML, inglés ni español.",
-  "Deduce la intención visual a partir del texto completo, símbolos, relaciones, valores y estructura. Trata identificadores y símbolos desconocidos como elementos con significado potencial.",
-  "Genera una página web completa, real, adaptable y funcional en HTML con CSS incluido. Usa JavaScript solo si una interacción lo necesita.",
-  "No muestres el código original, no lo conviertas en tarjetas, tokens, árbol sintáctico ni visor. El resultado debe ser la página que has interpretado.",
-  "No impongas palabras clave ni una gramática fija. Interpreta cada entrada por su contexto particular. Si hay ambigüedad, elige una interpretación visual coherente.",
-  "Devuelve únicamente el documento HTML completo, sin Markdown ni explicaciones.",
-  "Título del proyecto: "+String(title||"YourCode"),
-  "Código original:\n"+String(source)
- ].join("\n\n")}];
- const response=await fetch("/api/ide-ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode:"yourcode-render",endpoint:settings.endpoint,api_key:settings.key,model:settings.model,messages,project:{title:title||"YourCode"},files:[]})});
- const data=await response.json().catch(()=>({}));
- if(!response.ok||!data.ok)throw new Error(data.detail||data.error||"No se pudo interpretar el código.");
- let html=String(data.content||"").trim().replace(/^```(?:html)?\s*/i,"").replace(/\s*```$/,"");
- if(!/^<!doctype html|^<html\b/i.test(html))throw new Error("La IA no ha devuelto una página HTML válida.");
+async function interpretYourCode(source, title, onProgress){
+ let html=await renderYourCodeLocally(source,{title:title||"YourCode",onProgress});
+ html=String(html||"").trim().replace(/^```(?:html)?\\s*/i,"").replace(/\\s*```$/,"");
+ if(!/^<!doctype html|^<html\\b/i.test(html))throw new Error("WebLLM no ha devuelto una página HTML válida.");
  return html;
 }
 function Editor({siteId="",yourCode=false}){
@@ -346,15 +334,16 @@ function Editor({siteId="",yourCode=false}){
  const currentFiles=()=>files.map(file=>file.path===selected?{...file,content:code}:file);
  useEffect(()=>{
   if(!yourCode||!code.trim()){setInterpretedPreview("");setInterpretationStatus("");return}
-  if(!aiKey.trim()){setInterpretedPreview("");setInterpretationStatus("Conecta tu proveedor en Chat IA / Backend para interpretar cualquier sintaxis inventada.");return}
   let active=true;
-  setInterpretationStatus("Interpretando código libre…");
+  setInterpretationStatus("Preparando WebLLM local…");
   const timer=setTimeout(async()=>{
-   try{const html=await interpretYourCode(code,{endpoint:aiEndpoint,key:aiKey,model:aiModel},site.title||"YourCode");if(active){setInterpretedPreview(html);setInterpretationStatus("Interpretación completada");}}
-   catch(error){if(active){setInterpretedPreview("");setInterpretationStatus(error.message||"No se pudo interpretar el código.");}}
-  },1000);
+   try{
+    const html=await interpretYourCode(code,site.title||"YourCode",report=>{if(active){const label=String(report?.text||"Descargando y preparando el modelo local…");const percent=Number.isFinite(report?.progress)?" "+Math.round(report.progress*100)+"%":"";setInterpretationStatus(label+percent);}});
+    if(active){setInterpretedPreview(html);setInterpretationStatus("Interpretación local completada · "+getYourCodeModelName());}
+   }catch(error){if(active){setInterpretedPreview("");setInterpretationStatus(error.message||"No se pudo interpretar el código con WebLLM.");}}
+  },1300);
   return()=>{active=false;clearTimeout(timer)};
- },[yourCode,code,aiEndpoint,aiKey,aiModel,site.title]);
+ },[yourCode,code,site.title]);
 
   const saveAISettings=()=>{try{localStorage.setItem("fairwas:ide-ai:endpoint",aiEndpoint.trim());localStorage.setItem("fairwas:ide-ai:key",aiKey);localStorage.setItem("fairwas:ide-ai:model",aiModel.trim())}catch{}};
   const sendAIMessage=async(event)=>{event?.preventDefault?.();const prompt=aiPrompt.trim();if(!prompt||aiBusy)return;if(!aiKey.trim()){setAiError("Pega primero tu API key.");return}if(!aiEndpoint.trim()||!aiModel.trim()){setAiError("Indica el endpoint y el modelo.");return}const conversation=[...aiChat,{role:"user",content:prompt}];setAiChat(conversation);setAiPrompt("");setAiBusy(true);setAiError("");saveAISettings();try{const sourceFiles=currentFiles();const response=await fetch("/api/ide-ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:aiEndpoint.trim(),api_key:aiKey.trim(),model:aiModel.trim(),messages:conversation.slice(-12),project:{title:site.title,hostname:site.hostname,site_id:activeSiteId},files:sourceFiles.map(file=>({path:file.path,content:file.content||"",content_type:file.content_type||""}))})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.detail||data.error||"No se pudo conectar con el proveedor de IA.");let raw=String(data.content||"").trim();raw=raw.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");let result;try{result=JSON.parse(raw)}catch{result={reply:raw,edits:[]}}const edits=Array.isArray(result.edits)?result.edits:[];let next=[...sourceFiles];for(const edit of edits){if(!edit||typeof edit.path!=="string"||typeof edit.content!=="string")continue;const path=normalizePath(edit.path);if(path.split("/").some(part=>part===".."||part==="." )||/[\\?#\u0000-\u001f]/.test(path))continue;const existing=next.findIndex(file=>file.path===path);const updated={...(existing>=0?next[existing]:{}),path,content:edit.content};if(existing>=0)next[existing]=updated;else next.push(updated)}if(edits.length){setFiles(next);const editedCurrent=next.find(file=>file.path===selected);if(editedCurrent)setCode(editedCurrent.content);else if(next.length){setSelected(next[0].path);setCode(next[0].content||"")}setStatus("La IA ha aplicado "+edits.length+" cambio(s) al proyecto. Revisa el código y guarda/publica cuando quieras.")}const reply=String(result.reply||result.message||(edits.length?"He aplicado los cambios al proyecto.":"Respuesta recibida."));setAiChat(items=>[...items,{role:"assistant",content:reply,edits:edits.map(edit=>edit.path)}])}catch(error){setAiError(error.message||"Falló la conexión con la IA.");setAiChat(items=>[...items,{role:"assistant",content:"No he podido completar la petición: "+(error.message||"error de conexión")}])}finally{setAiBusy(false)}};
@@ -378,10 +367,9 @@ function Editor({siteId="",yourCode=false}){
   if(sourceRepo){setStatus("No se puede publicar este repositorio todavía: es código fuente sin compilar. Compílalo fuera de Fairwas e importa la carpeta de salida.");return}
   let next=currentFiles();
   if(yourCode){
-   if(!aiKey.trim()){setStatus("Conecta tu proveedor de IA en Chat IA / Backend antes de publicar código inventado.");return}
-   setStatus("Interpretando el código antes de publicarlo…");
+   setStatus("Interpretando el código con WebLLM local antes de publicarlo…");
    try{
-    const generated=await interpretYourCode(code,{endpoint:aiEndpoint,key:aiKey,model:aiModel},site.title||"YourCode");
+    const generated=await interpretYourCode(code,site.title||"YourCode",report=>setStatus(String(report?.text||"Preparando modelo local…")));
     const index=next.findIndex(file=>file.path==="/index.html");
     const pageFile={path:"/index.html",content:generated,content_type:"text/html; charset=utf-8"};
     if(index>=0)next[index]=pageFile;else next.push(pageFile);
@@ -431,8 +419,8 @@ function Editor({siteId="",yourCode=false}){
   </section>
   <section style={{padding:14,borderTop:"1px solid rgba(255,255,255,.09)",background:"#11151b",display:"grid",gap:12}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-    <div><b style={{fontSize:13}}>RENDERIZADO EN DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>La IA interpreta la sintaxis libre y genera una página real. No hay palabras clave ni gramática obligatorias.</p></div>
-    <span style={{fontSize:11,color:"#a8e66b",fontWeight:700}}>{livePreview?.kind==="ai-interpreted"?"INTERPRETADO POR IA":interpretationStatus.toUpperCase()}</span>
+    <div><b style={{fontSize:13}}>RENDERIZADO EN DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>WebLLM interpreta la sintaxis libre en este dispositivo. Sin API key ni cuenta.</p></div>
+    <span style={{fontSize:11,color:"#a8e66b",fontWeight:700}}>{livePreview?.kind==="ai-interpreted"?"WEBLLM · LOCAL":interpretationStatus.toUpperCase()}</span>
    </div>
    <iframe title="Renderizado en directo de YourCode" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={livePreview?.html||"<!doctype html><html><body></body></html>"} style={{display:"block",width:"100%",height:520,border:"1px solid #3c4654",borderRadius:10,background:"#fff"}}/>
   </section></>}  </div></div>
