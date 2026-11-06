@@ -284,7 +284,7 @@ async function interpretYourCode(source, settings, title){
   "Título del proyecto: "+String(title||"YourCode"),
   "Código original:\\n"+String(source)
  ].join("\\n\\n")}];
- const response=await fetch("/api/ide-ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:settings.endpoint,api_key:settings.key,model:settings.model,messages,project:{title:title||"YourCode"},files:[]})});
+ const response=await fetch("/api/ide-ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode:"yourcode-render",endpoint:settings.endpoint,api_key:settings.key,model:settings.model,messages,project:{title:title||"YourCode"},files:[]})});
  const data=await response.json().catch(()=>({}));
  if(!response.ok||!data.ok)throw new Error(data.detail||data.error||"No se pudo interpretar el código.");
  let html=String(data.content||"").trim().replace(/^```(?:html)?\\s*/i,"").replace(/\\s*```$/,"");
