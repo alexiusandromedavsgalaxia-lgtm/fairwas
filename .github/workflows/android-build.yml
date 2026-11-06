@@ -31,6 +31,12 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK platform and build tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -55,12 +61,12 @@ jobs:
 
       - name: Commit APK to android branch
         run: |
-          if git diff --quiet -- app/fairwas-android-debug.apk; then
-            echo "APK unchanged; no commit needed."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/fairwas-android-debug.apk
+          if git diff --cached --quiet; then
+            echo "APK unchanged; no commit needed."
+            exit 0
+          fi
           git commit -m "Build Android debug APK"
           git push origin HEAD:android
