@@ -272,6 +272,25 @@ function CodeEditor({value,onChange,filename}){
  </div>;
 }
 
+async function interpretYourCode(source, settings, title){
+ const messages=[{role:"user",content:[
+  "Interpreta este código como un lenguaje inventado completamente libre.",
+  "No existe gramática obligatoria, lista de palabras reservadas ni lenguaje base. No presupongas JavaScript, Python, HTML, inglés ni español.",
+  "Deduce la intención visual a partir del texto completo, símbolos, relaciones, valores y estructura. Trata identificadores y símbolos desconocidos como elementos con significado potencial.",
+  "Genera una página web completa, real, adaptable y funcional en HTML con CSS incluido. Usa JavaScript solo si una interacción lo necesita.",
+  "No muestres el código original, no lo conviertas en tarjetas, tokens, árbol sintáctico ni visor. El resultado debe ser la página que has interpretado.",
+  "No impongas palabras clave ni una gramática fija. Interpreta cada entrada por su contexto particular. Si hay ambigüedad, elige una interpretación visual coherente.",
+  "Devuelve únicamente el documento HTML completo, sin Markdown ni explicaciones.",
+  "Título del proyecto: "+String(title||"YourCode"),
+  "Código original:\\n"+String(source)
+ ].join("\\n\\n")}];
+ const response=await fetch("/api/ide-ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:settings.endpoint,api_key:settings.key,model:settings.model,messages,project:{title:title||"YourCode"},files:[]})});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||!data.ok)throw new Error(data.detail||data.error||"No se pudo interpretar el código.");
+ let html=String(data.content||"").trim().replace(/^```(?:html)?\\s*/i,"").replace(/\\s*```$/,"");
+ if(!/^<!doctype html|^<html\\b/i.test(html))throw new Error("La IA no ha devuelto una página HTML válida.");
+ return html;
+}
 function Editor({siteId="",yourCode=false}){
   const [newDraftId]=useState(()=>siteId?"":"new-"+Date.now()+"-"+Math.random().toString(36).slice(2));
   const draft=siteId?readIdeDraft(siteId):null;
@@ -321,8 +340,22 @@ function Editor({siteId="",yourCode=false}){
   const[aiChat,setAiChat]=useState([]);
   const[aiBusy,setAiBusy]=useState(false);
   const[aiError,setAiError]=useState("");
+  const[interpretedPreview,setInterpretedPreview]=useState("");
+  const[interpretationStatus,setInterpretationStatus]=useState("");
 
  const currentFiles=()=>files.map(file=>file.path===selected?{...file,content:code}:file);
+ useEffect(()=>{
+  if(!yourCode||!code.trim()){setInterpretedPreview("");setInterpretationStatus("");return}
+  if(!aiKey.trim()){setInterpretedPreview("");setInterpretationStatus("Conecta tu proveedor en Chat IA / Backend para interpretar cualquier sintaxis inventada.");return}
+  let active=true;
+  setInterpretationStatus("Interpretando código libre…");
+  const timer=setTimeout(async()=>{
+   try{const html=await interpretYourCode(code,{endpoint:aiEndpoint,key:aiKey,model:aiModel},site.title||"YourCode");if(active){setInterpretedPreview(html);setInterpretationStatus("Interpretación completada");}}
+   catch(error){if(active){setInterpretedPreview("");setInterpretationStatus(error.message||"No se pudo interpretar el código.");}}
+  },1000);
+  return()=>{active=false;clearTimeout(timer)};
+ },[yourCode,code,aiEndpoint,aiKey,aiModel,site.title]);
+
   const saveAISettings=()=>{try{localStorage.setItem("fairwas:ide-ai:endpoint",aiEndpoint.trim());localStorage.setItem("fairwas:ide-ai:key",aiKey);localStorage.setItem("fairwas:ide-ai:model",aiModel.trim())}catch{}};
   const sendAIMessage=async(event)=>{event?.preventDefault?.();const prompt=aiPrompt.trim();if(!prompt||aiBusy)return;if(!aiKey.trim()){setAiError("Pega primero tu API key.");return}if(!aiEndpoint.trim()||!aiModel.trim()){setAiError("Indica el endpoint y el modelo.");return}const conversation=[...aiChat,{role:"user",content:prompt}];setAiChat(conversation);setAiPrompt("");setAiBusy(true);setAiError("");saveAISettings();try{const sourceFiles=currentFiles();const response=await fetch("/api/ide-ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:aiEndpoint.trim(),api_key:aiKey.trim(),model:aiModel.trim(),messages:conversation.slice(-12),project:{title:site.title,hostname:site.hostname,site_id:activeSiteId},files:sourceFiles.map(file=>({path:file.path,content:file.content||"",content_type:file.content_type||""}))})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.detail||data.error||"No se pudo conectar con el proveedor de IA.");let raw=String(data.content||"").trim();raw=raw.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");let result;try{result=JSON.parse(raw)}catch{result={reply:raw,edits:[]}}const edits=Array.isArray(result.edits)?result.edits:[];let next=[...sourceFiles];for(const edit of edits){if(!edit||typeof edit.path!=="string"||typeof edit.content!=="string")continue;const path=normalizePath(edit.path);if(path.split("/").some(part=>part===".."||part==="." )||/[\\?#\u0000-\u001f]/.test(path))continue;const existing=next.findIndex(file=>file.path===path);const updated={...(existing>=0?next[existing]:{}),path,content:edit.content};if(existing>=0)next[existing]=updated;else next.push(updated)}if(edits.length){setFiles(next);const editedCurrent=next.find(file=>file.path===selected);if(editedCurrent)setCode(editedCurrent.content);else if(next.length){setSelected(next[0].path);setCode(next[0].content||"")}setStatus("La IA ha aplicado "+edits.length+" cambio(s) al proyecto. Revisa el código y guarda/publica cuando quieras.")}const reply=String(result.reply||result.message||(edits.length?"He aplicado los cambios al proyecto.":"Respuesta recibida."));setAiChat(items=>[...items,{role:"assistant",content:reply,edits:edits.map(edit=>edit.path)}])}catch(error){setAiError(error.message||"Falló la conexión con la IA.");setAiChat(items=>[...items,{role:"assistant",content:"No he podido completar la petición: "+(error.message||"error de conexión")}])}finally{setAiBusy(false)}};
  const normalizePath=raw=>{let path=String(raw||"").trim().replace(/\\/g,"/");if(!path.startsWith("/"))path="/"+path;path=path.replace(/\/+/g,"/");return path.length>1?path.replace(/\/$/,""):path};
@@ -343,7 +376,17 @@ function Editor({siteId="",yourCode=false}){
  const importRepo=async()=>{if(!repoUrl.trim()){setStatus("Introduce la URL del repositorio.");return}setStatus("Importando repositorio…");try{const data=await api("import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({repo_url:repoUrl.trim()})});const imported=(data.files||[]).map(file=>({...file,path:normalizePath(file.path)}));if(!imported.length){setStatus("No se pudieron leer los archivos del repositorio.");return}setFiles(imported);setSourceRepo(Boolean(data.source_files));setSite(current=>({...current,hostname:data.hostname||current.hostname,title:data.title||current.title}));setSelected(imported[0].path);setCode(imported[0].content||"");setStatus(data.source_files?"Fuentes importadas, pero no compiladas. React/Vite necesita una compilación antes de poder publicarse correctamente.":"Repositorio compilado importado.")}catch(error){setStatus(error instanceof Error?error.message:"No se pudo importar el repositorio.")}};
  const save=async()=>{
   if(sourceRepo){setStatus("No se puede publicar este repositorio todavía: es código fuente sin compilar. Compílalo fuera de Fairwas e importa la carpeta de salida.");return}
-  const next=currentFiles();
+  let next=currentFiles();
+  if(yourCode){
+   if(!aiKey.trim()){setStatus("Conecta tu proveedor de IA en Chat IA / Backend antes de publicar código inventado.");return}
+   setStatus("Interpretando el código antes de publicarlo…");
+   try{
+    const generated=await interpretYourCode(code,{endpoint:aiEndpoint,key:aiKey,model:aiModel},site.title||"YourCode");
+    const index=next.findIndex(file=>file.path==="/index.html");
+    const pageFile={path:"/index.html",content:generated,content_type:"text/html; charset=utf-8"};
+    if(index>=0)next[index]=pageFile;else next.push(pageFile);
+   }catch(error){setStatus(error.message||"No se pudo interpretar el código para publicarlo.");return}
+  }
   if(!next.length){setStatus(yourCode?"Añade o importa al menos un archivo para publicar tu código.":"El proyecto necesita al menos un archivo.");return}
   const target=parsePublishTarget(site.hostname);
   if(!target){setStatus("Dominio no válido. Escribe miweb.fair o una URL completa.");return}
@@ -367,7 +410,12 @@ function Editor({siteId="",yourCode=false}){
   }catch(error){setStatus(error instanceof Error?error.message:"No se pudo publicar el proyecto.")}
  };
  const tree=(()=>{const dirs=new Set(folders);files.forEach(file=>{const parts=file.path.split("/").filter(Boolean);for(let i=1;i<parts.length;i++)dirs.add("/"+parts.slice(0,i).join("/"))});const entries=[...Array.from(dirs,path=>({path,folder:true})),...files.map(file=>({path:file.path,folder:false}))];return entries.sort((a,b)=>a.path.localeCompare(b.path)||(a.folder?-1:1)).map(item=>({...item,depth:Math.max(0,item.path.split("/").filter(Boolean).length-1)}))})();
- const livePreview=(()=>{if(!yourCode)return null;try{return autoRenderFile({path:selected||"/untitled.txt",content:code},{title:site.title||"YourCode",hostname:site.hostname||""})}catch(error){return{kind:"error",html:"<!doctype html><html><body style=\"font:16px system-ui;padding:24px\"><h1>No se pudo generar la vista previa</h1><p>"+String(error?.message||error)+"</p></body></html>"}}})();
+ const livePreview=(()=>{
+  if(!yourCode)return null;
+  if(interpretedPreview)return{kind:"ai-interpreted",html:interpretedPreview};
+  const message=escapeEditorHtml(interpretationStatus||"Escribe código para generar la página.");
+  return{kind:"pending",html:"<!doctype html><html lang=\"es\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"margin:0;min-height:100vh;display:grid;place-items:center;background:#111827;color:#e5e7eb;font:15px system-ui;padding:24px;text-align:center\"><main><h2>YourCode</h2><p>"+message+"</p></main></body></html>"};
+ })();
  if(!loaded)return <section className="cp-ide"><div className="cp-card cp-empty">Cargando página…</div></section>;
  return <section className="cp-ide">
   <div className="cp-ide-top"><div className="cp-ide-heading"><small>FAIRWAS · WORKSPACE</small><h1>{yourCode?"YourCode":siteId?"Editar página":"Nuevo proyecto"}</h1><p>{site.hostname||"Configura el dominio y empieza a editar"}</p></div><div className="cp-ide-actions"><button type="button" onClick={addFile}>＋ Archivo</button><button type="button" onClick={addFolder}>＋ Carpeta</button><button type="button" onClick={()=>setApiPanelOpen(v=>!v)}>{apiPanelOpen?"Cerrar chat":"✦ Chat IA / Backend"}</button><label className="cp-button">Importar archivos<input type="file" multiple onChange={importFiles}/></label><label className="cp-button">Importar carpeta<input type="file" multiple webkitdirectory="" onChange={importFiles}/></label><button type="button" className="cp-ide-publish" onClick={save}>{yourCode?(siteId?"Actualizar publicación":"Publicar código"):siteId?"Guardar cambios":"Publicar sitio"}</button></div></div>
@@ -383,8 +431,8 @@ function Editor({siteId="",yourCode=false}){
   </section>
   <section style={{padding:14,borderTop:"1px solid rgba(255,255,255,.09)",background:"#11151b",display:"grid",gap:12}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-    <div><b style={{fontSize:13}}>RENDERIZADO EN DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>La vista se actualiza al escribir. HTML se muestra como página; JavaScript se ejecuta en un entorno aislado; otros lenguajes y sintaxis libres se convierten en una representación visual.</p></div>
-    <span style={{fontSize:11,color:"#a8e66b",fontWeight:700}}>{livePreview?.kind==="universal"?"VISTA UNIVERSAL":livePreview?.kind==="javascript"?"JAVASCRIPT":String(livePreview?.kind||"").toUpperCase()}</span>
+    <div><b style={{fontSize:13}}>RENDERIZADO EN DIRECTO</b><p style={{fontSize:12,color:"#9da8b7",margin:"4px 0"}}>La IA interpreta la sintaxis libre y genera una página real. No hay palabras clave ni gramática obligatorias.</p></div>
+    <span style={{fontSize:11,color:"#a8e66b",fontWeight:700}}>{livePreview?.kind==="ai-interpreted"?"INTERPRETADO POR IA":interpretationStatus.toUpperCase()}</span>
    </div>
    <iframe title="Renderizado en directo de YourCode" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={livePreview?.html||"<!doctype html><html><body></body></html>"} style={{display:"block",width:"100%",height:520,border:"1px solid #3c4654",borderRadius:10,background:"#fff"}}/>
   </section></>}  </div></div>
