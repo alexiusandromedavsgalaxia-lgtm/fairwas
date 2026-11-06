@@ -16,6 +16,17 @@ class HttcClientTest {
     }
 
     @Test
+    fun acceptsFairwasUnderscoreHostnamesAndEncodesSpaces() {
+        assertEquals("httc://my_site.fair/users%20list?q=hello%20world", client.normalize("my_site.fair/users list?q=hello world"))
+    }
+
+    @Test
+    fun rejectsInvalidPortsAndEmbeddedCredentials() {
+        assertTrue(runCatching { client.normalize("httc://demo.fair:70000") }.isFailure)
+        assertTrue(runCatching { client.normalize("httc://user:pass@demo.fair") }.isFailure)
+    }
+
+    @Test
     fun rejectsEmptyAndInvalidAddresses() {
         assertTrue(runCatching { client.normalize("  ") }.isFailure)
         assertTrue(runCatching { client.normalize("httc:///missing-host") }.isFailure)
