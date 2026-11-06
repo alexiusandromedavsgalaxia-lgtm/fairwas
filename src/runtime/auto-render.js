@@ -64,20 +64,41 @@ function languageFor(path,source){
 function universalVisualPreview(source,path,title){
  const language=languageFor(path,source);
  const tokenize=line=>{
-  const pattern=/"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|`(?:\\\\.|[^`\\\\])*`|\\d+(?:[._]\\d+)*|[\\p{L}_$@][\\p{L}\\p{N}_$@!?-]*|[()[\\]{}.,;:]+|[^\\s]/gu;
-  const tokens=[];let match;
-  while((match=pattern.exec(line))!==null){
-   const value=match[0];
-   const quoted=/^(["'`])/.test(value);
-   const numeric=/^\\d/.test(value);
-   const symbol=/^[()[\\]{}.,;:]+$/.test(value)||!quoted&&!numeric&&!/^[\\p{L}_$@]/u.test(value);
-   const kind=quoted?"text":numeric?"number":symbol?"symbol":"word";
-   const display=quoted?value.slice(1,-1):value;
-   tokens.push('<span class="token token-'+kind+'">'+escapeHtml(display)+'</span>');
+  const tokens=[];
+  let i=0;
+  const isLetter=ch=>/[\p{L}_$@]/u.test(ch);
+  const isDigit=ch=>/[0-9]/.test(ch);
+  while(i<line.length){
+   const ch=line[i];
+   if(/\s/u.test(ch)){i++;continue}
+   let value="",kind="symbol";
+   if(ch==='"'||ch==="'"||ch===String.fromCharCode(96)){
+    const quote=ch;value=ch;i++;
+    while(i<line.length){
+     const next=line[i];value+=next;i++;
+     if(next==="\\\\"&&i<line.length){value+=line[i];i++;continue}
+     if(next===quote)break;
+    }
+    kind="text";value=value.length>1?value.slice(1,value.endsWith(quote)?-1:undefined):value;
+   }else if(isLetter(ch)){
+    const begin=i++;
+    while(i<line.length&&(/[\p{L}\p{N}_$@!?-]/u.test(line[i])))i++;
+    value=line.slice(begin,i);kind="word";
+   }else if(isDigit(ch)){
+    const begin=i++;
+    while(i<line.length&&/[0-9._]/.test(line[i]))i++;
+    value=line.slice(begin,i);kind="number";
+   }else{
+    value=ch;i++;
+    if("=+-*/%<>!&|^~?:.".includes(ch)){
+     while(i<line.length&&"=+-*/%<>!&|^~?:.".includes(line[i])){value+=line[i];i++}
+    }
+   }
+   tokens.push('<span class="token token-'+kind+'">'+escapeHtml(value)+'</span>');
   }
   return tokens.join("");
  };
- const lines=String(source).replace(/\\r/g,"").split("\\n");
+ const lines=String(source).replace(/\r/g,"").split("\n");
  const statements=lines.map((line,index)=>({line,index})).filter(item=>item.line.trim());
  const blocks=statements.map(({line,index},position)=>{
   const tokens=tokenize(line);
