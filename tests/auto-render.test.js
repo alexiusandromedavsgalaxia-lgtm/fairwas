@@ -5,27 +5,28 @@ import { autoRenderFile } from "../src/runtime/auto-render.js";
 test("YourCode detects HTML inside a custom extension", () => {
   const result=autoRenderFile({path:"/home.ez",content:"<main><h1>Hola</h1></main>"});
   assert.equal(result.kind,"html");
-  assert.match(result.html,/<h1>Hola<\\/h1>/);
+  assert.ok(result.html.includes("<h1>Hola</h1>"));
 });
 
 test("YourCode renders Markdown and JSON data instead of showing source", () => {
-  const markdown=autoRenderFile({path:"/readme.custom",content:"# Hello\\nA **page**"});
+  const markdown=autoRenderFile({path:"/readme.custom",content:"# Hello\nA **page**"});
   assert.equal(markdown.kind,"markdown");
-  assert.match(markdown.html,/<h1>Hello<\\/h1>/);
+  assert.ok(markdown.html.includes("<h1>Hello</h1>"));
   const json=autoRenderFile({path:"/data.any",content:'{"name":"Fairwas"}'});
   assert.equal(json.kind,"json");
-  assert.match(json.html,/Fairwas/);
+  assert.ok(markdown.html.includes("page"));
+  assert.ok(json.html.includes("Fairwas"));
 });
 
 test("unknown custom languages render visual blocks, never a code listing", () => {
   const result=autoRenderFile({path:"/page.xyz",content:"MAKE WINDOW WITH BLUE SKY"});
   assert.equal(result.kind,"universal");
   assert.equal(result.language,"Código");
-  assert.match(result.html,/MAKE/);
-  assert.match(result.html,/WINDOW/);
-  assert.match(result.html,/visual-block/);
-  assert.doesNotMatch(result.html,/Vista de código/);
-  assert.doesNotMatch(result.html,/<pre[^>]*><code>/);
+  assert.ok(result.html.includes("MAKE"));
+  assert.ok(result.html.includes("WINDOW"));
+  assert.ok(result.html.includes("visual-block"));
+  assert.ok(!result.html.includes("Vista de código"));
+  assert.ok(!result.html.includes("<pre"));
 });
 
 test("common non-browser languages are rendered as visual structures without execution", () => {
@@ -34,18 +35,18 @@ test("common non-browser languages are rendered as visual structures without exe
     assert.equal(result.kind,"universal");
     assert.equal(result.language,language);
     assert.equal(result.executable,false);
-    assert.match(result.html,/visual-block/);
-    assert.doesNotMatch(result.html,/print\\(42\\)/);
+    assert.ok(result.html.includes("visual-block"));
+    assert.ok(!result.html.includes("print(42)"));
   }
 });
 
 test("valid JavaScript files use the browser runtime", () => {
   const classic=autoRenderFile({path:"/logic.js",content:"const node = document.createElement('h1'); node.textContent = 'Hello'; document.body.append(node);"});
   assert.equal(classic.kind,"javascript");
-  assert.match(classic.html,/"text\\/javascript"/);
+  assert.ok(classic.html.includes('"text/javascript"'));
   const module=autoRenderFile({path:"/logic.mjs",content:"export const answer = 42;"});
   assert.equal(module.kind,"javascript");
-  assert.match(module.html,/"module"/);
+  assert.ok(module.html.includes('"module"'));
 });
 
 test("invalid JavaScript syntax gets visual rendering instead of a raw code page", () => {
@@ -53,9 +54,9 @@ test("invalid JavaScript syntax gets visual rendering instead of a raw code page
   const result=autoRenderFile({path:"/logic.js",content:source});
   assert.equal(result.kind,"universal");
   assert.equal(result.executable,false);
-  assert.match(result.html,/visual-block/);
-  assert.doesNotMatch(result.html,/Vista de código/);
-  assert.doesNotMatch(result.html,/document\\.body/);
+  assert.ok(result.html.includes("visual-block"));
+  assert.ok(!result.html.includes("Vista de código"));
+  assert.ok(!result.html.includes("document.body"));
 });
 
 test("JavaScript-like syntax in arbitrary extensions is rendered visually and never auto-executed", () => {
@@ -63,6 +64,6 @@ test("JavaScript-like syntax in arbitrary extensions is rendered visually and ne
   const result=autoRenderFile({path:"/logic.ax",content:source});
   assert.equal(result.kind,"universal");
   assert.equal(result.executable,false);
-  assert.match(result.html,/visual-block/);
-  assert.doesNotMatch(result.html,/document\\.body/);
+  assert.ok(result.html.includes("visual-block"));
+  assert.ok(!result.html.includes("document.body"));
 });
