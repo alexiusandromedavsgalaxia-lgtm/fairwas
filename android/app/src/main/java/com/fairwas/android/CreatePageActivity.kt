@@ -14,7 +14,6 @@ import android.webkit.WebViewClient
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import org.json.JSONArray
 import org.json.JSONObject
@@ -56,7 +55,6 @@ class CreatePageActivity : Activity() {
         }
 
         buildUi()
-        installBackNavigation()
         web.loadUrl("$appBaseUrl/")
     }
 
@@ -264,12 +262,9 @@ class CreatePageActivity : Activity() {
         )
     }
 
-    private fun installBackNavigation() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (::web.isInitialized && web.canGoBack()) web.goBack() else finish()
-            }
-        })
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (::web.isInitialized && web.canGoBack()) web.goBack() else super.onBackPressed()
     }
 
     private fun showFatal(message: String) {
