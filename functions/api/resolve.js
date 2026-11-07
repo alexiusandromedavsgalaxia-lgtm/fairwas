@@ -197,7 +197,10 @@ export function documentPathCandidates(path){
  return [...new Set(candidates.filter(Boolean))];
 }
 export function shouldFallbackToAppShell(path){
- return !STATIC_FILE_SUFFIX.test(String(path||"/"));
+ const value=String(path||"/").split(/[?#]/,1)[0]||"/";
+ if(STATIC_FILE_SUFFIX.test(value))return false;
+ if(/^\/(?:api|auth)(?:\/|$)/i.test(value)||/^\/\.well-known(?:\/|$)/i.test(value))return false;
+ return true;
 }
 export function rewriteLocationRedirects(source){
  return rewriteJavaScriptLocationRedirects(source);
@@ -264,6 +267,15 @@ async function publishedDocument(parsed,env){
  // first project file when the project contains no HTML document.
  if(!file&&requested==="/"){
   file=await selectYourCodeEntry(env,site.site_id);
+ }
+ // Android and other clients can navigate directly to clean SPA routes.
+ // Resolve a real app shell only after checking route-specific HTML files.
+ // Keep static assets and API/auth endpoints out of this fallback.
+ if(!file&&shouldFallbackToAppShell(requested)){
+  for(const candidate of ["/routes/mainpage/index.html","/routes/mainpage/index.htm","/index.html","/index.htm"]){
+   file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
+   if(file)break;
+  }
  }
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
