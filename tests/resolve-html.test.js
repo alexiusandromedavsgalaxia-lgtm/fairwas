@@ -56,11 +56,14 @@ test("documentPathCandidates handles directory URLs and keeps file extensions", 
   assert.deepEqual(documentPathCandidates("/loqsea/page.html"), ["/loqsea/page.html"]);
 });
 
-test("dotted SPA routes still get clean-route candidates", () => {
+test("dynamic SPA routes fall back while assets and API paths do not", () => {
   assert.deepEqual(documentPathCandidates("/users/john.doe"), ["/users/john.doe", "/users/john.doe/index.html", "/users/john.doe/index.htm", "/users/john.doe/index.xhtml", "/users/john.doe.html", "/users/john.doe.htm"]);
+  assert.equal(shouldFallbackToAppShell("/illustratin"), true);
   assert.equal(shouldFallbackToAppShell("/users/john.doe"), true);
   assert.equal(shouldFallbackToAppShell("/assets/app.js"), false);
   assert.equal(shouldFallbackToAppShell("/images/missing.png"), false);
+  assert.equal(shouldFallbackToAppShell("/api/users"), false);
+  assert.equal(shouldFallbackToAppShell("/auth/login"), false);
 });
 
 test("rewriteLocationRedirects bridges runtime location redirects", () => {
