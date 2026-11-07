@@ -126,6 +126,22 @@ class HttcClient(baseUrl: String) {
 
         val path = uri.encodedPath ?: "/"
         return try {
+            // Top-level navigation inside a published site must be resolved as
+            // a document, not as a static asset. This is what lets Android WebView
+            // load client-side routes such as /illustratin on refresh and link clicks.
+            if (request.isForMainFrame) {
+                val host = virtualHost.removeSuffix(".httc.local")
+                val target = "httc://$host$path" + (uri.encodedQuery?.let { "?$it" } ?: "")
+                val page = resolve(target)
+                return WebResourceResponse(
+                    "text/html",
+                    "UTF-8",
+                    200,
+                    "OK",
+                    mapOf("Cache-Control" to "no-store"),
+                    page.html.byteInputStream(Charsets.UTF_8)
+                )
+            }
             val endpoint = if (path == "/api/resolve" || path == "/api/proxy" || path == "/api/createpage") {
                 base + path + (uri.encodedQuery?.let { "?$it" } ?: "")
             } else {
