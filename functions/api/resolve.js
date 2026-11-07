@@ -197,7 +197,11 @@ export function documentPathCandidates(path){
  return [...new Set(candidates.filter(Boolean))];
 }
 export function shouldFallbackToAppShell(path){
- return !STATIC_FILE_SUFFIX.test(String(path||"/"));
+ const value=String(path||"/").split(/[?#]/,1)[0]||"/";
+ if(STATIC_FILE_SUFFIX.test(value))return false;
+ // API and authentication namespaces must never receive the frontend shell.
+ if(/^\/(?:api|auth)(?:\/|$)/i.test(value)||/^\/\.well-known(?:\/|$)/i.test(value))return false;
+ return true;
 }
 export function rewriteLocationRedirects(source){
  return rewriteJavaScriptLocationRedirects(source);
