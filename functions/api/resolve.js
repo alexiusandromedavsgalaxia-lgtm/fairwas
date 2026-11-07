@@ -269,6 +269,15 @@ async function publishedDocument(parsed,env){
  if(!file&&requested==="/"){
   file=await selectYourCodeEntry(env,site.site_id);
  }
+ // SPA/deep-link fallback: unresolved clean URLs receive the published app shell.
+ // The requested URL remains unchanged so the frontend router can handle it.
+ // Static assets and reserved API/auth paths never receive this fallback.
+ if(!file&&shouldFallbackToAppShell(requested)){
+  for(const candidate of ["/routes/mainpage/index.html","/routes/mainpage/index.htm","/index.html","/index.htm"]){
+   file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
+   if(file)break;
+  }
+ }
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
  const pathLooksHtml=/\.(?:html?|xhtml)$/i.test(String(file.path||""));
