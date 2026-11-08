@@ -1,3 +1,4 @@
+import { ensureAccountSchema, getAccount } from "./_account.js";
 const json=(data,status=200)=>Response.json(data,{status,headers:{"cache-control":"no-store"}});
 const now=()=>new Date().toISOString();
 const clean=(v,n=120)=>String(v??"").trim().slice(0,n);
@@ -26,7 +27,9 @@ async function owner(db,serviceId,developerId){
 export async function onRequest({request,env}){
  if(!env.database)return json({ok:false,error:"database_binding_missing"},500);
  await schema(env.database);
- const dev=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+ await ensureAccountSchema(env);
+ const dev=await getAccount(request,env);
+ if(!dev)return json({ok:false,error:"authentication_required"},401);
  if(!dev)return json({ok:false,error:"developer_account_required",detail:"Registra primero tu cuenta de desarrollador en CreatePage."},403);
  const url=new URL(request.url),action=clean(url.searchParams.get("action"),40);
  if(action==="public-route")return json({ok:false,error:"use_runtime_router"},400);
