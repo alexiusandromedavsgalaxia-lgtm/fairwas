@@ -127,39 +127,35 @@ export async function onRequest({request,env}){
   if(!account)return json({ok:false,error:"authentication_required",detail:"Inicia sesión o crea una cuenta para continuar."},401);
   if(action==="profile"){
    if(method==="POST"){
-    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
-    const displayName=String(b.display_name||"").trim();
-    if(!displayName)return json({ok:false,error:"display_name_required"},400);
+    const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
+    const displayName=String(parsed.value.display_name||"").trim();
+    if(displayName.length<2||displayName.length>80)return json({ok:false,error:"invalid_display_name"},400);
     const stamp=now();
-    await env.database.prepare("INSERT INTO cp_profiles(id,display_name,updated_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at").bind(displayName,stamp).run();
-    const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
-    if(developer){
-     await env.database.prepare("UPDATE cp_developers SET display_name=?,updated_at=? WHERE id=1").bind(displayName,stamp).run();
-     await env.users.prepare("UPDATE users SET display_name=?,updated_at=? WHERE developer_id=?").bind(displayName,stamp,developer.developer_id).run();
-    }
+    await env.database.prepare("UPDATE cp_accounts SET display_name=?,updated_at=? WHERE developer_id=?").bind(displayName,stamp,account.developer_id).run();
+    await env.database.prepare("INSERT INTO cp_account_profiles(developer_id,display_name,updated_at) VALUES(?,?,?) ON CONFLICT(developer_id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at").bind(account.developer_id,displayName,stamp).run();
    }
-   const r=await env.database.prepare("SELECT * FROM cp_profiles WHERE id=1").first();
-   return json({ok:true,profile:r||{id:1,display_name:"Fairwas user"}});
+   const r=await env.database.prepare("SELECT developer_id AS id,display_name,updated_at FROM cp_account_profiles WHERE developer_id=?").bind(account.developer_id).first();
+   return json({ok:true,profile:r||{id:account.developer_id,display_name:account.display_name}});
   }
 
   if(action==="sites"){
-   const r=await env.pages.prepare("SELECT site_id,hostname,protocol,title,description,framework,language,backend,runtime,database_type,status,created_at,updated_at FROM sites ORDER BY created_at DESC").all();
-   const projects=await env.database.prepare("SELECT site_id,developer_id FROM cp_projects").all();
-   const developers=new Map((projects.results||[]).map(p=>[p.site_id,p.developer_id]));
-   const items=(r.results||[]).map(site=>({...site,developer_id:developers.get(site.site_id)||null}));
+   const projects=await env.database.prepare("SELECT site_id FROM cp_projects WHERE developer_id=? ORDER BY created_at DESC").bind(account.developer_id).all();
+   const items=[];
+   for(const project of projects.results||[]){const site=await env.pages.prepare("SELECT site_id,hostname,protocol,title,description,framework,language,backend,runtime,database_type,status,created_at,updated_at FROM sites WHERE site_id=? LIMIT 1").bind(project.site_id).first();if(site)items.push({...site,developer_id:account.developer_id});}
    return json({ok:true,items});
   }
 
   if(action==="databases"){
-   const r=await env.database.prepare("SELECT * FROM cp_databases ORDER BY id DESC").all();
-   const pageDbs=await env.database.prepare("SELECT * FROM cp_page_databases ORDER BY created_at DESC").all();
+   const owned="SELECT site_id FROM cp_projects WHERE developer_id=?";
+   const r=await env.database.prepare("SELECT * FROM cp_databases WHERE site_id IN ("+owned+") ORDER BY id DESC").bind(account.developer_id).all();
+   const pageDbs=await env.database.prepare("SELECT * FROM cp_page_databases WHERE site_id IN ("+owned+") ORDER BY created_at DESC").bind(account.developer_id).all();
    return json({ok:true,items:[...(pageDbs.results||[]),...(r.results||[])]});
   }
 
   if(action==="db-list"){
    const siteId=String(u.searchParams.get("site_id")||"").trim();
    const hostname=String(u.searchParams.get("hostname")||"").trim().toLowerCase();
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
    if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
@@ -178,7 +174,7 @@ export async function onRequest({request,env}){
    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const siteId=String(b.site_id||"").trim(),name=String(b.name||"").trim();
    if(!/^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(name))return json({ok:false,error:"invalid_database_name",detail:"Usa letras, números, guion o guion bajo (máximo 40 caracteres)."},400);
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
    if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
@@ -196,7 +192,7 @@ export async function onRequest({request,env}){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const databaseId=String(b.database_id||"").trim(),siteId=String(b.site_id||"").trim();
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
    if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
@@ -246,46 +242,26 @@ export async function onRequest({request,env}){
   }
 
   if(action==="servers"){
-   const r=await env.server.prepare("SELECT * FROM servers ORDER BY id DESC").all();
-   return json({ok:true,items:r.results||[]});
+   const owned=await env.database.prepare("SELECT site_id FROM cp_projects WHERE developer_id=?").bind(account.developer_id).all();
+   const items=[];for(const p of owned.results||[]){const rows=await env.server.prepare("SELECT * FROM servers WHERE site_id=? ORDER BY id DESC").bind(p.site_id).all();items.push(...(rows.results||[]));}
+   return json({ok:true,items});
   }
 
   if(action==="registry"){
-   const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
-   const user=developer?await env.users.prepare("SELECT id,email,status,created_at,updated_at FROM users WHERE developer_id=? LIMIT 1").bind(developer.developer_id).first():null;
-   const linked=developer?await env.database.prepare("SELECT site_id,hostname,title,status FROM cp_projects WHERE developer_id=? ORDER BY hostname").bind(developer.developer_id).all():{results:[]};
-   return json({ok:true,developer:developer?{...developer,user_id:user?.id||null,email:user?.email||"",status:user?.status||"active",created_at:user?.created_at||developer.created_at,updated_at:user?.updated_at||developer.updated_at}:null,sites:linked.results||[]});
+   const linked=await env.database.prepare("SELECT site_id,hostname,title,status FROM cp_projects WHERE developer_id=? ORDER BY hostname").bind(account.developer_id).all();
+   return json({ok:true,developer:accountJson(account),sites:linked.results||[]});
   }
-
   if(action==="developer"){
-   if(method==="POST"){
-    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
-    const displayName=String(b.display_name||"").trim();
-    const email=String(b.email||"").trim();
-    if(!displayName)return json({ok:false,error:"display_name_required"},400);
-    if(!email)return json({ok:false,error:"email_required"},400);
-    const stamp=now();
-    const currentDeveloper=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
-    let developerId=String(currentDeveloper?.developer_id||"").trim().toLowerCase();
-    if(!developerId){
-     do{
-      developerId="dev-"+crypto.randomUUID().replace(/-/g,"").slice(0,16);
-     }while(await env.users.prepare("SELECT id FROM users WHERE developer_id=? LIMIT 1").bind(developerId).first());
-    }
-    const existingUser=await env.users.prepare("SELECT id FROM users WHERE developer_id=? LIMIT 1").bind(developerId).first();
-    if(existingUser){
-     await env.users.prepare("UPDATE users SET display_name=?,email=?,status='active',updated_at=? WHERE id=?").bind(displayName,email,stamp,existingUser.id).run();
-    }else{
-     await env.users.prepare("INSERT INTO users(id,developer_id,display_name,email,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").bind(developerId,developerId,displayName,email,"active",stamp,stamp).run();
-    }
-    await env.database.prepare("INSERT INTO cp_developers(id,developer_id,display_name,created_at,updated_at) VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET developer_id=excluded.developer_id,display_name=excluded.display_name,updated_at=excluded.updated_at").bind(developerId,displayName,stamp,stamp).run();
-   }
-   const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
-   return json({ok:true,developer:developer||null});
+   if(method!=="POST")return json({ok:true,developer:accountJson(account)});
+   const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
+   const displayName=String(parsed.value.display_name||account.display_name).trim(),email=String(parsed.value.email||account.email).trim().toLowerCase();
+   if(displayName.length<2||displayName.length>80||!email.includes("@")||!email.includes("."))return json({ok:false,error:"invalid_account_details"},400);
+   try{await env.database.prepare("UPDATE cp_accounts SET display_name=?,email=?,updated_at=? WHERE developer_id=?").bind(displayName,email,now(),account.developer_id).run()}catch{return json({ok:false,error:"email_already_registered"},409)}
+   return json({ok:true,developer:{...account,display_name:displayName,email}});
   }
 
   if(action==="workers"){
-   const r=await env.database.prepare("SELECT * FROM cp_workers ORDER BY id DESC").all();
+   const r=await env.database.prepare("SELECT * FROM cp_workers WHERE site_id IN (SELECT site_id FROM cp_projects WHERE developer_id=?) ORDER BY id DESC").bind(account.developer_id).all();
    return json({ok:true,items:r.results||[]});
   }
 
@@ -334,7 +310,7 @@ export async function onRequest({request,env}){
   if(action==="site"){
    const siteId=String(u.searchParams.get("site_id")||"").trim();
    const hostname=String(u.searchParams.get("hostname")||"").trim().toLowerCase();
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    if(!developer)return json({ok:false,error:"developer_not_registered"},403);
    const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
@@ -346,7 +322,7 @@ export async function onRequest({request,env}){
 
   if(action==="visits"){
    const siteId=String(u.searchParams.get("site_id")||"").trim();
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():null;
    if(!project)return json({ok:false,error:"site_not_found"},404);
    if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
@@ -364,7 +340,7 @@ export async function onRequest({request,env}){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const siteId=String(b.site_id||"").trim();
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
    if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
@@ -380,7 +356,7 @@ export async function onRequest({request,env}){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const siteId=String(b.site_id||"").trim();
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    const project=await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
    if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
@@ -412,7 +388,7 @@ export async function onRequest({request,env}){
    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const siteId=String(b.site_id||"").trim();
    const hostname=String(b.hostname||"").trim().toLowerCase();
-   const developer=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   const developer=account;
    if(!developer)return json({ok:false,error:"developer_not_registered"},403);
    const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
    if(!project)return json({ok:false,error:"site_not_found"},404);
@@ -461,7 +437,7 @@ export async function onRequest({request,env}){
    const title=String(b.title||"").trim()||hostname;
    if(!hostname)return json({ok:false,error:"hostname_required"},400);
    if(!/^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)+$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
-   const developer=await env.database.prepare("SELECT * FROM cp_developers WHERE id=1").first();
+   const developer=account;
    if(!developer)return json({ok:false,error:"developer_not_registered",detail:"Registra primero tu cuenta en /registry."},403);
 
    const existingPage=await env.pages.prepare("SELECT site_id,status FROM sites WHERE hostname=? AND protocol='httc'").bind(hostname).first();
