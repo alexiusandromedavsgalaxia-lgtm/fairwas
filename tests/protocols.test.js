@@ -77,4 +77,6 @@ test("DuckDuckGo and Guglu open their own integrated search engines", () => {
   assert.equal(toFairwas("duckduckgo.com/?q=cafe"), "httc://duckduckgo.com/?q=cafe");
   assert.equal(toFairwas("guglu.com"), "httc://guglu.com/");
   assert.equal(toFairwas("guglu.com/search?q=cafe"), "httc://guglu.com/search?q=cafe");
+  assert.equal(toFairwas("https://guglu.com/?q=cafe"), "httc://guglu.com/?q=cafe");
+  assert.equal(toFairwas("https://duckduckgo.com/?q=cafe"), "httc://duckduckgo.com/?q=cafe");
 });
