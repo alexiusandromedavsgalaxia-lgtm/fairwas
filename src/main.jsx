@@ -40,6 +40,15 @@ function App(){
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
 
  useEffect(()=>save({history,bookmarks,settings:{...initial.settings,dark,home,compactChrome},tabs,activeTab:active,currentPage:tab?.url||home,activity:tab?.url===home?"idle":"browsing"}),[history,bookmarks,dark,compactChrome,tabs,active,tab?.url]);
+ useEffect(()=>{
+  let hostname="";
+  try{const parsed=new URL(tab?.url||"");if(parsed.protocol==="httc:")hostname=parsed.hostname.toLowerCase()}catch{}
+  if(!hostname||["home","search","duckduckgo.com","www.duckduckgo.com","guglu.com","macrospot","macrospot.com","www.macrospot.com","app.macrospot.com","api.fair","docs.api.fair","createpage.fair","docs.createpage.fair","yourcode.official","yourcode.createpage.fair"].includes(hostname))return;
+  let token="";
+  try{token=localStorage.getItem("fairwas:createpage:session")||""}catch{}
+  if(!token)return;
+  fetch("/api/createpage?action=record-visit",{method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+token},body:JSON.stringify({hostname})}).catch(()=>{});
+ },[tab?.url]);
  useEffect(()=>setAddress(displayAddress(tab.url,mobile)),[tab.id,tab.url,mobile]);
  useEffect(()=>{const mq=window.matchMedia("(max-width: 720px)");const onChange=()=>setMobile(mq.matches);onChange();mq.addEventListener?.("change",onChange);return()=>mq.removeEventListener?.("change",onChange)},[]);
  useEffect(()=>{
