@@ -12,15 +12,27 @@ export default function SearchPage({url,onNavigate}){
   const query=String(term||"").trim();if(!query)return;
   setQ(query);setLoading(true);setError("");setData(null);
   try{
-   const target="httc://api.duckduckgo.com/?q="+encodeURIComponent(query)+"&format=json&no_html=1&skip_disambig=1";
+   const target="httc://html.duckduckgo.com/html/?q="+encodeURIComponent(query);
    const response=await fetch("/api/proxy?url="+encodeURIComponent(target),{cache:"no-store"});
    if(!response.ok)throw new Error("El buscador no ha respondido (HTTP "+response.status+").");
-   const result=await response.json();
-   setData(result);
+   const html=await response.text();
+   const parsed=new DOMParser().parseFromString(html,"text/html");
+   const found=[...parsed.querySelectorAll(".result")].map(node=>{
+    const link=node.querySelector(".result__a"),snippet=node.querySelector(".result__snippet");
+    if(!link)return null;
+    let href=link.getAttribute("href")||"";
+    try{const wrapped=new URL(href,"https://html.duckduckgo.com");href=wrapped.searchParams.get("uddg")||wrapped.href}catch{}
+    return {url:href,title:cleanText(link.textContent),description:cleanText(snippet?.textContent||"")};
+   }).filter(item=>item&&/^https?:\\/\\//i.test(item.url));
+   if(found.length){setData({results:found});return}
+   const instantTarget="httc://api.duckduckgo.com/?q="+encodeURIComponent(query)+"&format=json&no_html=1&skip_disambig=1";
+   const instant=await fetch("/api/proxy?url="+encodeURIComponent(instantTarget),{cache:"no-store"});
+   if(!instant.ok)throw new Error("No se han podido obtener resultados.");
+   setData(await instant.json());
   }catch(e){setError(e.message||"No se han podido cargar los resultados.")}
   finally{setLoading(false)}
  }
- const results=data?collectTopics(data.RelatedTopics):[];
+ const results=data?(Array.isArray(data.results)?data.results:collectTopics(data.RelatedTopics)):[];
  if(data?.AbstractURL&&data?.AbstractText)results.unshift({url:data.AbstractURL,title:data.Heading||data.AbstractSource||"Resultado principal",description:data.AbstractText});
  return <section style={{minHeight:"100%",padding:"clamp(20px,5vw,56px)",color:"var(--text,#e8eaf0)",background:"var(--surface,#111318)",boxSizing:"border-box"}}>
   <div style={{maxWidth:900,margin:"0 auto"}}>
