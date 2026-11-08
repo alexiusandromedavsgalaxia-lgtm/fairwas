@@ -199,7 +199,7 @@ export function documentPathCandidates(path){
 export function shouldFallbackToAppShell(path){
  const value=String(path||"/").split(/[?#]/,1)[0]||"/";
  if(STATIC_FILE_SUFFIX.test(value))return false;
- if(/^\/(?:api|auth)(?:\/|$)/i.test(value)||/^\/\.well-known(?:\/|$)/i.test(value))return false;
+ if(["/api","/auth","/.well-known"].some(prefix=>value===prefix||value.startsWith(prefix+"/")))return false;
  return true;
 }
 export function rewriteLocationRedirects(source){
@@ -272,10 +272,11 @@ async function publishedDocument(parsed,env){
  // Resolve a real app shell only after checking route-specific HTML files.
  // Keep static assets and API/auth endpoints out of this fallback.
  if(!file&&shouldFallbackToAppShell(requested)){
-  for(const candidate of ["/routes/mainpage/index.html","/routes/mainpage/index.htm","/index.html","/index.htm"]){
+  for(const candidate of ["/routes/mainpage/index.html","/routes/mainpage/index.htm","/routes/mainpage/index.xhtml","/index.html","/index.htm","/index.xhtml"]){
    file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
    if(file)break;
   }
+  if(!file)file=await selectYourCodeEntry(env,site.site_id);
  }
  if(!file)return{type:"site",site,server,path,error:"file_not_found"};
  const type=String(file.content_type||contentType(file.path)).split(";")[0].trim().toLowerCase();
