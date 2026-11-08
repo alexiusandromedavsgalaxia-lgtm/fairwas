@@ -4,7 +4,7 @@ The html must include all CSS in a style tag and all necessary JavaScript in scr
 function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store","access-control-allow-origin":"*","access-control-allow-headers":"content-type","access-control-allow-methods":"POST,OPTIONS"}})}
 export async function onRequestOptions(){return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-headers":"content-type","access-control-allow-methods":"POST,OPTIONS"}})}
 export async function onRequestPost({request,env}){
- const key=String(env.GROQ_API_KEY||"").trim();
+ const key=String(env.AISTUDIO_KEY||"").trim();
  if(!key)return json({ok:false,error:"ai_not_configured",detail:"The server-side GROQ_API_KEY secret is not configured."},503);
  const length=Number(request.headers.get("content-length")||0);
  if(length>MAX_BODY)return json({ok:false,error:"request_too_large"},413);
