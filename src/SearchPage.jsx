@@ -12,8 +12,7 @@ export default function SearchPage({url,onNavigate}){
   const query=String(term||"").trim();if(!query)return;
   setQ(query);setLoading(true);setError("");setData(null);
   try{
-   const target="httc://html.duckduckgo.com/html/?q="+encodeURIComponent(query);
-   const response=await fetch("/api/proxy?url="+encodeURIComponent(target),{cache:"no-store"});
+   const response=await fetch("/api/search?q="+encodeURIComponent(query),{cache:"no-store"});
    if(!response.ok)throw new Error("El buscador no ha respondido (HTTP "+response.status+").");
    const html=await response.text();
    const parsed=new DOMParser().parseFromString(html,"text/html");
@@ -25,10 +24,7 @@ export default function SearchPage({url,onNavigate}){
     return {url:href,title:cleanText(link.textContent),description:cleanText(snippet?.textContent||"")};
    }).filter(item=>item&&/^https?:\/\//i.test(item.url));
    if(found.length){setData({results:found});return}
-   const instantTarget="httc://api.duckduckgo.com/?q="+encodeURIComponent(query)+"&format=json&no_html=1&skip_disambig=1";
-   const instant=await fetch("/api/proxy?url="+encodeURIComponent(instantTarget),{cache:"no-store"});
-   if(!instant.ok)throw new Error("No se han podido obtener resultados.");
-   setData(await instant.json());
+   setData({results:[]});
   }catch(e){setError(e.message||"No se han podido cargar los resultados.")}
   finally{setLoading(false)}
  }
