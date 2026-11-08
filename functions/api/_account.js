@@ -13,7 +13,7 @@ export async function ensureAccountSchema(env){
 export async function hashAccountPassword(password,saltHex=randomHex(16)){
  const salt=Uint8Array.from(saltHex.match(/.{2}/g)||[],x=>parseInt(x,16));
  const key=await crypto.subtle.importKey("raw",encoder.encode(password),"PBKDF2",false,["deriveBits"]);
- const bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt,iterations:210000,hash:"SHA-256"},key,256);
+ const bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt,iterations:100000,hash:"SHA-256"},key,256);
  return{salt:saltHex,hash:bytesToHex(new Uint8Array(bits))};
 }
 export async function verifyAccountPassword(password,salt,expected){
