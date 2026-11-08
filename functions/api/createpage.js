@@ -109,22 +109,25 @@ export async function onRequest({request,env}){
    const challengeToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,"0")).join("");
    const challengeHash=await accountSessionHash(challengeToken);
    let correct=[],options=[];
-   if(account){
-    const owned=await env.database.prepare("SELECT site_id,hostname,title FROM cp_projects WHERE developer_id=? ORDER BY RANDOM() LIMIT 30").bind(account.developer_id).all();
-    const real=(owned.results||[]).filter(x=>x.site_id&&x.hostname).slice(0,3);
-    if(real.length>0)correct=real.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)}));
+   if(!account)return json({ok:false,error:"recovery_projects_unavailable",detail:"No se ha podido preparar la comprobación para esa cuenta. Comprueba el correo o contacta con soporte de Fairwas."},404);
+   const ownedRows=await env.database.prepare("SELECT site_id,hostname,title FROM cp_projects WHERE developer_id=? ORDER BY created_at DESC").bind(account.developer_id).all();
+   const ownedSites=[];
+   for(const project of ownedRows.results||[]){
+    const site=await env.pages.prepare("SELECT site_id,hostname,title FROM sites WHERE site_id=? LIMIT 1").bind(project.site_id).first();
+    if(site&&site.site_id&&site.hostname)ownedSites.push(site);
    }
+   if(ownedSites.length<3)return json({ok:false,error:"recovery_projects_unavailable",detail:"Esta cuenta necesita al menos tres sitios reales registrados en Fairwas para utilizar esta recuperación."},400);
+   const real=ownedSites.slice().sort(()=>Math.random()-.5).slice(0,3);
+   correct=real.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)}));
    options=[...correct];
-   const fakeNames=["Aurora Studio","Pixel Garden","Northstar Labs","Velvet Canvas","Orbit Journal","Copper Cloud","Mosaic Works","Silver Meadow","Blue Lantern","Echo Atelier","Paper Moon","Nova Archive","Wildflower Pages","Amber Workshop","Quiet Horizon"];
-   const fakeDomains=["aurora-studio","pixel-garden","northstar-labs","velvet-canvas","orbit-journal","copper-cloud","mosaic-works","silver-meadow","blue-lantern","echo-atelier","paper-moon","nova-archive","wildflower-pages","amber-workshop","quiet-horizon"];
-   while(options.length<6){
-    const i=Math.floor(Math.random()*fakeNames.length);
-    const label=fakeNames.splice(i,1)[0],domain=fakeDomains.splice(i,1)[0];
-    options.push({id:crypto.randomUUID(),label:label+" · "+domain+".fair"});
-   }
+   const ownedIds=new Set(ownedSites.map(x=>x.site_id));
+   const allSites=await env.pages.prepare("SELECT site_id,hostname,title FROM sites WHERE status='published' ORDER BY RANDOM() LIMIT 100").all();
+   const decoys=(allSites.results||[]).filter(x=>x.site_id&&x.hostname&&!ownedIds.has(x.site_id)).slice(0,3);
+   if(decoys.length<3)return json({ok:false,error:"recovery_projects_unavailable",detail:"Todavía no hay suficientes sitios publicados en Fairwas para crear una comprobación válida. Inténtalo más adelante."},503);
+   options.push(...decoys.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)})));
    for(let i=options.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[options[i],options[j]]=[options[j],options[i]]}
    await env.database.prepare("INSERT INTO cp_recovery_challenges(challenge_hash,developer_id,correct_ids,expires_at,created_at) VALUES(?,?,?,?,?)").bind(challengeHash,account?.developer_id||null,JSON.stringify(correct.map(x=>x.id)),expires,stamp).run();
-   return json({ok:true,challenge_token:challengeToken,options:options.map(({id,label})=>({id,label})),required_count:correct.length||3,expires_at:expires});
+   return json({ok:true,challenge_token:challengeToken,options:options.map(({id,label})=>({id,label})),required_count:3,expires_at:expires});
   }
   if(action==="verify-recovery"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
