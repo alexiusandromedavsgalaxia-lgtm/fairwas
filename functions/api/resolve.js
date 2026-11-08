@@ -1,3 +1,4 @@
+import { handleApiFairRequest } from "./publish-site.js";
 import { rewriteCssUrls, rewriteJavaScriptImports, rewriteJavaScriptLocationRedirects, transformHtmlDocument } from "../../src/runtime/parsers.js";
 import { autoRenderFile } from "../../src/runtime/auto-render.js";
 const ALLOWED=new Set(["httc"]);
@@ -268,9 +269,9 @@ async function publishedDocument(parsed,env){
  if(!file&&requested==="/"){
   file=await selectYourCodeEntry(env,site.site_id);
  }
- // Android and other clients can navigate directly to clean SPA routes.
- // Resolve a real app shell only after checking route-specific HTML files.
- // Keep static assets and API/auth endpoints out of this fallback.
+ // Catch-all application routing: clean URLs do not need a physical HTML
+ // file for every route. Serve the published app entry and preserve the
+ // requested path, query and fragment for the client-side router.
  if(!file&&shouldFallbackToAppShell(requested)){
   for(const candidate of ["/routes/mainpage/index.html","/routes/mainpage/index.htm","/routes/mainpage/index.xhtml","/index.html","/index.htm","/index.xhtml"]){
    file=await env.pages.prepare("SELECT path,content_type,content,encoding FROM site_files WHERE site_id=? AND path=?").bind(site.site_id,candidate).first();
@@ -734,6 +735,10 @@ async function runCollectionOperation(db,scopeType,scopeId,operation,method,para
 }
 async function handleSiteApi(request,parsed,env){
  const method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method;
+ if(parsed.hostname.toLowerCase()==="api.fair"&&parsed.pathname==="/api/publish-site"){
+  const bridged=new Request("https://api.fair"+parsed.pathname+parsed.search,request.clone());
+  return handleApiFairRequest(bridged,env);
+ }
  const serviceResponse=await handlePlatformServiceApi(request,parsed,env);if(serviceResponse)return serviceResponse;
  const isApiPath=parsed.pathname.startsWith("/api/");
  if(method==="OPTIONS")return new Response(null,{status:204,headers:apiCors()});
