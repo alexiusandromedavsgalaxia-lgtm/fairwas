@@ -25,7 +25,7 @@ export const toFairwas=(input="")=>{
  const value=String(input).trim();
  if(!value)return"httc://home";
  if(directProtocolPattern.test(value))return value;
- if(/^(?:www\.)?duckduckgo\.com(?:[/:?#]|$)/i.test(value)){
+ if(/^(?:(?:www\.)?duckduckgo\.com|guglu\.com)(?:[/:?#]|$)/i.test(value)){
   try{
    const input=value.includes("://")?value:"https://"+value;
    const url=new URL(input);
