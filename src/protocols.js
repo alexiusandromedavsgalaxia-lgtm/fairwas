@@ -29,7 +29,8 @@ export const toFairwas=(input="")=>{
   try{
    const input=value.includes("://")?value:"https://"+value;
    const url=new URL(input);
-   return "httc://duckduckgo.com"+url.pathname+url.search+url.hash;
+   const host=url.hostname.toLowerCase()==="www.duckduckgo.com"?"duckduckgo.com":url.hostname.toLowerCase();
+   return "httc://"+host+url.pathname+url.search+url.hash;
   }catch{}
  }
  if(/^[a-z][a-z0-9+.-]*:\/\//i.test(value))return value;
