@@ -157,3 +157,20 @@
 .yc-app>.cp-ide{position:relative;inset:auto;min-height:calc(100vh - 68px);z-index:1}
 @media(max-width:760px){.yc-header{height:auto;min-height:64px;gap:10px;flex-wrap:wrap;padding:12px 15px}.yc-nav{order:3;width:100%;margin:0;overflow:auto}.yc-nav button{flex:1}.yc-header>.yc-new{margin-left:auto}.yc-hero{grid-template-columns:1fr;gap:5px}.yc-hero-art{min-height:215px}.yc-project-grid{grid-template-columns:1fr 1fr}.yc-section-head{align-items:flex-start;flex-direction:column}}
 @media(max-width:480px){.yc-content{padding:17px 13px}.yc-hero{padding:23px 18px}.yc-project-grid{grid-template-columns:1fr}.yc-hero h1{font-size:48px}.yc-hero-art{min-height:190px}.yc-section-head h2{font-size:21px}}
+
+
+.cp-account-wrap{min-height:100%;display:grid;place-items:center;padding:clamp(18px,5vw,56px);background:radial-gradient(ellipse at 50% 0%,#b9ef6814,transparent 55%),#0b0d10}
+.cp-account-card{width:min(100%,460px);padding:clamp(22px,4vw,36px);border:1px solid #ffffff18;border-radius:20px;background:#12161b;box-shadow:0 24px 90px #0006}
+.cp-account-mark{width:48px;height:48px;display:grid;place-items:center;margin-bottom:25px;border-radius:14px;background:#c5f77b;color:#151910;font-weight:900;font-size:18px}
+.cp-account-card>.cp-kicker{color:#b9ef68;font-size:9px;letter-spacing:.17em;font-weight:800}
+.cp-account-card h1{margin:10px 0 8px;color:#f5f7fa;font-size:clamp(28px,5vw,38px);letter-spacing:-.055em}
+.cp-account-card>p{margin:0 0 24px;color:#9ba4b1;font-size:13px;line-height:1.65}
+.cp-account-card form{display:grid;gap:13px}
+.cp-account-card label{display:grid;gap:7px;color:#c8ced8;font-size:11px;font-weight:650}
+.cp-account-card input{width:100%;min-width:0;padding:12px 13px;border:1px solid #ffffff1b;border-radius:9px;background:#0b0e12;color:#f4f6f9;font:inherit;font-size:13px;outline:none}
+.cp-account-card input:focus{border-color:#b9ef68aa;box-shadow:0 0 0 3px #b9ef6818}
+.cp-account-card form>.cp-primary{width:100%;min-height:44px;margin-top:5px}
+.cp-account-hint{color:#929ba8;font-size:10px;line-height:1.5}
+.cp-account-switch{margin-top:20px;padding-top:17px;border-top:1px solid #ffffff12;color:#aab2be;text-align:center;font-size:11px}
+.cp-account-switch button{border:0;background:none;color:#c5f77b;font:inherit;font-weight:750;cursor:pointer}
+.cp-side-foot button{display:block;margin-top:10px;padding:7px 9px;border:1px solid #ffffff1c;border-radius:8px;background:#ffffff08;color:#cbd2dc;font-size:10px;cursor:pointer}
