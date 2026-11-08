@@ -1,6 +1,6 @@
 import React,{useEffect,useState}from"react";
 
-const cleanText=value=>String(value||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\\s+/g," ").trim();
+const cleanText=value=>String(value||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 const toHttc=value=>{try{const u=new URL(value);return "httc://"+u.host+u.pathname+u.search+u.hash}catch{return ""}};
 function collectTopics(items,out=[]){for(const item of items||[]){if(item.FirstURL&&item.Text)out.push({url:item.FirstURL,title:cleanText(item.Text.split(" - ")[0]),description:cleanText(item.Text)});if(item.Topics)collectTopics(item.Topics,out)}return out}
 export default function SearchPage({url,onNavigate}){
