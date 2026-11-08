@@ -30,7 +30,7 @@ The API verifies ownership against the signed-in Fairwas account. A user cannot 
 
 Use **Save draft** in the editor. Drafts are stored in the current browser's local storage under `fairwas:aistudio:drafts:v1`. They can be reopened from **My sites** and edited again.
 
-Important: these AI Studio drafts are device/browser-local. They are not cloud backups and do not automatically synchronize between devices. A draft does not change the live published site.
+Important: these AI Studio drafts are device/browser-local. They are not cloud backups and do not automatically synchronize between devices. A draft does not change the live published site. From **My sites**, you can also retire a currently published site. An unpublished site can be reopened, edited, and published again.
 
 ## Publish a new site
 
@@ -48,6 +48,12 @@ Free-plan AI Studio addresses use the `.aistudio.fair` suffix. Fairwas HTTC addr
 - **Subdomain:** the internal Fairwas hostname. It must be valid and available.
 - **Contact email:** text to include in the generated page where relevant. This does not create a mailbox or configure DNS email records.
 - **Description:** a short summary of the website.
+- **Language:** the language the generated page should use.
+- **Accent color:** the preferred primary color.
+- **SEO title and description:** metadata guidance for search previews.
+- **Favicon URL:** a public icon URL.
+- **Social preview image:** a public Open Graph image URL.
+- **Additional CSS instructions:** visual styling guidance for the generator.
 
 Do not publish private contact details or personal information unless you intend them to be public.
 
