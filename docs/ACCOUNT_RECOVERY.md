@@ -1,23 +1,22 @@
 # Recuperación de contraseña de CreatePage
 
-CreatePage permite solicitar un enlace de recuperación desde «He olvidado mi contraseña» en el formulario de inicio de sesión.
+La recuperación se realiza íntegramente en la web, sin correo electrónico ni servicios externos de pago.
 
-## Configuración necesaria en Cloudflare Pages
+## Funcionamiento
 
-El backend envía los mensajes mediante la API de Resend. Configura estos secretos/variables en el proyecto de Cloudflare Pages para cada entorno que vaya a enviar correos:
+1. En «He olvidado mi contraseña», se introduce el correo asociado a la cuenta.
+2. CreatePage presenta seis opciones de proyectos: tres pertenecen a la cuenta y tres son opciones ficticias.
+3. La persona selecciona exactamente los tres proyectos reales.
+4. Si la comprobación es correcta, puede establecer una contraseña nueva directamente en la web.
 
-- `RESEND_API_KEY`: API key privada de Resend. Guárdala como **secret**, nunca en el frontend ni en Git.
-- `MAIL_FROM`: remitente verificado en Resend, por ejemplo `CreatePage <cuentas@tu-dominio-verificado.example>`. Sustituye el ejemplo por una dirección de un dominio que hayas verificado en Resend.
+## Protección
 
-No compartas la API key en el repositorio ni en conversaciones. Tras guardar los secretos, vuelve a desplegar Pages para que las Functions reciban las variables.
-
-## Funcionamiento y seguridad
-
-- Los enlaces se generan con 256 bits aleatorios y solo se almacena su hash en D1.
-- Cada enlace caduca a los 30 minutos y solo puede utilizarse una vez.
+- Los desafíos se generan en el servidor y se almacenan mediante un hash del token.
+- Cada desafío caduca a los 10 minutos y permite como máximo tres intentos.
+- Solo se guardan los identificadores de las respuestas correctas, no se confía en las respuestas enviadas por el navegador.
+- El permiso para cambiar la contraseña es un token aleatorio de un solo uso que caduca a los 10 minutos.
 - Al cambiar la contraseña se invalidan las sesiones anteriores y se crea una sesión nueva.
-- Se limita la emisión a tres solicitudes por cuenta cada 15 minutos.
-- La respuesta de solicitud no confirma si una dirección está registrada.
-- Si falta la configuración de correo o Resend rechaza el envío, la API devuelve un error de configuración/entrega; no cambia la contraseña.
+- La API no revela si el correo está registrado: las opciones falsas también se muestran cuando no existe una cuenta recuperable.
+- No requiere Resend, claves API de correo ni variables de configuración de correo.
 
-La URL de retorno es `https://createpage.fair/registry?reset_token=...`.
+**Nota:** para utilizar este método, la cuenta debe tener al menos tres proyectos registrados en CreatePage.
