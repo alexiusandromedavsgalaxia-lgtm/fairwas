@@ -76,3 +76,24 @@ The preview uses a sandboxed iframe and is intended for reviewing the generated 
 - **Draft missing on another device:** drafts are currently stored only in the browser where they were saved.
 - **Published page did not change:** confirm the update succeeded and reload the site in Fairwas.
 
+
+
+## Live calendar database
+
+The calendar uses the Cloudflare D1 binding named `calendar`, configured in `wrangler.toml` and backed by the database `calendar_and_events_and_credits`.
+
+The endpoint is `/api/calendar`:
+
+- `GET /api/calendar?action=events` lists scheduled events and registration counts.
+- `GET /api/calendar?action=credits` returns the signed-in developer's credit balance and ledger.
+- `GET /api/calendar?action=my-events` lists the signed-in developer's registrations.
+- `POST /api/calendar?action=register` registers the signed-in user for an event.
+- `POST /api/calendar?action=cancel` cancels that user's registration.
+- `POST /api/calendar?action=create` creates an event, requires the server secret `CALENDAR_ADMIN_KEY`, and enforces the six-events-per-half-hour limit.
+- `POST /api/calendar?action=verify-attendance` verifies a registration and grants its event credits exactly once. It also requires `CALENDAR_ADMIN_KEY`.
+
+On first request, the endpoint creates its tables and seeds 192 scheduled activities: four days, eight half-hour slots per day, and six events per slot. Each event lasts 30 minutes. The dates are generated relative to the current Europe/Madrid date.
+
+Set `CALENDAR_ADMIN_KEY` as a Cloudflare Pages secret before using administrative event creation or attendance verification. Never expose this secret in frontend code. Registration alone never awards credits. The credit ledger uses a unique developer/event constraint to prevent duplicate awards.
+
+The database schema is initialized lazily by the API. Back up the D1 database before manually changing or deleting event and credit records.
