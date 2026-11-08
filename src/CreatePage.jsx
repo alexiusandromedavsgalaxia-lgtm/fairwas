@@ -111,7 +111,7 @@ function Workspace({path,onNavigate,yourCode=false}){
  const effectivePath=yourCode?"/ide":privatePath&&!hasAccount?"/registry":routePath;
  const editorSiteId=new URLSearchParams(path.split("?")[1]||"").get("site_id")||"";
  const page=loading?<div className="cp-card cp-empty">Comprobando tu cuenta…</div>:
-  !hasAccount?<AccountGate onDone={async()=>{await reload();navigate("/",onNavigate)}}/>:
+  !hasAccount?<AccountGate onDone={async()=>{await reload();if(yourCode)onNavigate?.("httc://yourcode.official/");else navigate("/",onNavigate)}}/>:
   effectivePath==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers} onNavigate={onNavigate}/>:
   effectivePath==="/init"?<Init onDone={reload}/>:
   effectivePath==="/editor"?<Studio onNavigate={onNavigate} onDone={reload}/>:
