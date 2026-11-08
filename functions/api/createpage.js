@@ -115,7 +115,12 @@ export async function onRequest({request,env}){
    const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
    const email=String(parsed.value.email||"").trim().toLowerCase();
    if(!email||email.length>254||!email.includes("@"))return json({ok:false,error:"invalid_email"},400);
-   const account=await env.database.prepare("SELECT developer_id FROM cp_accounts WHERE email=? COLLATE NOCASE AND status='active' LIMIT 1").bind(email).first();
+   let account=await env.database.prepare("SELECT developer_id FROM cp_accounts WHERE email=? COLLATE NOCASE AND status='active' LIMIT 1").bind(email).first();
+   // Older Fairwas accounts may have their email only in the legacy users D1.
+   if(!account){
+    const legacy=await env.users.prepare("SELECT developer_id FROM users WHERE email=? COLLATE NOCASE AND status='active' LIMIT 1").bind(email).first();
+    if(legacy?.developer_id)account={developer_id:legacy.developer_id};
+   }
    const stamp=now(),expires=new Date(Date.now()+10*60*1000).toISOString();
    const challengeToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,"0")).join("");
    const challengeHash=await accountSessionHash(challengeToken);
@@ -197,11 +202,23 @@ export async function onRequest({request,env}){
    const tokenHash=await accountSessionHash(token),reset=await env.database.prepare("SELECT developer_id,expires_at,used_at FROM cp_password_resets WHERE token_hash=? LIMIT 1").bind(tokenHash).first();
    if(!reset||reset.used_at||Date.parse(reset.expires_at)<=Date.now())return json({ok:false,error:"invalid_or_expired_reset_link",detail:"La comprobación no es válida o ha caducado. Vuelve a empezar."},400);
    const credentials=await hashAccountPassword(password),stamp=now();
-   await env.database.batch([
-    env.database.prepare("UPDATE cp_accounts SET password_salt=?,password_hash=?,updated_at=? WHERE developer_id=?").bind(credentials.salt,credentials.hash,stamp,reset.developer_id),
-    env.database.prepare("UPDATE cp_password_resets SET used_at=? WHERE token_hash=? AND used_at IS NULL").bind(stamp,tokenHash),
-    env.database.prepare("DELETE FROM cp_sessions WHERE developer_id=?").bind(reset.developer_id)
-   ]);
+   const existingAccount=await env.database.prepare("SELECT developer_id FROM cp_accounts WHERE developer_id=? LIMIT 1").bind(reset.developer_id).first();
+   if(existingAccount){
+    await env.database.batch([
+     env.database.prepare("UPDATE cp_accounts SET password_salt=?,password_hash=?,updated_at=? WHERE developer_id=?").bind(credentials.salt,credentials.hash,stamp,reset.developer_id),
+     env.database.prepare("UPDATE cp_password_resets SET used_at=? WHERE token_hash=? AND used_at IS NULL").bind(stamp,tokenHash),
+     env.database.prepare("DELETE FROM cp_sessions WHERE developer_id=?").bind(reset.developer_id)
+    ]);
+   }else{
+    const legacy=await env.users.prepare("SELECT email,display_name FROM users WHERE developer_id=? AND status='active' LIMIT 1").bind(reset.developer_id).first();
+    if(!legacy?.email)return json({ok:false,error:"legacy_account_unavailable",detail:"No se ha podido recuperar el correo de la cuenta antigua."},404);
+    await env.database.batch([
+     env.database.prepare("INSERT INTO cp_accounts(developer_id,email,display_name,password_salt,password_hash,status,created_at,updated_at) VALUES(?,?,?,?,?,'active',?,?)").bind(reset.developer_id,String(legacy.email).trim().toLowerCase(),String(legacy.display_name||"Fairwas user"),credentials.salt,credentials.hash,stamp,stamp),
+     env.database.prepare("INSERT INTO cp_account_profiles(developer_id,display_name,updated_at) VALUES(?,?,?) ON CONFLICT(developer_id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at").bind(reset.developer_id,String(legacy.display_name||"Fairwas user"),stamp),
+     env.database.prepare("UPDATE cp_password_resets SET used_at=? WHERE token_hash=? AND used_at IS NULL").bind(stamp,tokenHash),
+     env.database.prepare("DELETE FROM cp_sessions WHERE developer_id=?").bind(reset.developer_id)
+    ]);
+   }
    const session=await createAccountSession(env,reset.developer_id);
    return json({ok:true,token:session.token,expires_at:session.expires_at});
   }
