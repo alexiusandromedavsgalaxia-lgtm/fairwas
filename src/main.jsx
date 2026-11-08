@@ -8,6 +8,7 @@ import YourCode from"./YourCode";
 import SearchPage from"./SearchPage";
 import Macrospot from"./Macrospot";
 import ApiFair from"./ApiFair";
+import AiStudio from"./AiStudio";
 
 const home="httc://home";
 const makeNav=tab=>({...tab,back:tab.back||[],forward:tab.forward||[]});
@@ -36,6 +37,7 @@ function App(){
  const isSearch=currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com";
  const isMacrospot=currentHost==="macrospot"||currentHost==="macrospot.com"||currentHost==="www.macrospot.com"||currentHost==="app.macrospot.com";
  const isApiFair=currentHost==="api.fair"||currentHost==="docs.api.fair";
+ const isAiStudio=currentHost==="aistudio.fairwas.com"||currentHost==="aistudio.fair";
  const isYourCode=currentHost==="yourcode.official"||currentHost==="yourcode.createpage.fair";
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
 
@@ -43,7 +45,7 @@ function App(){
  useEffect(()=>{
   let hostname="";
   try{const parsed=new URL(tab?.url||"");if(parsed.protocol==="httc:")hostname=parsed.hostname.toLowerCase()}catch{}
-  if(!hostname||["home","search","duckduckgo.com","www.duckduckgo.com","guglu.com","macrospot","macrospot.com","www.macrospot.com","app.macrospot.com","api.fair","docs.api.fair","createpage.fair","docs.createpage.fair","yourcode.official","yourcode.createpage.fair"].includes(hostname))return;
+  if(!hostname||["home","search","duckduckgo.com","www.duckduckgo.com","guglu.com","macrospot","macrospot.com","www.macrospot.com","app.macrospot.com","api.fair","docs.api.fair","aistudio.fairwas.com","aistudio.fair","createpage.fair","docs.createpage.fair","yourcode.official","yourcode.createpage.fair"].includes(hostname))return;
   let token="";
   try{token=localStorage.getItem("fairwas:createpage:session")||""}catch{}
   if(!token)return;
@@ -184,12 +186,13 @@ function TabView({tab,active,navigate,history,bookmarks}){
  const isSearch=currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com";
  const isMacrospot=currentHost==="macrospot"||currentHost==="macrospot.com"||currentHost==="www.macrospot.com"||currentHost==="app.macrospot.com";
  const isApiFair=currentHost==="api.fair"||currentHost==="docs.api.fair";
+ const isAiStudio=currentHost==="aistudio.fairwas.com"||currentHost==="aistudio.fair";
  const isYourCode=currentHost==="yourcode.official"||currentHost==="yourcode.createpage.fair";
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
  useEffect(()=>{
   let cancelled=false;
   setResolved(null);setResolveError(null);
-  if(documentUrl===home||isMacrospot||isApiFair||(currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com")||!protocolFor(documentUrl))return;
+  if(documentUrl===home||isMacrospot||isApiFair||isAiStudio||(currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com")||!protocolFor(documentUrl))return;
   (async()=>{
    const requestResolve=async url=>{
     const controller=new AbortController();
@@ -214,7 +217,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
  },[tab.id,documentUrl,tab.reloadToken]);
  if(!active)return null;
  return <div className="tab-view">
-  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isSearch?<SearchPage url={tab.url} onNavigate={navigate}/>:isYourCode?<YourCode url={tab.url} onNavigate={navigate}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:isMacrospot?<Macrospot url={tab.url} onNavigate={navigate}/>:isApiFair?<ApiFair url={tab.url} onNavigate={navigate}/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate} retry={()=>setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1}:x))}/>:null}
+  {tab.url===home?<Home navigate={navigate} history={history} bookmarks={bookmarks}/>:isSearch?<SearchPage url={tab.url} onNavigate={navigate}/>:isYourCode?<YourCode url={tab.url} onNavigate={navigate}/>:isCreatePage?<CreatePage url={tab.url} onNavigate={navigate}/>:isMacrospot?<Macrospot url={tab.url} onNavigate={navigate}/>:isApiFair?<ApiFair url={tab.url} onNavigate={navigate}/>:isAiStudio?<AiStudio/>:active?<ProtocolPage tab={{...tab,documentUrl}} scheme={scheme} resolved={resolved} resolveError={resolveError} navigate={navigate} retry={()=>setTabs(t=>t.map((x,i)=>i===active&&x.id===tab.id?{...x,reloadToken:(x.reloadToken||0)+1}:x))}/>:null}
  </div>
 }
 
