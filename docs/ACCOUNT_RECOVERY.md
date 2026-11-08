@@ -5,8 +5,8 @@ La recuperación se realiza íntegramente en la web, sin correo electrónico ni 
 ## Funcionamiento
 
 1. En «He olvidado mi contraseña», se introduce el correo asociado a la cuenta.
-2. CreatePage presenta seis opciones de proyectos: tres pertenecen a la cuenta y tres son opciones ficticias.
-3. La persona selecciona exactamente los tres proyectos reales.
+2. CreatePage presenta seis opciones de proyectos: hasta tres pertenecen a la cuenta y las demás son opciones ficticias.
+3. La persona selecciona los proyectos reales indicados en pantalla. Si la cuenta tiene tres o más proyectos, debe seleccionar tres.
 4. Si la comprobación es correcta, puede establecer una contraseña nueva directamente en la web.
 
 ## Protección
@@ -19,4 +19,3 @@ La recuperación se realiza íntegramente en la web, sin correo electrónico ni 
 - La API no revela si el correo está registrado: las opciones falsas también se muestran cuando no existe una cuenta recuperable.
 - No requiere Resend, claves API de correo ni variables de configuración de correo.
 
-**Nota:** para utilizar este método, la cuenta debe tener al menos tres proyectos registrados en CreatePage.
