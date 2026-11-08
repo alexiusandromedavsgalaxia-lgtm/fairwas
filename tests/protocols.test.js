@@ -80,3 +80,9 @@ test("DuckDuckGo and Guglu open their own integrated search engines", () => {
   assert.equal(toFairwas("https://guglu.com/?q=cafe"), "httc://guglu.com/?q=cafe");
   assert.equal(toFairwas("https://duckduckgo.com/?q=cafe"), "httc://duckduckgo.com/?q=cafe");
 });
+
+test("Macrospot domains open the integrated workspace", () => {
+  assert.equal(toFairwas("macrospot.com"), "httc://macrospot.com/");
+  assert.equal(toFairwas("https://macrospot.com/teams"), "httc://macrospot.com/teams");
+  assert.equal(toFairwas("https://app.macrospot.com"), "httc://app.macrospot.com/");
+});
