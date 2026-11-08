@@ -17,7 +17,6 @@ export async function onRequest({request,env}){
   const siteId=String(url.searchParams.get("site_id")||"").trim();
   if(!siteId)return json({ok:false,error:"site_id_required"},400);
   const project=await env.database.prepare("SELECT site_id,hostname,developer_id FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first();
-  const developer=developer;
   if(!project)return json({ok:false,error:"site_not_found"},404);
   if(!developer||project.developer_id!==developer.developer_id)return json({ok:false,error:"site_not_owned"},403);
   const rows=await env.database.prepare("SELECT id,site_id,hostname,name,path,method,response_status,response_json,enabled,created_at,updated_at FROM fw_api_endpoints WHERE site_id=? ORDER BY created_at DESC").bind(siteId).all();
