@@ -174,6 +174,7 @@ function TabView({tab,active,navigate,history,bookmarks}){
  const currentHost=hostOf(tab.url).toLowerCase();
  const isSearch=currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com";
  const isMacrospot=currentHost==="macrospot"||currentHost==="macrospot.com"||currentHost==="www.macrospot.com"||currentHost==="app.macrospot.com";
+ const isApiFair=currentHost==="api.fair"||currentHost==="docs.api.fair";
  const isYourCode=currentHost==="yourcode.official"||currentHost==="yourcode.createpage.fair";
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
  useEffect(()=>{
