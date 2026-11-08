@@ -77,7 +77,7 @@ function Layout({path,children,hasAccount,onNavigate}){
   <aside className="cp-side">
    <div className="cp-brand"><span>CP</span><div><b>CreatePage</b><small>HTTC workspace</small></div></div>
    <nav>{routes.map(([p,label])=><button key={p} className={path===p?"active":""} onClick={()=>go(p)}>{label}</button>)}<button onClick={()=>onNavigate?.("httc://yourcode.createpage.fair")}>YourCode ↗</button></nav>
-   <div className="cp-side-foot">{hasAccount?"Cuenta personal activa":"Necesitas una cuenta"}<br/><b>HTTC · Pages · Server · Database</b>{hasAccount&&<button type="button" onClick={async()=>{try{await api("logout");await onNavigate?.("httc://createpage.fair/")}catch(e){alert(e.message)}}}>Cerrar sesión</button>}</div>
+   <div className="cp-side-foot">{hasAccount?"Cuenta personal activa":"Necesitas una cuenta"}<br/><b>HTTC · Pages · Server · Database</b>{hasAccount&&<button type="button" onClick={async()=>{try{await api("logout");window.dispatchEvent(new CustomEvent("fairwas:createpage-reload"));await onNavigate?.("httc://createpage.fair/")}catch(e){alert(e.message)}}}>Cerrar sesión</button>}</div>
   </aside>
   <div className="cp-content">{children}</div>
  </section>
