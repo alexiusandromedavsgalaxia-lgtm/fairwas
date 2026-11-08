@@ -61,7 +61,7 @@ export default function SearchPage({url,onNavigate}){
       {!data.results?.length&&<p style={{color:colors.sub}}>No se han encontrado resultados para «{data.query}».</p>}
       {data.hasMore&&<div style={{display:"flex",gap:10,marginTop:28}}>{data.page>0&&<button onClick={()=>goPage(data.page-1)} style={buttonStyle(colors)}>← Anterior</button>}<button onClick={()=>goPage(data.page+1)} style={buttonStyle(colors)}>Siguiente →</button></div>}
      </section>
-     <aside style={{borderLeft:"1px solid "+colors.line,paddingLeft:22,color:colors.sub,fontSize:13}}>
+     <aside style={{borderLeft:typeof window!=="undefined"&&window.innerWidth>900?"1px solid "+colors.line:"0",borderTop:typeof window!=="undefined"&&window.innerWidth<=900?"1px solid "+colors.line:"0",paddingLeft:typeof window!=="undefined"&&window.innerWidth>900?22:0,paddingTop:typeof window!=="undefined"&&window.innerWidth<=900?18:0,color:colors.sub,fontSize:13}}>
       <b style={{color:colors.text,fontSize:15}}>{google?"Guglu":"DuckDuckGo"} Search</b>
       <p>Resultados web para <b style={{color:colors.text}}>{data.query}</b>.</p>
       <p>Proveedor: {google?"Google":"DuckDuckGo"} · página {data.page+1}</p>
