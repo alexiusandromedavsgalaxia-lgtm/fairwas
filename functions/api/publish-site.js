@@ -26,7 +26,7 @@ export function evaluatePublishManifest(source,requestedDomain,plan="Free"){
   domain=template.replace(/\(name-web\)/gi,name+"-web").replace(/\(name\)/gi,name).toLowerCase();
  }
  if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain))return{ok:false,error:"invalid_domain"};
- if(String(plan).toLowerCase()==="free"&&!domain.endsWith(".plataforma.app"))return{ok:false,error:"free_plan_domain_required",required_suffix:".plataforma.app"};
+ if(String(plan).toLowerCase()==="free"&&!domain.endsWith(".aistudio.fair"))return{ok:false,error:"free_plan_domain_required",required_suffix:".aistudio.fair"};
  return{ok:true,domain,plan};
 }
 async function ownerForKey(request,env){
