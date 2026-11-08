@@ -23,7 +23,7 @@ export default function SearchPage({url,onNavigate}){
     let href=link.getAttribute("href")||"";
     try{const wrapped=new URL(href,"https://html.duckduckgo.com");href=wrapped.searchParams.get("uddg")||wrapped.href}catch{}
     return {url:href,title:cleanText(link.textContent),description:cleanText(snippet?.textContent||"")};
-   }).filter(item=>item&&/^https?:\\/\\//i.test(item.url));
+   }).filter(item=>item&&/^https?:\/\//i.test(item.url));
    if(found.length){setData({results:found});return}
    const instantTarget="httc://api.duckduckgo.com/?q="+encodeURIComponent(query)+"&format=json&no_html=1&skip_disambig=1";
    const instant=await fetch("/api/proxy?url="+encodeURIComponent(instantTarget),{cache:"no-store"});
