@@ -10,6 +10,8 @@ async function schema(env){
   env.database.prepare("CREATE INDEX IF NOT EXISTS idx_fw_api_keys_owner ON fw_api_keys(developer_id)")
  ]);
  await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_api_manifests (developer_id TEXT PRIMARY KEY,manifest TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+ const accountColumns=await env.database.prepare("PRAGMA table_info(cp_accounts)").all();
+ if(!(accountColumns.results||[]).some(column=>column.name==="plan"))await env.database.prepare("ALTER TABLE cp_accounts ADD COLUMN plan TEXT NOT NULL DEFAULT 'Free'").run();
  await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_api_projects (site_id TEXT PRIMARY KEY,developer_id TEXT NOT NULL,hostname TEXT NOT NULL,manifest TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL)").run();
 }
 export function evaluatePublishManifest(source,requestedDomain,plan="Free"){
