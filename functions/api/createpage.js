@@ -64,9 +64,13 @@ async function ensureProjectSchema(env){
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_page_databases (id TEXT PRIMARY KEY,site_id TEXT NOT NULL,name TEXT NOT NULL,engine TEXT NOT NULL DEFAULT 'SQLite',status TEXT NOT NULL DEFAULT 'ready',created_at TEXT NOT NULL,UNIQUE(site_id,name))"),
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_profiles (id INTEGER PRIMARY KEY CHECK(id=1),display_name TEXT NOT NULL DEFAULT 'Fairwas user',updated_at TEXT NOT NULL)"),
   env.database.prepare("CREATE TABLE IF NOT EXISTS cp_workers (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT,name TEXT NOT NULL,script TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'draft',updated_at TEXT NOT NULL)"),
-  env.database.prepare("CREATE TABLE IF NOT EXISTS cp_docs (id TEXT PRIMARY KEY,title TEXT NOT NULL,content TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL)")
+  env.database.prepare("CREATE TABLE IF NOT EXISTS cp_docs (id TEXT PRIMARY KEY,title TEXT NOT NULL,content TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL,developer_id TEXT)")
  ]);
  await env.users.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY,developer_id TEXT UNIQUE,display_name TEXT NOT NULL,email TEXT,status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+ const docColumns=await env.database.prepare("PRAGMA table_info(cp_docs)").all();
+ if(!(docColumns.results||[]).some(column=>column.name==="developer_id"))await env.database.prepare("ALTER TABLE cp_docs ADD COLUMN developer_id TEXT").run();
+ const legacyOwner=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+ if(legacyOwner)await env.database.prepare("UPDATE cp_docs SET developer_id=? WHERE developer_id IS NULL").bind(legacyOwner.developer_id).run();
  await env.pages.batch([
   env.pages.prepare("CREATE TABLE IF NOT EXISTS sites (site_id TEXT PRIMARY KEY,hostname TEXT NOT NULL UNIQUE,protocol TEXT NOT NULL DEFAULT 'httc',title TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',logo_url TEXT,framework TEXT,language TEXT,backend TEXT,runtime TEXT,database_type TEXT,status TEXT NOT NULL DEFAULT 'draft',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"),
   env.pages.prepare("CREATE TABLE IF NOT EXISTS site_files (id INTEGER PRIMARY KEY AUTOINCREMENT,site_id TEXT NOT NULL,path TEXT NOT NULL,content_type TEXT NOT NULL,content TEXT NOT NULL,encoding TEXT,updated_at TEXT NOT NULL,UNIQUE(site_id,path))")
@@ -266,7 +270,7 @@ export async function onRequest({request,env}){
   }
 
   if(action==="docs"){
-   const r=await env.database.prepare("SELECT id,title,updated_at FROM cp_docs ORDER BY updated_at DESC").all();
+   const r=await env.database.prepare("SELECT id,title,updated_at FROM cp_docs WHERE developer_id=? ORDER BY updated_at DESC").bind(account.developer_id).all();
    return json({ok:true,items:r.results||[]});
   }
 
