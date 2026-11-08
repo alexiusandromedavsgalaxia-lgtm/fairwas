@@ -56,14 +56,17 @@ test("documentPathCandidates handles directory URLs and keeps file extensions", 
   assert.deepEqual(documentPathCandidates("/loqsea/page.html"), ["/loqsea/page.html"]);
 });
 
-test("dynamic SPA routes fall back while assets and API paths do not", () => {
-  assert.deepEqual(documentPathCandidates("/users/john.doe"), ["/users/john.doe", "/users/john.doe/index.html", "/users/john.doe/index.htm", "/users/john.doe/index.xhtml", "/users/john.doe.html", "/users/john.doe.htm"]);
+test("dynamic multi-segment routes use the app shell without route HTML files", () => {
+  assert.deepEqual(documentPathCandidates("/loqsea"), ["/loqsea", "/loqsea/index.html", "/loqsea/index.htm", "/loqsea/index.xhtml", "/loqsea.html", "/loqsea.htm"]);
+  assert.deepEqual(documentPathCandidates("/users/42/profile/settings"), ["/users/42/profile/settings", "/users/42/profile/settings/index.html", "/users/42/profile/settings/index.htm", "/users/42/profile/settings/index.xhtml", "/users/42/profile/settings.html", "/users/42/profile/settings.htm"]);
   assert.equal(shouldFallbackToAppShell("/illustratin"), true);
-  assert.equal(shouldFallbackToAppShell("/users/john.doe"), true);
-  assert.equal(shouldFallbackToAppShell("/assets/app.js"), false);
+  assert.equal(shouldFallbackToAppShell("/users/42/profile/settings"), true);
+  assert.equal(shouldFallbackToAppShell("/products/123/reviews?sort=latest#top"), true);
+  assert.equal(shouldFallbackToAppShell("/users/john.doe/profile"), true);
+  assert.equal(shouldFallbackToAppShell("/assets/app.js?v=2"), false);
   assert.equal(shouldFallbackToAppShell("/images/missing.png"), false);
-  assert.equal(shouldFallbackToAppShell("/api/users"), false);
-  assert.equal(shouldFallbackToAppShell("/auth/login"), false);
+  assert.equal(shouldFallbackToAppShell("/api/users/42"), false);
+  assert.equal(shouldFallbackToAppShell("/auth/session"), false);
 });
 
 test("rewriteLocationRedirects bridges runtime location redirects", () => {
