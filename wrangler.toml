@@ -32,3 +32,8 @@ binding = "songsave"
 database_name = "songsave"
 database_id = "f2c1d0f0-2ed8-4844-8cd6-0324859beccf"
 preview_database_id = "songsave"
+[[d1_databases]]
+binding="calendar"
+database_name="calendar_and_events_and_credits"
+database_id="68e705c7-b95d-4e6e-a2b9-d1df69ff649e"
+preview_database_id="calendar_and_events_and_credits"
