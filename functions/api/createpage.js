@@ -394,7 +394,15 @@ export async function onRequest({request,env}){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
    const siteId=String(b.site_id||"").trim();
-   const hostname=String(b.hostname||"").trim().toLowerCase();
+   let hostname=String(b.hostname||"").trim().toLowerCase();
+   const publishManifest=String(b.manifest||"");
+   const planRow=await env.database.prepare("SELECT plan FROM cp_accounts WHERE developer_id=?").bind(account.developer_id).first();
+   const plan=planRow?.plan||"Free";
+   const manifestRule=publishManifest.match(/if\\s+UserPlan\\s*=\\s*([A-Za-z0-9_-]+)\\s+put\\s+domain\\s+["']([^"']+)["']/i);
+   if(/getData\\s*\\*\\s*UserPlan/i.test(publishManifest)&&manifestRule&&plan.toLowerCase()===manifestRule[1].toLowerCase()){
+    const name=hostname.split(".")[0].normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,45);
+    hostname=manifestRule[2].replace(/\\(name-web\\)/gi,name+"-web").replace(/\\(name\\)/gi,name).toLowerCase();
+   }
    const developer=account;
    if(!developer)return json({ok:false,error:"developer_not_registered"},403);
    const project=siteId?await env.database.prepare("SELECT * FROM cp_projects WHERE site_id=? LIMIT 1").bind(siteId).first():await env.database.prepare("SELECT * FROM cp_projects WHERE hostname=? LIMIT 1").bind(hostname).first();
