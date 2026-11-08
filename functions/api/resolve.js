@@ -1,3 +1,4 @@
+import { handleApiFairRequest } from "./publish-site.js";
 import { rewriteCssUrls, rewriteJavaScriptImports, rewriteJavaScriptLocationRedirects, transformHtmlDocument } from "../../src/runtime/parsers.js";
 import { autoRenderFile } from "../../src/runtime/auto-render.js";
 const ALLOWED=new Set(["httc"]);
@@ -734,6 +735,10 @@ async function runCollectionOperation(db,scopeType,scopeId,operation,method,para
 }
 async function handleSiteApi(request,parsed,env){
  const method=request.method.toUpperCase(),lookupMethod=method==="HEAD"?"GET":method;
+ if(parsed.hostname.toLowerCase()==="api.fair"&&parsed.pathname==="/api/publish-site"){
+  const bridged=new Request("https://api.fair"+parsed.pathname+parsed.search,request.clone());
+  return handleApiFairRequest(bridged,env);
+ }
  const serviceResponse=await handlePlatformServiceApi(request,parsed,env);if(serviceResponse)return serviceResponse;
  const isApiPath=parsed.pathname.startsWith("/api/");
  if(method==="OPTIONS")return new Response(null,{status:204,headers:apiCors()});
