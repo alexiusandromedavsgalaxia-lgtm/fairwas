@@ -31,7 +31,7 @@ function App(){
  const tab=tabs[active]||tabs[tabs.length-1]||makeTab();
  const scheme=protocolFor(tab.url);
  const currentHost=hostOf(tab.url).toLowerCase();
- const isSearch=currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com";
+ const isSearch=currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com";
  const isYourCode=currentHost==="yourcode.official"||currentHost==="yourcode.createpage.fair";
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
 
@@ -170,13 +170,13 @@ function TabView({tab,active,navigate,history,bookmarks}){
  const documentUrl=tab.documentUrl||tab.url;
   const scheme=protocolFor(tab.url);
  const currentHost=hostOf(tab.url).toLowerCase();
- const isSearch=currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com";
+ const isSearch=currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com";
  const isYourCode=currentHost==="yourcode.official"||currentHost==="yourcode.createpage.fair";
  const isCreatePage=currentHost==="createpage.fair"||currentHost==="docs.createpage.fair";
  useEffect(()=>{
   let cancelled=false;
   setResolved(null);setResolveError(null);
-  if(documentUrl===home||(currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com")||!protocolFor(documentUrl))return;
+  if(documentUrl===home||(currentHost==="search"||currentHost==="duckduckgo.com"||currentHost==="www.duckduckgo.com"||currentHost==="guglu.com")||!protocolFor(documentUrl))return;
   (async()=>{
    const requestResolve=async url=>{
     const controller=new AbortController();
