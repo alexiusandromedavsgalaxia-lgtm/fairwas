@@ -586,7 +586,7 @@ export async function onRequest({request,env}){
      env.pages.prepare("DELETE FROM site_files WHERE site_id=?").bind(resolvedId),
      ...normalized.map(f=>env.pages.prepare("INSERT INTO site_files(site_id,path,content_type,content,encoding,updated_at) VALUES(?,?,?,?,?,?)").bind(resolvedId,f.path,f.content_type,String(f.content||""),f.encoding||null,stamp))
     ]);
-    await env.pages.prepare("UPDATE sites SET hostname=?,title=?,status='published',updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,stamp,resolvedId).run();
+    await env.pages.prepare("UPDATE sites SET hostname=?,title=?,description=?,status='published',updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,String(b.description??oldSite?.description??"").slice(0,500),stamp,resolvedId).run();
     await env.server.prepare("UPDATE servers SET hostname=?,origin=?,status='active',updated_at=? WHERE site_id=?").bind(nextHostname,"pages://"+nextHostname,stamp,resolvedId).run();
     await env.database.batch([
      env.database.prepare("UPDATE cp_projects SET hostname=?,title=?,status='published',build_root=?,build_output=?,build_command=?,updated_at=? WHERE site_id=?").bind(nextHostname,nextTitle,String(b.build_root||project.build_root||"/"),String(b.build_output||project.build_output||"/dist"),String(b.build_command||project.build_command||"npm run build"),stamp,resolvedId),
