@@ -111,7 +111,7 @@ function Workspace({path,onNavigate,yourCode=false}){
  const effectivePath=yourCode?"/ide":privatePath&&!hasAccount?"/registry":routePath;
  const editorSiteId=new URLSearchParams(path.split("?")[1]||"").get("site_id")||"";
  const page=loading?<div className="cp-card cp-empty">Comprobando tu cuenta…</div>:
-  !hasAccount?<AccountGate onDone={async()=>{await reload();if(yourCode)onNavigate?.("httc://yourcode.official/");else navigate("/",onNavigate)}}/>:
+  !hasAccount?<AccountGate resetToken={new URLSearchParams(path.split("?")[1]||"").get("reset_token")||""} onDone={async()=>{await reload();if(yourCode)onNavigate?.("httc://yourcode.official/");else navigate("/",onNavigate)}}/>:
   effectivePath==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers} onNavigate={onNavigate}/>:
   effectivePath==="/init"?<Init onDone={reload}/>:
   effectivePath==="/editor"?<Studio onNavigate={onNavigate} onDone={reload}/>:
@@ -126,10 +126,40 @@ function Workspace({path,onNavigate,yourCode=false}){
  return <Layout path={effectivePath} hasAccount={hasAccount} onNavigate={onNavigate}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
 }
 
-function AccountGate({onDone}){
- const[mode,setMode]=useState("register"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
- const submit=async event=>{event.preventDefault();setBusy(true);setError("");try{await api(mode,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({display_name:name,email,password})});setPassword("");await onDone?.()}catch(e){setError(e.message)}finally{setBusy(false)}};
- return <div className="cp-account-wrap"><div className="cp-account-card"><div className="cp-account-mark">CP</div><small className="cp-kicker">CREATEPAGE · CUENTA PERSONAL</small><h1>{mode==="register"?"Crea tu cuenta":"Inicia sesión"}</h1><p>{mode==="register"?"Tu espacio será privado. Tus proyectos y recursos no se compartirán con otras personas.":"Accede a tus proyectos, dominios y recursos."}</p><form onSubmit={submit}>{mode==="register"&&<label>Nombre<input required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Cómo te llamas"/></label>}<label>Correo electrónico<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com"/></label><label>Contraseña<input required type="password" minLength={mode==="register"?10:1} autoComplete={mode==="register"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Mínimo 10 caracteres":"Tu contraseña"}/></label>{mode==="register"&&<small className="cp-account-hint">Si usas el correo asociado a tu antigua cuenta, conservaremos tus proyectos actuales.</small>}{error&&<div className="cp-error">{error}</div>}<button className="cp-primary" disabled={busy}>{busy?"Un momento…":mode==="register"?"Crear mi cuenta":"Entrar en mi cuenta"}</button></form><div className="cp-account-switch">{mode==="register"?"¿Ya tienes una cuenta?":"¿Aún no tienes cuenta?"} <button type="button" onClick={()=>{setMode(mode==="register"?"login":"register");setError("")}}>{mode==="register"?"Inicia sesión":"Regístrate"}</button></div></div></div>
+function AccountGate({onDone,resetToken=""}){
+ const[mode,setMode]=useState(resetToken?"reset":"register"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ useEffect(()=>{if(resetToken)setMode("reset")},[resetToken]);
+ const submit=async event=>{
+  event.preventDefault();setBusy(true);setError("");setNotice("");
+  try{
+   if(mode==="forgot"){
+    await api("request-reset",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email})});
+    setNotice("Si existe una cuenta con ese correo, recibirás un enlace para cambiar la contraseña. Revisa también el spam.");
+   }else if(mode==="reset"){
+    const result=await api("reset-password",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:resetToken,password})});
+    try{localStorage.setItem(ACCOUNT_SESSION_KEY,result.token)}catch{}
+    setPassword("");setNotice("Contraseña actualizada. Ya has iniciado sesión.");window.history.replaceState({},"",window.location.pathname);await onDone?.();
+   }else{
+    await api(mode,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({display_name:name,email,password})});
+    setPassword("");await onDone?.();
+   }
+  }catch(e){setError(e.message)}finally{setBusy(false)}
+ };
+ const title=mode==="register"?"Crea tu cuenta":mode==="login"?"Inicia sesión":mode==="forgot"?"Recupera tu cuenta":"Elige una contraseña nueva";
+ const description=mode==="register"?"Tu espacio será privado. Tus proyectos y recursos no se compartirán con otras personas.":mode==="login"?"Accede a tus proyectos, dominios y recursos.":mode==="forgot"?"Te enviaremos un enlace temporal al correo asociado a tu cuenta.":"El enlace solo se puede utilizar una vez y caduca en 30 minutos.";
+ return <div className="cp-account-wrap"><div className="cp-account-card"><div className="cp-account-mark">CP</div><small className="cp-kicker">CREATEPAGE · CUENTA PERSONAL</small><h1>{title}</h1><p>{description}</p><form onSubmit={submit}>
+  {mode==="register"&&<label>Nombre<input required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Cómo te llamas"/></label>}
+  {(mode==="register"||mode==="login"||mode==="forgot")&&<label>Correo electrónico<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com"/></label>}
+  {(mode==="register"||mode==="login"||mode==="reset")&&<label>{mode==="reset"?"Nueva contraseña":"Contraseña"}<input required type="password" minLength={mode==="register"||mode==="reset"?10:1} maxLength={200} autoComplete={mode==="register"||mode==="reset"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"||mode==="reset"?"Mínimo 10 caracteres":"Tu contraseña"}/></label>}
+  {mode==="register"&&<small className="cp-account-hint">Si usas el correo asociado a tu antigua cuenta, conservaremos tus proyectos actuales.</small>}
+  {error&&<div className="cp-error">{error}</div>}{notice&&<div className="cp-account-hint" role="status">{notice}</div>}
+  <button className="cp-primary" disabled={busy}>{busy?"Un momento…":mode==="register"?"Crear mi cuenta":mode==="login"?"Entrar en mi cuenta":mode==="forgot"?"Enviar enlace de recuperación":"Guardar nueva contraseña"}</button>
+ </form><div className="cp-account-switch">
+  {mode==="login"&&<button type="button" onClick={()=>{setMode("forgot");setError("");setNotice("")}}>He olvidado mi contraseña</button>}
+  {mode==="forgot"&&<button type="button" onClick={()=>{setMode("login");setError("");setNotice("")}}>Volver a iniciar sesión</button>}
+  {(mode==="register"||mode==="login")&&<>{mode==="register"?"¿Ya tienes una cuenta?":"¿Aún no tienes cuenta?"} <button type="button" onClick={()=>{setMode(mode==="register"?"login":"register");setError("");setNotice("")}}>{mode==="register"?"Inicia sesión":"Regístrate"}</button></>}
+  {mode==="reset"&&<button type="button" onClick={()=>{window.history.replaceState({},"",window.location.pathname);setMode("login");setError("");setNotice("")}}>Volver a iniciar sesión</button>}
+ </div></div></div>
 }
 
 function Head({eyebrow,title,text}){return <header className="cp-head"><div><small>{eyebrow}</small><h1>{title}</h1>{text&&<p>{text}</p>}</div></header>}
