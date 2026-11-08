@@ -18,11 +18,10 @@ export default function SearchPage({url,onNavigate}){
    const payload=await response.json().catch(()=>null);
    if(!response.ok||!payload?.ok)throw new Error(payload?.error==="search_provider_blocked"?"El proveedor ha bloqueado temporalmente la búsqueda.":payload?.error==="search_provider_unreachable"?"No se ha podido conectar con el buscador.":"Error al cargar resultados (HTTP "+response.status+").");
    setData(payload);
-   if(typeof window!=="undefined")window.history.replaceState(null,"",location.pathname+"?q="+encodeURIComponent(query)+(page?"&page="+page:""));
   }catch(e){setError(e.message||"No se han podido cargar los resultados.")}
   finally{setLoading(false)}
  }
- const submit=e=>{e?.preventDefault?.();runSearch(q,0,engine,safe)};
+ const submit=e=>{e?.preventDefault?.();if(q.trim())onNavigate?.(makeUrl(engine,q.trim(),0))};
  const colors=engine==="google"?{accent:"#1a73e8",line:"#dadce0",text:"#202124",sub:"#5f6368"}:{accent:"#de5833",line:"#343943",text:"#e8eaed",sub:"#aeb4bf"};
  const open=item=>{const target=toHttc(item.url);if(target)onNavigate?.(target)};
  const switchEngine=next=>onNavigate?.(q.trim()?makeUrl(next,q):"httc://"+hostFor(next));
