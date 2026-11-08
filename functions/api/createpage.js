@@ -122,10 +122,27 @@ export async function onRequest({request,env}){
    const real=ownedSites.slice().sort(()=>Math.random()-.5).slice(0,3);
    correct=real.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)}));
    options=[...correct];
-   // Decoys use the reserved .invalid TLD, so they cannot be real published sites.
+   // Create plausible-looking decoy domains, but verify that none exists
+   // in either Cloudflare's published-sites database or Fairwas projects.
+   const nameA=["nexora","veltrix","lumora","novexa","arqon","virelia","zenbyte","orvian","klyra","montera","aventra","solvix"];
+   const nameB=["studio","digital","labs","media","works","cloud","systems","creative","network","web"];
+   const tlds=[".com",".es",".net",".dev"];
+   const usedNames=new Set();
    for(let i=0;i<3;i++){
-    const fakeId=Array.from(crypto.getRandomValues(new Uint8Array(6)),x=>x.toString(16).padStart(2,"0")).join("");
-    options.push({id:crypto.randomUUID(),label:"Sitio de prueba · "+ "sitio-"+fakeId+".fairwas.invalid"});
+    let fakeHost="";
+    for(let attempt=0;attempt<40&&!fakeHost;attempt++){
+     const a=nameA[Math.floor(Math.random()*nameA.length)];
+     const b=nameB[Math.floor(Math.random()*nameB.length)];
+     const suffix=Array.from(crypto.getRandomValues(new Uint8Array(2)),x=>x.toString(16).padStart(2,"0")).join("");
+     const tld=tlds[Math.floor(Math.random()*tlds.length)];
+     const candidate=a+b+suffix+tld;
+     if(usedNames.has(candidate))continue;
+     const published=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? COLLATE NOCASE LIMIT 1").bind(candidate).first();
+     const project=await env.database.prepare("SELECT site_id FROM cp_projects WHERE hostname=? COLLATE NOCASE LIMIT 1").bind(candidate).first();
+     if(!published&&!project){fakeHost=candidate;usedNames.add(candidate);}
+    }
+    if(!fakeHost)return json({ok:false,error:"recovery_decoys_unavailable",detail:"No se han podido generar opciones falsas seguras. Inténtalo de nuevo."},503);
+    options.push({id:crypto.randomUUID(),label:"Proyecto web · "+fakeHost});
    }
    for(let i=options.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[options[i],options[j]]=[options[j],options[i]]}
    await env.database.prepare("INSERT INTO cp_recovery_challenges(challenge_hash,developer_id,correct_ids,expires_at,created_at) VALUES(?,?,?,?,?)").bind(challengeHash,account?.developer_id||null,JSON.stringify(correct.map(x=>x.id)),expires,stamp).run();
