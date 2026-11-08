@@ -91,16 +91,10 @@ function Workspace({path,onNavigate,yourCode=false}){
  const reload=async()=>{
   setLoading(true);
   try{
-   const status=await api("auth-status");
-   if(!status.account){setRegistry(null);setSites([]);setDbs([]);setServers([]);setWorkers([]);setError("");return;}
-   const r=await api("registry");
-   setRegistry(r);
-   if(r.developer){
-    const [s,d,v,w]=await Promise.all([api("sites"),api("databases"),api("servers"),api("workers")]);
-    setSites(s.items||[]);setDbs(d.items||[]);setServers(v.items||[]);setWorkers(w.items||[]);
-   }else{
-    setSites([]);setDbs([]);setServers([]);setWorkers([]);
-   }
+   const r=await api("workspace");
+   if(!r.developer){setRegistry(null);setSites([]);setDbs([]);setServers([]);setWorkers([]);setError("");return;}
+   setRegistry({ok:true,developer:r.developer,sites:r.projects||[]});
+   setSites(r.sites||[]);setDbs(r.databases||[]);setServers(r.servers||[]);setWorkers(r.workers||[]);
    setError("");
   }catch(e){setError(e.message)}
   finally{setLoading(false)}
@@ -621,8 +615,9 @@ export function YourCodePage({url="httc://yourcode.official/",onNavigate}){
  const reload=async()=>{
   setLoading(true);setError("");
   try{
-   const account=await api("registry");setRegistry(account);
-   if(account.developer){const result=await api("sites");const items=result.items||[];setSites(items.filter(item=>item.framework==="YourCode"||item.language==="User code"))}
+   const account=await api("workspace");
+   setRegistry({ok:true,developer:account.developer,sites:account.projects||[]});
+   if(account.developer){const items=account.sites||[];setSites(items.filter(item=>item.framework==="YourCode"||item.language==="User code"))}
    else setSites([]);
   }catch(e){setError(e.message||"No se pudieron cargar tus proyectos.")}
   finally{setLoading(false)}
