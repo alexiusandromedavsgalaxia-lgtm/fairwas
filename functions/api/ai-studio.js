@@ -15,10 +15,6 @@ export async function onRequestPost({request,env}){
  const length=Number(request.headers.get("content-length")||0);
  if(length>MAX_BODY)return json({ok:false,error:"request_too_large"},413);
  let body;try{body=await request.json()}catch{return json({ok:false,error:"invalid_json"},400)}
- const prompt=String(body?.prompt||"").trim();
- const currentHtml=String(body?.current_html||"");
- if(!prompt||prompt.length>12000)return json({ok:false,error:"invalid_prompt",detail:"Describe the page in 1 to 12,000 characters."},400);
- if(currentHtml.length>80000)return json({ok:false,error:"current_page_too_large",detail:"The current page is too large to edit in one request."},413);
  const model=String(body?.model||"llama-3.3-70b-versatile").trim();
  const allowed=new Set(["llama-3.3-70b-versatile","llama-3.1-8b-instant","openai/gpt-oss-120b"]);
  if(!allowed.has(model))return json({ok:false,error:"unsupported_model"},400);
@@ -40,6 +36,10 @@ export async function onRequestPost({request,env}){
    return json({ok:true,content,model:data.model||model});
   }catch(error){return json({ok:false,error:"provider_connection_failed",detail:String(error?.message||error).slice(0,500)},502)}
  }
+ const prompt=String(body?.prompt||"").trim();
+ const currentHtml=String(body?.current_html||"");
+ if(!prompt||prompt.length>12000)return json({ok:false,error:"invalid_prompt",detail:"Describe the page in 1 to 12,000 characters."},400);
+ if(currentHtml.length>80000)return json({ok:false,error:"current_page_too_large",detail:"The current page is too large to edit in one request."},413);
  try{
   const upstream=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"authorization":"Bearer "+key,"content-type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:SYSTEM},...(Array.isArray(body.history)?body.history.slice(-10).map(message=>({role:message?.role==="assistant"?"assistant":"user",content:String(message?.content||"").slice(0,5000)})):[]),{role:"user",content:(currentHtml?"CURRENT WEBSITE HTML TO EDIT. Preserve unrelated parts and apply the newest instruction precisely:\\n"+currentHtml+"\\n\\nLATEST USER REQUEST:\\n":"")+prompt}],temperature:0.82,max_tokens:12000,response_format:{type:"json_object"}})});
   const data=await upstream.json().catch(()=>({}));
