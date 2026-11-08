@@ -127,14 +127,14 @@ function Workspace({path,onNavigate,yourCode=false}){
 }
 
 function AccountGate({onDone,resetToken=""}){
- const[mode,setMode]=useState(resetToken?"reset":"register"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[challengeToken,setChallengeToken]=useState(""),[resetProof,setResetProof]=useState(""),[options,setOptions]=useState([]),[selected,setSelected]=useState([]);
+ const[mode,setMode]=useState(resetToken?"reset":"register"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[challengeToken,setChallengeToken]=useState(""),[resetProof,setResetProof]=useState(""),[options,setOptions]=useState([]),[selected,setSelected]=useState([]),[requiredCount,setRequiredCount]=useState(3);
  useEffect(()=>{if(resetToken){setMode("reset");setResetProof(resetToken)}},[resetToken]);
  const submit=async event=>{
   event.preventDefault();setBusy(true);setError("");setNotice("");
   try{
    if(mode==="forgot"){
     const result=await api("recovery-challenge",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email})});
-    setChallengeToken(result.challenge_token);setOptions(result.options||[]);setSelected([]);setMode("challenge");
+    setChallengeToken(result.challenge_token);setOptions(result.options||[]);setRequiredCount(Number(result.required_count)||3);setSelected([]);setMode("challenge");
    }else if(mode==="challenge"){
     const result=await api("verify-recovery",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({challenge_token:challengeToken,selected_ids:selected})});
     setResetProof(result.reset_token);setPassword("");setMode("reset");
@@ -149,15 +149,15 @@ function AccountGate({onDone,resetToken=""}){
   }catch(e){setError(e.message)}finally{setBusy(false)}
  };
  const title=mode==="register"?"Crea tu cuenta":mode==="login"?"Inicia sesión":mode==="forgot"?"Recupera tu cuenta":mode==="challenge"?"Comprueba que es tu cuenta":"Elige una contraseña nueva";
- const description=mode==="register"?"Tu espacio será privado. Tus proyectos y recursos no se compartirán con otras personas.":mode==="login"?"Accede a tus proyectos, dominios y recursos.":mode==="forgot"?"Introduce el correo asociado a tu cuenta.":mode==="challenge"?"Selecciona los tres proyectos que pertenecen a tu cuenta.": "La contraseña debe tener al menos 10 caracteres.";
+ const description=mode==="register"?"Tu espacio será privado. Tus proyectos y recursos no se compartirán con otras personas.":mode==="login"?"Accede a tus proyectos, dominios y recursos.":mode==="forgot"?"Introduce el correo asociado a tu cuenta.":mode==="challenge"?"Selecciona los "+requiredCount+" proyectos que pertenecen a tu cuenta.": "La contraseña debe tener al menos 10 caracteres.";
  return <div className="cp-account-wrap"><div className="cp-account-card"><div className="cp-account-mark">CP</div><small className="cp-kicker">CREATEPAGE · CUENTA PERSONAL</small><h1>{title}</h1><p>{description}</p><form onSubmit={submit}>
   {mode==="register"&&<label>Nombre<input required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Cómo te llamas"/></label>}
   {(mode==="register"||mode==="login"||mode==="forgot")&&<label>Correo electrónico<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com"/></label>}
-  {mode==="challenge"&&<div className="cp-recovery-options">{options.map(option=><label className="cp-recovery-option" key={option.id}><input type="checkbox" checked={selected.includes(option.id)} onChange={e=>setSelected(current=>e.target.checked?(current.length<3?[...current,option.id]:current):current.filter(id=>id!==option.id))}/><span>{option.label}</span></label>)}<small className="cp-account-hint">Seleccionados: {selected.length} de 3</small></div>}
+  {mode==="challenge"&&<div className="cp-recovery-options">{options.map(option=><label className="cp-recovery-option" key={option.id}><input type="checkbox" checked={selected.includes(option.id)} onChange={e=>setSelected(current=>e.target.checked?(current.length<requiredCount?[...current,option.id]:current):current.filter(id=>id!==option.id))}/><span>{option.label}</span></label>)}<small className="cp-account-hint">Seleccionados: {selected.length} de {requiredCount}</small></div>}
   {(mode==="register"||mode==="login"||mode==="reset")&&<label>{mode==="reset"?"Nueva contraseña":"Contraseña"}<input required type="password" minLength={mode==="register"||mode==="reset"?10:1} maxLength={200} autoComplete={mode==="register"||mode==="reset"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"||mode==="reset"?"Mínimo 10 caracteres":"Tu contraseña"}/></label>}
   {mode==="register"&&<small className="cp-account-hint">Si usas el correo asociado a tu antigua cuenta, conservaremos tus proyectos actuales.</small>}
   {error&&<div className="cp-error">{error}</div>}{notice&&<div className="cp-account-hint" role="status">{notice}</div>}
-  <button className="cp-primary" disabled={busy||(mode==="challenge"&&selected.length!==3)}>{busy?"Un momento…":mode==="register"?"Crear mi cuenta":mode==="login"?"Entrar en mi cuenta":mode==="forgot"?"Continuar":mode==="challenge"?"Comprobar respuestas":"Guardar nueva contraseña"}</button>
+  <button className="cp-primary" disabled={busy||(mode==="challenge"&&selected.length!==requiredCount)}>{busy?"Un momento…":mode==="register"?"Crear mi cuenta":mode==="login"?"Entrar en mi cuenta":mode==="forgot"?"Continuar":mode==="challenge"?"Comprobar respuestas":"Guardar nueva contraseña"}</button>
  </form><div className="cp-account-switch">
   {mode==="login"&&<button type="button" onClick={()=>{setMode("forgot");setError("");setNotice("")}}>He olvidado mi contraseña</button>}
   {mode==="forgot"&&<button type="button" onClick={()=>{setMode("login");setError("");setNotice("")}}>Volver a iniciar sesión</button>}
