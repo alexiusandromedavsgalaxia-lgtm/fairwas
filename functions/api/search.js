@@ -1,14 +1,21 @@
+import { parse } from "parse5";
 function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store"}})}
+function attrs(node){return Object.fromEntries((node?.attrs||[]).map(a=>[a.name,a.value]))}
+function hasClass(node,name){return (attrs(node).class||"").split(/\s+/).includes(name)}
+function walk(node,visit){if(!node)return;visit(node);for(const child of node.childNodes||[])walk(child,visit)}
+function textContent(node){let value="";walk(node,n=>{if(n.nodeName==="#text")value+=" "+(n.value||"")});return value.replace(/\s+/g," ").trim()}
+function find(node,predicate){let result=null;walk(node,n=>{if(!result&&predicate(n))result=n});return result}
+function absolute(raw,base){try{const u=new URL(raw,base);return /^https?:$/.test(u.protocol)?u.href:""}catch{return ""}}
+function unique(items){const seen=new Set();return items.filter(item=>{if(!item.url||seen.has(item.url))return false;seen.add(item.url);return true})}
+function ddgResults(doc){const found=[];walk(doc,node=>{if(!hasClass(node,"result"))return;const a=find(node,n=>n.tagName==="a"&&hasClass(n,"result__a"));if(!a)return;const href=absolute(attrs(a).href,"https://html.duckduckgo.com");if(!href)return;const snippet=find(node,n=>hasClass(n,"result__snippet"));found.push({url:href,title:textContent(a),description:snippet?textContent(snippet):"",displayUrl:new URL(href).hostname})});return unique(found)}
+function googleResults(doc){const found=[];walk(doc,node=>{if(node.tagName!=="h3")return;let p=node.parentNode,a=null,container=node;for(let i=0;i<6&&p;i++,p=p.parentNode){container=p;a=find(p,n=>n.tagName==="a"&&find(n,x=>x===node));if(a)break}if(!a)return;let raw=attrs(a).href||"";try{const u=new URL(raw,"https://www.google.com");if(u.pathname==="/url")raw=u.searchParams.get("q")||u.searchParams.get("url")||""}catch{}const href=absolute(raw,"https://www.google.com");if(!href||/google\.(com|es)$/i.test(new URL(href).hostname))return;let description="",p2=container;for(let i=0;i<4&&p2;i++,p2=p2.parentNode){const t=textContent(p2);if(t.length>textContent(node).length+25){description=t.replace(textContent(node),"").replace(href,"").trim();if(description.length>20)break}}found.push({url:href,title:textContent(node),description:description.slice(0,420),displayUrl:new URL(href).hostname})});return unique(found)}
 export async function onRequest({request}){
- const incoming=new URL(request.url);
- const query=(incoming.searchParams.get("q")||"").trim();
- if(!query)return json({ok:false,error:"query_required"},400);
- if(query.length>300)return json({ok:false,error:"query_too_long"},400);
- const target="https://html.duckduckgo.com/html/?q="+encodeURIComponent(query);
- let response;
- try{response=await fetch(target,{headers:{"accept":"text/html","user-agent":"Mozilla/5.0 (compatible; FairwasSearch/1.0)"},redirect:"follow"})}
- catch{return json({ok:false,error:"search_provider_unreachable"},502)}
- if(!response.ok)return json({ok:false,error:"search_provider_error",status:response.status},502);
- const html=await response.text();
- return new Response(html,{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","access-control-allow-origin":"*"}});
+ const incoming=new URL(request.url),query=(incoming.searchParams.get("q")||"").trim(),engine=(incoming.searchParams.get("engine")||"duckduckgo").toLowerCase();
+ const page=Math.max(0,Math.min(50,Number.parseInt(incoming.searchParams.get("page")||"0",10)||0)),safe=incoming.searchParams.get("safe")!=="0";
+ if(!query)return json({ok:false,error:"query_required"},400);if(query.length>300)return json({ok:false,error:"query_too_long"},400);if(!["duckduckgo","google"].includes(engine))return json({ok:false,error:"unsupported_search_engine"},400);
+ const target=engine==="google"?"https://www.google.com/search?gbv=1&num=10&start="+(page*10)+"&safe="+(safe?"active":"off")+"&q="+encodeURIComponent(query):"https://html.duckduckgo.com/html/?s="+(page*30)+"&kp="+(safe?"1":"-2")+"&q="+encodeURIComponent(query);
+ let response;try{response=await fetch(target,{headers:{"accept":"text/html,application/xhtml+xml","accept-language":"es-ES,es;q=0.9,en;q=0.7","user-agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"},redirect:"follow"})}catch{return json({ok:false,error:"search_provider_unreachable"},502)}
+ if(!response.ok)return json({ok:false,error:response.status===403||response.status===429?"search_provider_blocked":"search_provider_error",providerStatus:response.status},502);
+ const doc=parse(await response.text()),results=engine==="google"?googleResults(doc):ddgResults(doc);
+ return json({ok:true,engine,query,page,safe,results,hasMore:results.length>=(engine==="google"?8:15),totalLabel:results.length?results.length+" resultados mostrados":"Sin resultados"});
 }
