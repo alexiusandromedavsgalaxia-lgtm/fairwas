@@ -97,40 +97,61 @@ export async function onRequest({request,env}){
   await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_api_manifests (developer_id TEXT PRIMARY KEY,manifest TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
   const accountColumns=await env.database.prepare("PRAGMA table_info(cp_accounts)").all();
   if(!(accountColumns.results||[]).some(column=>column.name==="plan"))await env.database.prepare("ALTER TABLE cp_accounts ADD COLUMN plan TEXT NOT NULL DEFAULT 'Free'").run();
+  await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_recovery_challenges (challenge_hash TEXT PRIMARY KEY,developer_id TEXT,correct_ids TEXT NOT NULL,expires_at TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,used_at TEXT)").run();
   await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_password_resets (token_hash TEXT PRIMARY KEY,developer_id TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,used_at TEXT)").run();
-  if(action==="request-reset"){
+  if(action==="recovery-challenge"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
    const email=String(parsed.value.email||"").trim().toLowerCase();
    if(!email||email.length>254||!email.includes("@"))return json({ok:false,error:"invalid_email"},400);
-   const account=await env.database.prepare("SELECT developer_id,email,display_name FROM cp_accounts WHERE email=? COLLATE NOCASE AND status='active' LIMIT 1").bind(email).first();
+   const account=await env.database.prepare("SELECT developer_id FROM cp_accounts WHERE email=? COLLATE NOCASE AND status='active' LIMIT 1").bind(email).first();
+   const stamp=now(),expires=new Date(Date.now()+10*60*1000).toISOString();
+   const challengeToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,"0")).join("");
+   const challengeHash=await accountSessionHash(challengeToken);
+   let correct=[],options=[];
    if(account){
-    const recent=await env.database.prepare("SELECT COUNT(*) AS total FROM cp_password_resets WHERE developer_id=? AND created_at>?").bind(account.developer_id,new Date(Date.now()-15*60*1000).toISOString()).first();
-    if(Number(recent?.total||0)<3){
-     const rawToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,"0")).join("");
-     const tokenHash=await accountSessionHash(rawToken),stamp=now(),expires=new Date(Date.now()+30*60*1000).toISOString();
-     await env.database.prepare("UPDATE cp_password_resets SET used_at=? WHERE developer_id=? AND used_at IS NULL").bind(stamp,account.developer_id).run();
-     await env.database.prepare("INSERT INTO cp_password_resets(token_hash,developer_id,expires_at,created_at) VALUES(?,?,?,?)").bind(tokenHash,account.developer_id,expires,stamp).run();
-     if(!env.RESEND_API_KEY||!env.MAIL_FROM){
-      await env.database.prepare("DELETE FROM cp_password_resets WHERE token_hash=?").bind(tokenHash).run();
-      return json({ok:false,error:"email_service_not_configured",detail:"La recuperación está preparada, pero falta configurar RESEND_API_KEY y MAIL_FROM en los secretos de Cloudflare."},503);
-     }
-     const link="https://createpage.fair/registry?reset_token="+encodeURIComponent(rawToken);
-     const safeName=String(account.display_name).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-     const mail=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"authorization":"Bearer "+env.RESEND_API_KEY,"content-type":"application/json"},body:JSON.stringify({from:env.MAIL_FROM,to:[account.email],subject:"Recupera tu cuenta de CreatePage",text:"Hola "+account.display_name+",\n\nHas solicitado cambiar la contraseña de tu cuenta de CreatePage. Abre este enlace para elegir una nueva contraseña (caduca en 30 minutos y solo se puede usar una vez):\n\n"+link+"\n\nSi no has solicitado este cambio, ignora este correo.\n\nFairwas · CreatePage",html:"<p>Hola "+safeName+",</p><p>Has solicitado cambiar la contraseña de tu cuenta de CreatePage.</p><p><a href=\""+link+"\">Cambiar mi contraseña</a></p><p>El enlace caduca en 30 minutos y solo se puede utilizar una vez.</p><p>Si no has solicitado este cambio, ignora este correo.</p>"})});
-     if(!mail.ok){await env.database.prepare("DELETE FROM cp_password_resets WHERE token_hash=?").bind(tokenHash).run();return json({ok:false,error:"email_delivery_failed",detail:"El proveedor de correo no ha podido enviar el mensaje. Revisa la configuración de correo de Fairwas."},502);}
-    }
+    const owned=await env.database.prepare("SELECT site_id,hostname,title FROM cp_projects WHERE developer_id=? ORDER BY RANDOM() LIMIT 30").bind(account.developer_id).all();
+    const real=(owned.results||[]).filter(x=>x.site_id&&x.hostname).slice(0,3);
+    if(real.length===3)correct=real.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)}));
    }
-   return json({ok:true,message:"Si existe una cuenta con ese correo, recibirás un enlace de recuperación."});
+   options=[...correct];
+   const fakeNames=["Aurora Studio","Pixel Garden","Northstar Labs","Velvet Canvas","Orbit Journal","Copper Cloud","Mosaic Works","Silver Meadow","Blue Lantern","Echo Atelier","Paper Moon","Nova Archive","Wildflower Pages","Amber Workshop","Quiet Horizon"];
+   const fakeDomains=["aurora-studio","pixel-garden","northstar-labs","velvet-canvas","orbit-journal","copper-cloud","mosaic-works","silver-meadow","blue-lantern","echo-atelier","paper-moon","nova-archive","wildflower-pages","amber-workshop","quiet-horizon"];
+   while(options.length<6){
+    const i=Math.floor(Math.random()*fakeNames.length);
+    const label=fakeNames.splice(i,1)[0],domain=fakeDomains.splice(i,1)[0];
+    options.push({id:crypto.randomUUID(),label:label+" · "+domain+".fair"});
+   }
+   for(let i=options.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[options[i],options[j]]=[options[j],options[i]]}
+   await env.database.prepare("INSERT INTO cp_recovery_challenges(challenge_hash,developer_id,correct_ids,expires_at,created_at) VALUES(?,?,?,?,?)").bind(challengeHash,account?.developer_id||null,JSON.stringify(correct.map(x=>x.id)),expires,stamp).run();
+   return json({ok:true,challenge_token:challengeToken,options:options.map(({id,label})=>({id,label})),expires_at:expires});
+  }
+  if(action==="verify-recovery"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
+   const token=String(parsed.value.challenge_token||"");
+   const selected=Array.isArray(parsed.value.selected_ids)?parsed.value.selected_ids.map(x=>String(x)).slice(0,10):[];
+   if(!/^[a-f0-9]{64}$/i.test(token)||selected.length!==3||new Set(selected).size!==3)return json({ok:false,error:"recovery_answers_incorrect",detail:"Selecciona exactamente tres proyectos."},400);
+   const challengeHash=await accountSessionHash(token);
+   const challenge=await env.database.prepare("SELECT developer_id,correct_ids,expires_at,attempts,used_at FROM cp_recovery_challenges WHERE challenge_hash=? LIMIT 1").bind(challengeHash).first();
+   if(!challenge||challenge.used_at||Date.parse(challenge.expires_at)<=Date.now()||Number(challenge.attempts)>=3)return json({ok:false,error:"recovery_challenge_expired",detail:"La comprobación ha caducado. Vuelve a empezar."},400);
+   const expected=JSON.parse(challenge.correct_ids||"[]");
+   const matches=Boolean(challenge.developer_id)&&expected.length===3&&expected.every(id=>selected.includes(id))&&selected.every(id=>expected.includes(id));
+   await env.database.prepare("UPDATE cp_recovery_challenges SET attempts=attempts+1,used_at=CASE WHEN ? THEN ? ELSE used_at END WHERE challenge_hash=?").bind(matches?1:0,now(),challengeHash).run();
+   if(!matches)return json({ok:false,error:"recovery_answers_incorrect",detail:"Las respuestas no coinciden. Comprueba los proyectos e inténtalo de nuevo."},400);
+   const resetToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,"0")).join("");
+   const resetHash=await accountSessionHash(resetToken),stamp=now(),resetExpiry=new Date(Date.now()+10*60*1000).toISOString();
+   await env.database.prepare("INSERT INTO cp_password_resets(token_hash,developer_id,expires_at,created_at) VALUES(?,?,?,?)").bind(resetHash,challenge.developer_id,resetExpiry,stamp).run();
+   return json({ok:true,reset_token:resetToken,expires_at:resetExpiry});
   }
   if(action==="reset-password"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
    const token=String(parsed.value.token||""),password=String(parsed.value.password||"");
-   if(!/^[a-f0-9]{64}$/i.test(token))return json({ok:false,error:"invalid_or_expired_reset_link",detail:"El enlace no es válido o ha caducado. Solicita otro."},400);
+   if(!/^[a-f0-9]{64}$/i.test(token))return json({ok:false,error:"invalid_or_expired_reset_link",detail:"La comprobación no es válida o ha caducado. Vuelve a empezar."},400);
    if(password.length<10||password.length>200)return json({ok:false,error:"weak_password",detail:"La contraseña debe tener entre 10 y 200 caracteres."},400);
    const tokenHash=await accountSessionHash(token),reset=await env.database.prepare("SELECT developer_id,expires_at,used_at FROM cp_password_resets WHERE token_hash=? LIMIT 1").bind(tokenHash).first();
-   if(!reset||reset.used_at||Date.parse(reset.expires_at)<=Date.now())return json({ok:false,error:"invalid_or_expired_reset_link",detail:"El enlace no es válido o ha caducado. Solicita otro."},400);
+   if(!reset||reset.used_at||Date.parse(reset.expires_at)<=Date.now())return json({ok:false,error:"invalid_or_expired_reset_link",detail:"La comprobación no es válida o ha caducado. Vuelve a empezar."},400);
    const credentials=await hashAccountPassword(password),stamp=now();
    await env.database.batch([
     env.database.prepare("UPDATE cp_accounts SET password_salt=?,password_hash=?,updated_at=? WHERE developer_id=?").bind(credentials.salt,credentials.hash,stamp,reset.developer_id),
