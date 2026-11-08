@@ -83,7 +83,7 @@ async function publish(env,owner,body){
   return json({ok:false,error:"publish_failed",detail:String(error)},500);
  }
 }
-export async function onRequest({request,env}){
+export async function handleApiFairRequest(request,env){
  const url=new URL(request.url),path=url.pathname;
  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-headers":"authorization,content-type","access-control-allow-methods":"GET,POST,OPTIONS"}});
  try{
@@ -113,3 +113,5 @@ export async function onRequest({request,env}){
   return json({ok:false,error:"not_found",docs:"httc://api.fair/docs/publish-site"},404);
  }catch(error){return json({ok:false,error:"api_error",detail:String(error)},500)}
 }
+
+export async function onRequest({request,env}){return handleApiFairRequest(request,env)}
