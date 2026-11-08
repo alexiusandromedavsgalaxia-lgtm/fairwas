@@ -93,6 +93,9 @@ export async function onRequest({request,env}){
   await ensureSiteFilesEncoding(env);
   await ensureServerSchema(env);
   await ensureAccountSchema(env);
+  await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_api_manifests (developer_id TEXT PRIMARY KEY,manifest TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+  const accountColumns=await env.database.prepare("PRAGMA table_info(cp_accounts)").all();
+  if(!(accountColumns.results||[]).some(column=>column.name==="plan"))await env.database.prepare("ALTER TABLE cp_accounts ADD COLUMN plan TEXT NOT NULL DEFAULT 'Free'").run();
   if(action==="auth-status")return json({ok:true,account:accountJson(await getAccount(request,env))});
   if(action==="register"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
@@ -465,6 +468,9 @@ export async function onRequest({request,env}){
      env.database.prepare("INSERT INTO cp_projects(site_id,hostname,title,developer_id,status,build_root,build_output,build_command,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(site_id,hostname,title,developer.developer_id,"published",String(b.build_root||"/"),String(b.build_output||"/dist"),String(b.build_command||"npm run build"),stamp,stamp),
      env.database.prepare("INSERT INTO cp_deployments(site_id,version,status,created_at) VALUES(?,?,?,?)").bind(site_id,version,"published",stamp)
     ]);
+    if(typeof b.manifest==="string"&&b.manifest.trim()){
+     await env.database.prepare("INSERT INTO cp_api_manifests(developer_id,manifest,updated_at) VALUES(?,?,?) ON CONFLICT(developer_id) DO UPDATE SET manifest=excluded.manifest,updated_at=excluded.updated_at").bind(developer.developer_id,b.manifest.slice(0,12000),now()).run();
+    }
     if(b.database_name){
      await env.database.prepare("INSERT INTO cp_databases(site_id,name,engine,status,created_at) VALUES(?,?,?,?,?)").bind(site_id,b.database_name,"SQLite","registered",stamp).run();
     }
