@@ -127,16 +127,19 @@ function Workspace({path,onNavigate,yourCode=false}){
 }
 
 function AccountGate({onDone,resetToken=""}){
- const[mode,setMode]=useState(resetToken?"reset":"register"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
- useEffect(()=>{if(resetToken)setMode("reset")},[resetToken]);
+ const[mode,setMode]=useState(resetToken?"reset":"register"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[challengeToken,setChallengeToken]=useState(""),[resetProof,setResetProof]=useState(""),[options,setOptions]=useState([]),[selected,setSelected]=useState([]);
+ useEffect(()=>{if(resetToken){setMode("reset");setResetProof(resetToken)}},[resetToken]);
  const submit=async event=>{
   event.preventDefault();setBusy(true);setError("");setNotice("");
   try{
    if(mode==="forgot"){
-    await api("request-reset",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email})});
-    setNotice("Si existe una cuenta con ese correo, recibirás un enlace para cambiar la contraseña. Revisa también el spam.");
+    const result=await api("recovery-challenge",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email})});
+    setChallengeToken(result.challenge_token);setOptions(result.options||[]);setSelected([]);setMode("challenge");
+   }else if(mode==="challenge"){
+    const result=await api("verify-recovery",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({challenge_token:challengeToken,selected_ids:selected})});
+    setResetProof(result.reset_token);setPassword("");setMode("reset");
    }else if(mode==="reset"){
-    const result=await api("reset-password",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:resetToken,password})});
+    const result=await api("reset-password",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:resetProof,password})});
     try{localStorage.setItem(ACCOUNT_SESSION_KEY,result.token)}catch{}
     setPassword("");setNotice("Contraseña actualizada. Ya has iniciado sesión.");window.history.replaceState({},"",window.location.pathname);await onDone?.();
    }else{
@@ -145,23 +148,24 @@ function AccountGate({onDone,resetToken=""}){
    }
   }catch(e){setError(e.message)}finally{setBusy(false)}
  };
- const title=mode==="register"?"Crea tu cuenta":mode==="login"?"Inicia sesión":mode==="forgot"?"Recupera tu cuenta":"Elige una contraseña nueva";
- const description=mode==="register"?"Tu espacio será privado. Tus proyectos y recursos no se compartirán con otras personas.":mode==="login"?"Accede a tus proyectos, dominios y recursos.":mode==="forgot"?"Te enviaremos un enlace temporal al correo asociado a tu cuenta.":"El enlace solo se puede utilizar una vez y caduca en 30 minutos.";
+ const title=mode==="register"?"Crea tu cuenta":mode==="login"?"Inicia sesión":mode==="forgot"?"Recupera tu cuenta":mode==="challenge"?"Comprueba que es tu cuenta":"Elige una contraseña nueva";
+ const description=mode==="register"?"Tu espacio será privado. Tus proyectos y recursos no se compartirán con otras personas.":mode==="login"?"Accede a tus proyectos, dominios y recursos.":mode==="forgot"?"Introduce el correo asociado a tu cuenta.":mode==="challenge"?"Selecciona los tres proyectos que pertenecen a tu cuenta.": "La contraseña debe tener al menos 10 caracteres.";
  return <div className="cp-account-wrap"><div className="cp-account-card"><div className="cp-account-mark">CP</div><small className="cp-kicker">CREATEPAGE · CUENTA PERSONAL</small><h1>{title}</h1><p>{description}</p><form onSubmit={submit}>
   {mode==="register"&&<label>Nombre<input required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Cómo te llamas"/></label>}
   {(mode==="register"||mode==="login"||mode==="forgot")&&<label>Correo electrónico<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com"/></label>}
+  {mode==="challenge"&&<div className="cp-recovery-options">{options.map(option=><label className="cp-recovery-option" key={option.id}><input type="checkbox" checked={selected.includes(option.id)} onChange={e=>setSelected(current=>e.target.checked?(current.length<3?[...current,option.id]:current):current.filter(id=>id!==option.id))}/><span>{option.label}</span></label>)}<small className="cp-account-hint">Seleccionados: {selected.length} de 3</small></div>}
   {(mode==="register"||mode==="login"||mode==="reset")&&<label>{mode==="reset"?"Nueva contraseña":"Contraseña"}<input required type="password" minLength={mode==="register"||mode==="reset"?10:1} maxLength={200} autoComplete={mode==="register"||mode==="reset"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"||mode==="reset"?"Mínimo 10 caracteres":"Tu contraseña"}/></label>}
   {mode==="register"&&<small className="cp-account-hint">Si usas el correo asociado a tu antigua cuenta, conservaremos tus proyectos actuales.</small>}
   {error&&<div className="cp-error">{error}</div>}{notice&&<div className="cp-account-hint" role="status">{notice}</div>}
-  <button className="cp-primary" disabled={busy}>{busy?"Un momento…":mode==="register"?"Crear mi cuenta":mode==="login"?"Entrar en mi cuenta":mode==="forgot"?"Enviar enlace de recuperación":"Guardar nueva contraseña"}</button>
+  <button className="cp-primary" disabled={busy||(mode==="challenge"&&selected.length!==3)}>{busy?"Un momento…":mode==="register"?"Crear mi cuenta":mode==="login"?"Entrar en mi cuenta":mode==="forgot"?"Continuar":mode==="challenge"?"Comprobar respuestas":"Guardar nueva contraseña"}</button>
  </form><div className="cp-account-switch">
   {mode==="login"&&<button type="button" onClick={()=>{setMode("forgot");setError("");setNotice("")}}>He olvidado mi contraseña</button>}
   {mode==="forgot"&&<button type="button" onClick={()=>{setMode("login");setError("");setNotice("")}}>Volver a iniciar sesión</button>}
+  {mode==="challenge"&&<button type="button" onClick={()=>{setMode("forgot");setSelected([]);setError("");setNotice("")}}>Volver</button>}
   {(mode==="register"||mode==="login")&&<>{mode==="register"?"¿Ya tienes una cuenta?":"¿Aún no tienes cuenta?"} <button type="button" onClick={()=>{setMode(mode==="register"?"login":"register");setError("");setNotice("")}}>{mode==="register"?"Inicia sesión":"Regístrate"}</button></>}
-  {mode==="reset"&&<button type="button" onClick={()=>{window.history.replaceState({},"",window.location.pathname);setMode("login");setError("");setNotice("")}}>Volver a iniciar sesión</button>}
+  {mode==="reset"&&<button type="button" onClick={()=>{setMode("login");setResetProof("");setError("");setNotice("")}}>Volver a iniciar sesión</button>}
  </div></div></div>
 }
-
 function Head({eyebrow,title,text}){return <header className="cp-head"><div><small>{eyebrow}</small><h1>{title}</h1>{text&&<p>{text}</p>}</div></header>}
 function Dashboard({sites,dbs,servers,workers,onNavigate}){return <><div className="cp-welcome"><div><span className="cp-kicker">CREATEPAGE STUDIO · HTTC</span><h1>Tu próximo sitio empieza aquí.</h1><p>Diseña, construye y publica páginas web desde un único estudio creativo.</p><div className="cp-welcome-actions"><button type="button" className="cp-primary" onClick={()=>navigate("/editor",onNavigate)}>✦ Abrir el estudio visual ↗</button><button type="button" className="cp-secondary" onClick={()=>navigate("/ide",onNavigate)}>Abrir editor de código</button></div></div><div className="cp-welcome-art"><div className="cp-art-window"><div className="cp-art-dots"><i/><i/><i/></div><div className="cp-art-layout"><small>YOUR NEXT BIG IDEA</small><b>Build something<br/>remarkable.</b><span/><div className="cp-art-cards"><i/><i/><i/></div></div></div><div className="cp-art-chip">✦ Studio ready</div></div></div><div className="cp-section-heading"><div><small>OVERVIEW</small><h2>Tu espacio de trabajo</h2></div><button type="button" onClick={()=>navigate("/my/sites",onNavigate)}>Ver todos los sitios ↗</button></div><div className="cp-grid four"><Stat n={sites.length} t="Sitios publicados"/><Stat n={dbs.length} t="Bases de datos"/><Stat n={servers.length} t="Servidores"/><Stat n={workers.length} t="Workers"/></div><div className="cp-section-heading"><div><small>QUICK START</small><h2>Continúa creando</h2></div></div><div className="cp-grid three"><button className="cp-action-card" onClick={()=>navigate("/editor",onNavigate)}><span>✦</span><b>Diseñador visual</b><small>Compón tu página con secciones y estilos.</small><i>Empezar a diseñar ↗</i></button><button className="cp-action-card" onClick={()=>navigate("/init",onNavigate)}><span>＋</span><b>Nuevo proyecto</b><small>Configura el dominio y crea un sitio publicable.</small><i>Crear proyecto ↗</i></button><button className="cp-action-card" onClick={()=>navigate("/ide",onNavigate)}><span>⌘</span><b>Editor de código</b><small>Importa archivos y ajusta el código fuente.</small><i>Abrir editor ↗</i></button></div></>}
 function Stat({n,t}){return <div className="cp-card cp-stat"><b>{n}</b><span>{t}</span></div>}
