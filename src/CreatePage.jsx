@@ -429,7 +429,7 @@ function Editor({siteId="",yourCode=false}){
      if(Array.isArray(edit.operations)&&edit.operations.length){
       if(existing<0)throw new Error("La IA intentó modificar un archivo que todavía no existe sin proporcionar su contenido inicial.");
       content=applyAiOperations(next[existing].content||"",edit.operations);
-     }else if(typeof edit.content==="string"&&existing<0)content=edit.content;
+     }else if(typeof edit.content==="string"&&(existing<0||!String(next[existing]?.content||"").trim()))content=edit.content;
      else if(typeof edit.content==="string"&&edit.replace_file===true)content=edit.content;
      else if(typeof edit.content==="string")throw new Error("La IA intentó reescribir un archivo entero para un cambio pequeño. No he sustituido tu código para evitar perder contenido.");
      else continue;
@@ -556,7 +556,7 @@ function Editor({siteId="",yourCode=false}){
     </div>
     <form onSubmit={sendAIMessage} style={{display:"flex",flexDirection:"column",gap:10}}>
      <label>Tu petición<textarea rows={4} value={aiPrompt} onChange={e=>setAiPrompt(e.target.value)} placeholder="Describe qué quieres cambiar. Puedes seguir pidiendo ajustes en el mismo chat." disabled={aiBusy}/></label>
-     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="submit" className="cp-primary" disabled={aiBusy||!aiPrompt.trim()}>{aiBusy?"La IA está trabajando…":"Enviar y modificar código ↗"}</button><button type="button" disabled={aiBusy||!aiChat.length} onClick={()=>setAiChat([])}>Nuevo chat</button></div>
+     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="submit" className="cp-primary" disabled={aiBusy||!aiPrompt.trim()}>{aiBusy?"La IA está trabajando…":"Enviar y modificar código ↗"}</button>{aiBusy&&<button type="button" className="cp-secondary" onClick={stopAIMessage}>Detener generación ×</button>}<button type="button" disabled={aiBusy||!aiChat.length} onClick={()=>setAiChat([])}>Nuevo chat</button></div>
     </form>
     {aiError&&<div className="cp-error">{aiError}</div>}
     <p className="cp-empty">La IA propone cambios en los archivos del editor, pero no publica automáticamente. Revisa el resultado y pulsa «Guardar cambios» cuando estés conforme.</p>
