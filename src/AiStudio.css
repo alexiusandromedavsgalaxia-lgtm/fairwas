@@ -6,3 +6,10 @@
 
 .ais-creditbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:18px 0;padding:16px 18px;background:linear-gradient(120deg,#171b2c,#111521);border:1px solid #9c82f344;border-radius:13px}.ais-creditbar>div{display:grid;gap:5px}.ais-creditbar small{font-size:9px;letter-spacing:1px;color:#a99ae3}.ais-creditbar b{font-size:19px;color:#eee9ff}.ais-eventgrid article button{margin-top:10px;width:100%;font-size:10px}.ais-eventgrid article .primary,.ais-eventgrid article .secondary{padding:8px 10px;border-radius:7px}
 @media(max-width:560px){.ais-creditbar{align-items:flex-start;flex-direction:column}.ais-creditbar button{width:100%}}
+
+/* Page selector and real source editor */
+.ais-editor-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.ais-page-picker{display:flex;align-items:center;gap:7px;color:#aeb5c8;font-size:10px}
+.ais-page-picker select{max-width:min(260px,38vw);min-width:170px;background:#111827;color:#edf0fa;border:1px solid #ffffff25;border-radius:8px;padding:10px;font-size:11px}
+.ais-code-editor{display:block;box-sizing:border-box;flex:1;width:100%;min-height:520px;resize:vertical;border:0;outline:0;background:#080d16;color:#dce5f7;padding:18px;font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2;white-space:pre;overflow:auto}
+@media(max-width:600px){.ais-editor-actions{width:100%;justify-content:stretch}.ais-editor-actions>*{flex:1;min-width:0}.ais-page-picker{flex-basis:100%;align-items:stretch;flex-direction:column}.ais-page-picker select{max-width:none;width:100%;box-sizing:border-box}}
