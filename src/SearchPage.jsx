@@ -51,7 +51,7 @@ export default function SearchPage({url,onNavigate}){
    {error&&<section role="alert" style={{padding:18,border:"1px solid "+colors.line,borderRadius:12}}><b>No se han podido mostrar los resultados</b><p style={{color:colors.sub}}>{error}</p><button onClick={()=>runSearch(q,0)} style={buttonStyle(colors)}>Reintentar</button></section>}
    {!loading&&!error&&data&&<>
     <p style={{fontSize:12,color:colors.sub,margin:"2px 0 22px"}}>{data.totalLabel} · página {data.page+1}</p>
-    <div style={{display:"grid",gridTemplateColumns:"minmax(0, min(680px, 100%)) minmax(0, 280px)",gap:44,alignItems:"start"}}>
+    <div style={{display:"grid",gridTemplateColumns:typeof window!=="undefined"&&window.innerWidth>900?"minmax(0, 680px) minmax(0, 280px)":"minmax(0, 1fr)",gap:44,alignItems:"start"}}>
      <section>
       {(data.results||[]).map((item,i)=><article key={item.url+i} style={{marginBottom:26}}>
        <div style={{fontSize:12,color:colors.sub,overflowWrap:"anywhere",marginBottom:5}}>{item.displayUrl||item.url}</div>
