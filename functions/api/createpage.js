@@ -105,6 +105,8 @@ export async function onRequest({request,env}){
     if(!(accountColumns.results||[]).some(column=>column.name==="plan"))await env.database.prepare("ALTER TABLE cp_accounts ADD COLUMN plan TEXT NOT NULL DEFAULT 'Free'").run();
     await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_recovery_challenges (challenge_hash TEXT PRIMARY KEY,developer_id TEXT,correct_ids TEXT NOT NULL,expires_at TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,used_at TEXT)").run();
     await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_password_resets (token_hash TEXT PRIMARY KEY,developer_id TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,used_at TEXT)").run();
+    await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_recovery_visits (developer_id TEXT NOT NULL,site_id TEXT NOT NULL,hostname TEXT NOT NULL,visited_at TEXT NOT NULL,PRIMARY KEY(developer_id,site_id))").run();
+    await env.database.prepare("CREATE INDEX IF NOT EXISTS idx_cp_recovery_visits_recent ON cp_recovery_visits(developer_id,visited_at DESC)").run();
    })().catch(error=>{createPageSchemaPromise=null;throw error});
   }
   await createPageSchemaPromise;
@@ -119,16 +121,27 @@ export async function onRequest({request,env}){
    const challengeHash=await accountSessionHash(challengeToken);
    let correct=[],options=[];
    if(!account)return json({ok:false,error:"recovery_projects_unavailable",detail:"No se ha podido preparar la comprobación para esa cuenta. Comprueba el correo o contacta con soporte de Fairwas."},404);
-   // Resolve the account email to its developer_id, then read only published
-   // sites linked to that developer in Cloudflare D1.
+   // Prefer the account's own published sites. If it has fewer than
+   // three, fall back to its three most recently visited published sites.
    const ownedRows=await env.database.prepare("SELECT site_id FROM cp_projects WHERE developer_id=? ORDER BY created_at DESC").bind(account.developer_id).all();
    const ownedSites=[];
    for(const project of ownedRows.results||[]){
     const site=await env.pages.prepare("SELECT site_id,hostname,title,status FROM sites WHERE site_id=? AND status='published' LIMIT 1").bind(project.site_id).first();
     if(site&&site.site_id&&site.hostname)ownedSites.push(site);
    }
-   if(ownedSites.length<3)return json({ok:false,error:"recovery_projects_unavailable",detail:"Esta cuenta no tiene tres sitios publicados asociados a ella en Cloudflare. No se puede crear una comprobación válida."},400);
-   const real=ownedSites.slice().sort(()=>Math.random()-.5).slice(0,3);
+   let sourceSites=ownedSites;
+   if(ownedSites.length<3){
+    const visits=await env.database.prepare("SELECT site_id,hostname FROM cp_recovery_visits WHERE developer_id=? ORDER BY visited_at DESC LIMIT 30").bind(account.developer_id).all();
+    const visitedSites=[];
+    for(const visit of visits.results||[]){
+     const site=await env.pages.prepare("SELECT site_id,hostname,title,status FROM sites WHERE site_id=? AND hostname=? COLLATE NOCASE AND status='published' LIMIT 1").bind(visit.site_id,visit.hostname).first();
+     if(site&&!visitedSites.some(x=>x.site_id===site.site_id))visitedSites.push(site);
+     if(visitedSites.length===3)break;
+    }
+    sourceSites=visitedSites;
+   }
+   if(sourceSites.length<3)return json({ok:false,error:"recovery_projects_unavailable",detail:ownedSites.length<3?"Esta cuenta no tiene tres sitios publicados ni tres visitas registradas. Visita tres sitios con la sesión iniciada y vuelve a intentarlo.":"No se han podido localizar tres sitios publicados asociados a esta cuenta."},400);
+   const real=sourceSites.slice().sort(()=>Math.random()-.5).slice(0,3);
    correct=real.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)}));
    options=[...correct];
    // Create plausible-looking decoy domains, but verify that none exists
@@ -227,6 +240,19 @@ export async function onRequest({request,env}){
    return json({ok:true});
   }
   const account=await getAccount(request,env);
+  if(action==="record-visit"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   if(!account)return json({ok:false,error:"authentication_required"},401);
+   const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
+   const hostname=String(parsed.value.hostname||"").trim().toLowerCase();
+   if(!hostname||hostname.length>253||!/^([a-z0-9-]+\\.)+[a-z]{2,63}$/.test(hostname))return json({ok:false,error:"invalid_hostname"},400);
+   const site=await env.pages.prepare("SELECT site_id,hostname FROM sites WHERE hostname=? COLLATE NOCASE AND status='published' LIMIT 1").bind(hostname).first();
+   if(!site)return json({ok:false,error:"site_not_found"},404);
+   const stamp=now();
+   await env.database.prepare("INSERT INTO cp_recovery_visits(developer_id,site_id,hostname,visited_at) VALUES(?,?,?,?) ON CONFLICT(developer_id,site_id) DO UPDATE SET hostname=excluded.hostname,visited_at=excluded.visited_at").bind(account.developer_id,site.site_id,site.hostname,stamp).run();
+   await env.database.prepare("DELETE FROM cp_recovery_visits WHERE developer_id=? AND site_id NOT IN (SELECT site_id FROM cp_recovery_visits WHERE developer_id=? ORDER BY visited_at DESC LIMIT 30)").bind(account.developer_id,account.developer_id).run();
+   return json({ok:true,recorded:true});
+  }
   if(action==="workspace"&&!account)return json({ok:true,developer:null,projects:[],sites:[],servers:[],databases:[],workers:[]});
   if(!account)return json({ok:false,error:"authentication_required",detail:"Inicia sesión o crea una cuenta para continuar."},401);
   if(action==="workspace"){
