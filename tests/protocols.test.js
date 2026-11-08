@@ -86,3 +86,12 @@ test("Macrospot domains open the integrated workspace", () => {
   assert.equal(toFairwas("https://macrospot.com/teams"), "httc://macrospot.com/teams");
   assert.equal(toFairwas("https://app.macrospot.com"), "httc://app.macrospot.com/");
 });
+
+
+test("AI Studio public and internal aliases always open as integrated HTTC pages", () => {
+  assert.equal(toFairwas("aistudio.fairwas.com"), "httc://aistudio.fairwas.com/");
+  assert.equal(toFairwas("https://aistudio.fairwas.com"), "httc://aistudio.fairwas.com/");
+  assert.equal(toFairwas("http://aistudio.fairwas.com/generate?mode=fast"), "httc://aistudio.fairwas.com/generate?mode=fast");
+  assert.equal(toFairwas("aistudio.fair"), "httc://aistudio.fair/");
+  assert.equal(toFairwas("https://aistudio.fair"), "httc://aistudio.fair/");
+});
