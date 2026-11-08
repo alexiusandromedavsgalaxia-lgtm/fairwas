@@ -4,6 +4,7 @@ const now=()=>new Date().toISOString();
 const MAX_PUBLISH_FILES=300;
 const MAX_PUBLISH_BYTES=15*1024*1024;
 const MAX_REQUEST_BYTES=22*1024*1024;
+let createPageSchemaPromise=null;
 async function readJsonLimited(request){
  const declared=Number(request.headers.get("content-length")||0);
  if(declared>MAX_REQUEST_BYTES)return{ok:false,status:413,error:"request_too_large"};
@@ -90,15 +91,23 @@ export async function onRequest({request,env}){
  if(!env.database||!env.pages||!env.server||!env.users)return json({ok:false,error:"d1_binding_missing",detail:"CreatePage requiere pages, server, database y users."},500);
 
  try{
-  await ensureProjectSchema(env);
-  await ensureSiteFilesEncoding(env);
-  await ensureServerSchema(env);
-  await ensureAccountSchema(env);
-  await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_api_manifests (developer_id TEXT PRIMARY KEY,manifest TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
-  const accountColumns=await env.database.prepare("PRAGMA table_info(cp_accounts)").all();
-  if(!(accountColumns.results||[]).some(column=>column.name==="plan"))await env.database.prepare("ALTER TABLE cp_accounts ADD COLUMN plan TEXT NOT NULL DEFAULT 'Free'").run();
-  await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_recovery_challenges (challenge_hash TEXT PRIMARY KEY,developer_id TEXT,correct_ids TEXT NOT NULL,expires_at TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,used_at TEXT)").run();
-  await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_password_resets (token_hash TEXT PRIMARY KEY,developer_id TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,used_at TEXT)").run();
+  // Run schema setup and legacy migrations once per Worker isolate, not on
+  // every API request. Repeating PRAGMA/SELECT/DDL on every login, page load,
+  // and API call was needlessly consuming Cloudflare D1 operations.
+  if(!createPageSchemaPromise){
+   createPageSchemaPromise=(async()=>{
+    await ensureProjectSchema(env);
+    await ensureSiteFilesEncoding(env);
+    await ensureServerSchema(env);
+    await ensureAccountSchema(env);
+    await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_api_manifests (developer_id TEXT PRIMARY KEY,manifest TEXT NOT NULL,updated_at TEXT NOT NULL)").run();
+    const accountColumns=await env.database.prepare("PRAGMA table_info(cp_accounts)").all();
+    if(!(accountColumns.results||[]).some(column=>column.name==="plan"))await env.database.prepare("ALTER TABLE cp_accounts ADD COLUMN plan TEXT NOT NULL DEFAULT 'Free'").run();
+    await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_recovery_challenges (challenge_hash TEXT PRIMARY KEY,developer_id TEXT,correct_ids TEXT NOT NULL,expires_at TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,used_at TEXT)").run();
+    await env.database.prepare("CREATE TABLE IF NOT EXISTS cp_password_resets (token_hash TEXT PRIMARY KEY,developer_id TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,used_at TEXT)").run();
+   })().catch(error=>{createPageSchemaPromise=null;throw error});
+  }
+  await createPageSchemaPromise;
   if(action==="recovery-challenge"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
@@ -219,6 +228,27 @@ export async function onRequest({request,env}){
   }
   const account=await getAccount(request,env);
   if(!account)return json({ok:false,error:"authentication_required",detail:"Inicia sesión o crea una cuenta para continuar."},401);
+  if(action==="workspace"){
+   const projectsResult=await env.database.prepare("SELECT site_id,hostname,title,status FROM cp_projects WHERE developer_id=? ORDER BY hostname").bind(account.developer_id).all();
+   const projects=projectsResult.results||[];
+   const siteIds=projects.map(x=>String(x.site_id||"")).filter(Boolean);
+   let sites=[],servers=[],databases=[],pageDatabases=[],workers=[];
+   if(siteIds.length){
+    const marks=siteIds.map(()=>"?").join(",");
+    const [siteRows,serverRows,databaseRows,pageDatabaseRows,workerRows]=await Promise.all([
+     env.pages.prepare("SELECT site_id,hostname,protocol,title,description,framework,language,backend,runtime,database_type,status,created_at,updated_at FROM sites WHERE site_id IN ("+marks+")").bind(...siteIds).all(),
+     env.server.prepare("SELECT * FROM servers WHERE site_id IN ("+marks+") ORDER BY id DESC").bind(...siteIds).all(),
+     env.database.prepare("SELECT * FROM cp_databases WHERE site_id IN ("+marks+") ORDER BY id DESC").bind(...siteIds).all(),
+     env.database.prepare("SELECT * FROM cp_page_databases WHERE site_id IN ("+marks+") ORDER BY created_at DESC").bind(...siteIds).all(),
+     env.database.prepare("SELECT * FROM cp_workers WHERE site_id IN ("+marks+") ORDER BY id DESC").bind(...siteIds).all()
+    ]);
+    sites=siteRows.results||[];
+    servers=serverRows.results||[];
+    databases=[...(pageDatabaseRows.results||[]),...(databaseRows.results||[])];
+    workers=workerRows.results||[];
+   }
+   return json({ok:true,developer:accountJson(account),projects,sites,servers,databases,workers});
+  }
   if(action==="profile"){
    if(method==="POST"){
     const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
