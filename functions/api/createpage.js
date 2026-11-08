@@ -227,6 +227,7 @@ export async function onRequest({request,env}){
    return json({ok:true});
   }
   const account=await getAccount(request,env);
+  if(action==="workspace"&&!account)return json({ok:true,developer:null,projects:[],sites:[],servers:[],databases:[],workers:[]});
   if(!account)return json({ok:false,error:"authentication_required",detail:"Inicia sesión o crea una cuenta para continuar."},401);
   if(action==="workspace"){
    const projectsResult=await env.database.prepare("SELECT site_id,hostname,title,status FROM cp_projects WHERE developer_id=? ORDER BY hostname").bind(account.developer_id).all();
