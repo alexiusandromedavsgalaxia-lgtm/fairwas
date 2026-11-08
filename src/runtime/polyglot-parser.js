@@ -1,4 +1,3 @@
-import { Parser, Language } from "web-tree-sitter";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
 
@@ -45,6 +44,7 @@ const LANGUAGE_HINTS = [
 ];
 
 let initPromise;
+let treeSitterModulePromise;
 const parserCache = new Map();
 const languageCache = new Map();
 
@@ -63,6 +63,16 @@ function grammarLocation(grammar, assetBase) {
 }
 
 async function getParser(grammar, assetBase) {
+  // YourCode's free/universal mode does not need Tree-sitter. Load the
+  // WebAssembly runtime only when a real language grammar is requested.
+  if (!treeSitterModulePromise) {
+    treeSitterModulePromise = import("web-tree-sitter").catch(error => {
+      treeSitterModulePromise = null;
+      throw error;
+    });
+  }
+  const { Parser, Language } = await treeSitterModulePromise;
+
   if (!initPromise) {
     initPromise = Parser.init({
       locateFile: scriptName => runtimeLocation(scriptName)
