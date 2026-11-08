@@ -45,12 +45,20 @@ const privateRoutes=[
  ["/workers","Workers"]
 ];
 
+const ACCOUNT_SESSION_KEY="fairwas:createpage:session";
+function accountFetch(url,options={}){
+ const headers=new Headers(options.headers||{});
+ try{const token=localStorage.getItem(ACCOUNT_SESSION_KEY);if(token)headers.set("Authorization","Bearer "+token)}catch{}
+ return fetch(url,{...options,headers});
+}
 async function api(action,options){
  const [name,...extra]=String(action).split("&");
  const query=["action="+encodeURIComponent(name),...extra].join("&");
- const r=await fetch("/api/createpage?"+query,options);
+ const r=await accountFetch("/api/createpage?"+query,options);
  const d=await r.json().catch(()=>({}));
  if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"request_failed");
+ if(name==="register"||name==="login"){try{localStorage.setItem(ACCOUNT_SESSION_KEY,d.token)}catch{}}
+ if(name==="logout"){try{localStorage.removeItem(ACCOUNT_SESSION_KEY)}catch{}}
  return d;
 }
 
@@ -69,7 +77,7 @@ function Layout({path,children,hasAccount,onNavigate}){
   <aside className="cp-side">
    <div className="cp-brand"><span>CP</span><div><b>CreatePage</b><small>HTTC workspace</small></div></div>
    <nav>{routes.map(([p,label])=><button key={p} className={path===p?"active":""} onClick={()=>go(p)}>{label}</button>)}<button onClick={()=>onNavigate?.("httc://yourcode.createpage.fair")}>YourCode ↗</button></nav>
-   <div className="cp-side-foot">{hasAccount?"Cuenta de desarrollador registrada":"Sin cuenta de desarrollador"}<br/><b>HTTC · Pages · Server · Database</b></div>
+   <div className="cp-side-foot">{hasAccount?"Cuenta personal activa":"Necesitas una cuenta"}<br/><b>HTTC · Pages · Server · Database</b>{hasAccount&&<button type="button" onClick={async()=>{try{await api("logout");await onNavigate?.("httc://createpage.fair/")}catch(e){alert(e.message)}}}>Cerrar sesión</button>}</div>
   </aside>
   <div className="cp-content">{children}</div>
  </section>
@@ -83,6 +91,8 @@ function Workspace({path,onNavigate,yourCode=false}){
  const reload=async()=>{
   setLoading(true);
   try{
+   const status=await api("auth-status");
+   if(!status.account){setRegistry(null);setSites([]);setDbs([]);setServers([]);setWorkers([]);setError("");return;}
    const r=await api("registry");
    setRegistry(r);
    if(r.developer){
@@ -100,7 +110,8 @@ function Workspace({path,onNavigate,yourCode=false}){
  const privatePath=privateRoutes.some(([p])=>p===routePath);
  const effectivePath=yourCode?"/ide":privatePath&&!hasAccount?"/registry":routePath;
  const editorSiteId=new URLSearchParams(path.split("?")[1]||"").get("site_id")||"";
- const page=loading?<div className="cp-card cp-empty">Comprobando tu cuenta de desarrollador…</div>:
+ const page=loading?<div className="cp-card cp-empty">Comprobando tu cuenta…</div>:
+  !hasAccount?<AccountGate onDone={async()=>{await reload();navigate("/",onNavigate)}}/>:
   effectivePath==="/" ? <Dashboard sites={sites} dbs={dbs} servers={servers} workers={workers} onNavigate={onNavigate}/>:
   effectivePath==="/init"?<Init onDone={reload}/>:
   effectivePath==="/editor"?<Studio onNavigate={onNavigate} onDone={reload}/>:
@@ -113,6 +124,12 @@ function Workspace({path,onNavigate,yourCode=false}){
   effectivePath==="/ide"?<Editor siteId={editorSiteId} yourCode={yourCode}/>:
   effectivePath==="/my/profile"?<Profile data={registry}/>:<NotFound/>;
  return <Layout path={effectivePath} hasAccount={hasAccount} onNavigate={onNavigate}>{error&&<div className="cp-error">{error}</div>}{page}</Layout>
+}
+
+function AccountGate({onDone}){
+ const[mode,setMode]=useState("register"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const submit=async event=>{event.preventDefault();setBusy(true);setError("");try{await api(mode,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({display_name:name,email,password})});setPassword("");await onDone?.()}catch(e){setError(e.message)}finally{setBusy(false)}};
+ return <div className="cp-account-wrap"><div className="cp-account-card"><div className="cp-account-mark">CP</div><small className="cp-kicker">CREATEPAGE · CUENTA PERSONAL</small><h1>{mode==="register"?"Crea tu cuenta":"Inicia sesión"}</h1><p>{mode==="register"?"Tu espacio será privado. Tus proyectos y recursos no se compartirán con otras personas.":"Accede a tus proyectos, dominios y recursos."}</p><form onSubmit={submit}>{mode==="register"&&<label>Nombre<input required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Cómo te llamas"/></label>}<label>Correo electrónico<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com"/></label><label>Contraseña<input required type="password" minLength={mode==="register"?10:1} autoComplete={mode==="register"?"new-password":"current-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Mínimo 10 caracteres":"Tu contraseña"}/></label>{mode==="register"&&<small className="cp-account-hint">Si usas el correo asociado a tu antigua cuenta, conservaremos tus proyectos actuales.</small>}{error&&<div className="cp-error">{error}</div>}<button className="cp-primary" disabled={busy}>{busy?"Un momento…":mode==="register"?"Crear mi cuenta":"Entrar en mi cuenta"}</button></form><div className="cp-account-switch">{mode==="register"?"¿Ya tienes una cuenta?":"¿Aún no tienes cuenta?"} <button type="button" onClick={()=>{setMode(mode==="register"?"login":"register");setError("")}}>{mode==="register"?"Inicia sesión":"Regístrate"}</button></div></div></div>
 }
 
 function Head({eyebrow,title,text}){return <header className="cp-head"><div><small>{eyebrow}</small><h1>{title}</h1>{text&&<p>{text}</p>}</div></header>}
@@ -144,7 +161,7 @@ function ApiEndpoints({sites}){
  const load=async id=>{
   if(!id){setItems([]);return}
   setBusy(true);setError("");
-  try{const r=await fetch("/api/endpoints?action=list&site_id="+encodeURIComponent(id));const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"request_failed");setItems(d.items||[])}
+  try{const r=await accountFetch("/api/endpoints?action=list&site_id="+encodeURIComponent(id));const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.detail||d.error||"request_failed");setItems(d.items||[])}
   catch(e){setError(e.message)}
   finally{setBusy(false)}
  };
