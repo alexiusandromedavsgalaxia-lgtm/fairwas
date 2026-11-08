@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveAddressInput } from "../src/protocols.js";
+import { resolveAddressInput, toFairwas } from "../src/protocols.js";
 
 test("absolute slash routes resolve against the current HTTC host", () => {
   assert.equal(resolveAddressInput("/", "httc://site.fair/loqsea"), "httc://site.fair/");
@@ -70,4 +70,11 @@ test("address parsing separates the hostname from complex routes and parameters"
     resolveAddressInput("miweb.fair/api/v1/items?filter=created_at%3Adesc"),
     "httc://miweb.fair/api/v1/items?filter=created_at%3Adesc"
   );
+});
+
+test("DuckDuckGo and Guglu open their own integrated search engines", () => {
+  assert.equal(toFairwas("duckduckgo.com"), "httc://duckduckgo.com/");
+  assert.equal(toFairwas("duckduckgo.com/?q=cafe"), "httc://duckduckgo.com/?q=cafe");
+  assert.equal(toFairwas("guglu.com"), "httc://guglu.com/");
+  assert.equal(toFairwas("guglu.com/search?q=cafe"), "httc://guglu.com/search?q=cafe");
 });
