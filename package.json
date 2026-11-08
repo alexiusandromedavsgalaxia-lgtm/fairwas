@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check:api": "node --check functions/api/_account.js && node --check functions/api/search.js && node --check functions/api/resolve.js && node --check functions/api/proxy.js && node --check functions/api/migrate.js && node --check functions/api/createpage.js && node --check functions/api/mcp.js && node --check functions/api/ai.js && node --check functions/api/ide-ai.js && node --check functions/api/bookmarks.js && node --check functions/api/history.js && node --check src/runtime/parsers.js",
+    "check:api": "node --check functions/api/macrospot.js && node --check functions/api/_account.js && node --check functions/api/publish-site.js && node --check functions/api/search.js && node --check functions/api/resolve.js && node --check functions/api/proxy.js && node --check functions/api/migrate.js && node --check functions/api/createpage.js && node --check functions/api/mcp.js && node --check functions/api/ai.js && node --check functions/api/ide-ai.js && node --check functions/api/bookmarks.js && node --check functions/api/history.js && node --check src/runtime/parsers.js",
     "check": "npm run check:api && node --test tests/*.test.js && npm run build",
     "postinstall": "node scripts/copy-tree-sitter-assets.mjs"
   },
@@ -22,7 +22,8 @@
     "postcss-value-parser": "^4.2.0",
     "web-tree-sitter": "0.25.10",
     "tree-sitter-wasms": "0.1.13",
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.1",
+    "@mlc-ai/web-llm": "^0.2.87"
   },
   "devDependencies": {}
 }
