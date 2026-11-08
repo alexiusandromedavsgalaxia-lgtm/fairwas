@@ -25,9 +25,12 @@ export const toFairwas=(input="")=>{
  const value=String(input).trim();
  if(!value)return"httc://home";
  if(directProtocolPattern.test(value))return value;
- if(/^(?:www\\.)?duckduckgo\\.com(?:[/:?#]|$)/i.test(value)){
-  const input=/^[a-z][a-z0-9+.-]*:\\/\\//i.test(value)?value:"https://"+value;
-  try{const url=new URL(input);return "httc://duckduckgo.com"+url.pathname+url.search+url.hash}catch{}
+ if(/^(?:www\.)?duckduckgo\.com(?:[/:?#]|$)/i.test(value)){
+  try{
+   const input=value.includes("://")?value:"https://"+value;
+   const url=new URL(input);
+   return "httc://duckduckgo.com"+url.pathname+url.search+url.hash;
+  }catch{}
  }
  if(/^[a-z][a-z0-9+.-]*:\/\//i.test(value))return value;
  // Parse the host separately from the route, query string and fragment.
