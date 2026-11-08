@@ -112,7 +112,7 @@ export async function onRequest({request,env}){
    if(account){
     const owned=await env.database.prepare("SELECT site_id,hostname,title FROM cp_projects WHERE developer_id=? ORDER BY RANDOM() LIMIT 30").bind(account.developer_id).all();
     const real=(owned.results||[]).filter(x=>x.site_id&&x.hostname).slice(0,3);
-    if(real.length===3)correct=real.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)}));
+    if(real.length>0)correct=real.map(x=>({id:crypto.randomUUID(),label:String(x.title||x.hostname)+" · "+String(x.hostname)}));
    }
    options=[...correct];
    const fakeNames=["Aurora Studio","Pixel Garden","Northstar Labs","Velvet Canvas","Orbit Journal","Copper Cloud","Mosaic Works","Silver Meadow","Blue Lantern","Echo Atelier","Paper Moon","Nova Archive","Wildflower Pages","Amber Workshop","Quiet Horizon"];
@@ -124,19 +124,19 @@ export async function onRequest({request,env}){
    }
    for(let i=options.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[options[i],options[j]]=[options[j],options[i]]}
    await env.database.prepare("INSERT INTO cp_recovery_challenges(challenge_hash,developer_id,correct_ids,expires_at,created_at) VALUES(?,?,?,?,?)").bind(challengeHash,account?.developer_id||null,JSON.stringify(correct.map(x=>x.id)),expires,stamp).run();
-   return json({ok:true,challenge_token:challengeToken,options:options.map(({id,label})=>({id,label})),expires_at:expires});
+   return json({ok:true,challenge_token:challengeToken,options:options.map(({id,label})=>({id,label})),required_count:correct.length||3,expires_at:expires});
   }
   if(action==="verify-recovery"){
    if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
    const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
    const token=String(parsed.value.challenge_token||"");
    const selected=Array.isArray(parsed.value.selected_ids)?parsed.value.selected_ids.map(x=>String(x)).slice(0,10):[];
-   if(!/^[a-f0-9]{64}$/i.test(token)||selected.length!==3||new Set(selected).size!==3)return json({ok:false,error:"recovery_answers_incorrect",detail:"Selecciona exactamente tres proyectos."},400);
+   if(!/^[a-f0-9]{64}$/i.test(token)||selected.length<1||selected.length>3||new Set(selected).size!==selected.length)return json({ok:false,error:"recovery_answers_incorrect",detail:"Selecciona el número indicado de proyectos."},400);
    const challengeHash=await accountSessionHash(token);
    const challenge=await env.database.prepare("SELECT developer_id,correct_ids,expires_at,attempts,used_at FROM cp_recovery_challenges WHERE challenge_hash=? LIMIT 1").bind(challengeHash).first();
    if(!challenge||challenge.used_at||Date.parse(challenge.expires_at)<=Date.now()||Number(challenge.attempts)>=3)return json({ok:false,error:"recovery_challenge_expired",detail:"La comprobación ha caducado. Vuelve a empezar."},400);
    const expected=JSON.parse(challenge.correct_ids||"[]");
-   const matches=Boolean(challenge.developer_id)&&expected.length===3&&expected.every(id=>selected.includes(id))&&selected.every(id=>expected.includes(id));
+   const matches=Boolean(challenge.developer_id)&&expected.length>=1&&expected.length<=3&&expected.length===selected.length&&expected.every(id=>selected.includes(id))&&selected.every(id=>expected.includes(id));
    await env.database.prepare("UPDATE cp_recovery_challenges SET attempts=attempts+1,used_at=CASE WHEN ? THEN ? ELSE used_at END WHERE challenge_hash=?").bind(matches?1:0,now(),challengeHash).run();
    if(!matches)return json({ok:false,error:"recovery_answers_incorrect",detail:"Las respuestas no coinciden. Comprueba los proyectos e inténtalo de nuevo."},400);
    const resetToken=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,"0")).join("");
