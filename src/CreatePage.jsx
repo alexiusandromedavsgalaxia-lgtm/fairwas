@@ -388,7 +388,68 @@ function Editor({siteId="",yourCode=false}){
   return()=>{active=false;clearTimeout(timer)};
  },[yourCode,code,site.title]);
 
-  const sendAIMessage=async(event)=>{event?.preventDefault?.();const prompt=aiPrompt.trim();if(!prompt||aiBusy)return;const conversation=[...aiChat,{role:"user",content:prompt}];setAiChat(conversation);setAiPrompt("");setAiBusy(true);setAiError("");try{const sourceFiles=currentFiles();const response=await accountFetch("/api/ai-studio",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode:"ide",model:aiModel,messages:conversation.slice(-12),project:{title:site.title,hostname:site.hostname,site_id:activeSiteId},files:sourceFiles.map(file=>({path:file.path,content:file.content||"",content_type:file.content_type||""}))})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.detail||data.error||"No se pudo conectar con el proveedor de IA.");let raw=String(data.content||"").trim();raw=raw.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");let result;try{result=JSON.parse(raw)}catch{result={reply:raw,edits:[]}}const edits=Array.isArray(result.edits)?result.edits:[];let next=[...sourceFiles];for(const edit of edits){if(!edit||typeof edit.path!=="string"||typeof edit.content!=="string")continue;const path=normalizePath(edit.path);if(path.split("/").some(part=>part===".."||part==="." )||/[\\?#\u0000-\u001f]/.test(path))continue;const existing=next.findIndex(file=>file.path===path);const updated={...(existing>=0?next[existing]:{}),path,content:edit.content};if(existing>=0)next[existing]=updated;else next.push(updated)}if(edits.length){setFiles(next);const editedCurrent=next.find(file=>file.path===selected);if(editedCurrent)setCode(editedCurrent.content);else if(next.length){setSelected(next[0].path);setCode(next[0].content||"")}setStatus("La IA ha aplicado "+edits.length+" cambio(s) al proyecto. Revisa el código y guarda/publica cuando quieras.")}const reply=String(result.reply||result.message||(edits.length?"He aplicado los cambios al proyecto.":"Respuesta recibida."));setAiChat(items=>[...items,{role:"assistant",content:reply,edits:edits.map(edit=>edit.path)}])}catch(error){setAiError(error.message||"Falló la conexión con la IA.");setAiChat(items=>[...items,{role:"assistant",content:"No he podido completar la petición: "+(error.message||"error de conexión")}])}finally{setAiBusy(false)}};
+  const aiAbortRef=useRef(null);
+  const applyAiOperations=(original,operations)=>{
+   let output=String(original??"");
+   for(const operation of operations||[]){
+    const type=String(operation?.type||"");
+    if(type==="replace"||type==="replace_all"){
+     const find=String(operation.find??"");
+     if(!find)throw new Error("La IA devolvió una modificación sin texto de búsqueda.");
+     if(type==="replace_all"){if(!output.includes(find))throw new Error("No se encontró el fragmento que la IA quería modificar.");output=output.split(find).join(String(operation.replace??""))}
+     else {const first=output.indexOf(find);if(first<0)throw new Error("No se encontró el fragmento que la IA quería modificar.");if(output.indexOf(find,first+find.length)>=0)throw new Error("El fragmento que la IA quería cambiar aparece varias veces. No he aplicado un cambio ambiguo.");output=output.slice(0,first)+String(operation.replace??"")+output.slice(first+find.length)}
+    }else if(type==="append")output+=String(operation.text??"");
+    else if(type==="prepend")output=String(operation.text??"")+output;
+    else if(type==="insert_after"||type==="insert_before"){
+     const find=String(operation.find??"");const at=output.indexOf(find);
+     if(!find||at<0)throw new Error("No se encontró el punto exacto donde insertar el cambio.");
+     if(output.indexOf(find,at+find.length)>=0)throw new Error("El punto de inserción aparece varias veces. No he aplicado un cambio ambiguo.");
+     const index=at+(type==="insert_after"?find.length:0);output=output.slice(0,index)+String(operation.text??"")+output.slice(index);
+    }else throw new Error("La IA devolvió una operación de edición no compatible.");
+   }
+   return output;
+  };
+  const sendAIMessage=async(event)=>{
+   event?.preventDefault?.();const prompt=aiPrompt.trim();if(!prompt||aiBusy)return;
+   const conversation=[...aiChat,{role:"user",content:prompt}];setAiChat(conversation);setAiPrompt("");setAiBusy(true);setAiError("");
+   const controller=new AbortController();aiAbortRef.current=controller;
+   try{
+    const sourceFiles=currentFiles();
+    const response=await accountFetch("/api/ai-studio",{method:"POST",signal:controller.signal,headers:{"content-type":"application/json"},body:JSON.stringify({mode:"ide",model:aiModel,messages:conversation.slice(-12),project:{title:site.title,hostname:site.hostname,site_id:activeSiteId},files:sourceFiles.map(file=>({path:file.path,content:file.content||"",content_type:file.content_type||""}))})});
+    const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.detail||data.error||"No se pudo conectar con el proveedor de IA.");
+    let raw=String(data.content||"").trim();raw=raw.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");
+    let result;try{result=JSON.parse(raw)}catch{throw new Error("La IA devolvió una respuesta incompleta. Vuelve a intentarlo con una instrucción más concreta.");}
+    const edits=Array.isArray(result.edits)?result.edits:[];let next=[...sourceFiles];let applied=[];
+    for(const edit of edits){
+     if(!edit||typeof edit.path!=="string")continue;
+     const path=normalizePath(edit.path);
+     if(path.split("/").some(part=>part===".."||part===".")||/[\\?#\u0000-\u001f]/.test(path))continue;
+     const existing=next.findIndex(file=>file.path===path);
+     let content;
+     if(Array.isArray(edit.operations)&&edit.operations.length){
+      if(existing<0)throw new Error("La IA intentó modificar un archivo que todavía no existe sin proporcionar su contenido inicial.");
+      content=applyAiOperations(next[existing].content||"",edit.operations);
+     }else if(typeof edit.content==="string"&&existing<0)content=edit.content;
+     else if(typeof edit.content==="string"&&edit.replace_file===true)content=edit.content;
+     else if(typeof edit.content==="string")throw new Error("La IA intentó reescribir un archivo entero para un cambio pequeño. No he sustituido tu código para evitar perder contenido.");
+     else continue;
+     const updated={...(existing>=0?next[existing]:{}),path,content};
+     if(existing>=0)next[existing]=updated;else next.push(updated);
+     applied.push(path);
+    }
+    if(applied.length){
+     setFiles(next);const editedCurrent=next.find(file=>file.path===selected);
+     if(editedCurrent)setCode(editedCurrent.content);else if(next.length){setSelected(next[0].path);setCode(next[0].content||"")}
+     setStatus("La IA ha aplicado "+applied.length+" cambio(s) concretos. Revisa y guarda cuando quieras.");
+    }
+    const reply=String(result.reply||result.message||(applied.length?"He aplicado los cambios solicitados.":"No he encontrado cambios que aplicar."));
+    setAiChat(items=>[...items,{role:"assistant",content:reply,edits:applied}]);
+   }catch(error){
+    if(error?.name==="AbortError"){setAiChat(items=>[...items,{role:"assistant",content:"Generación detenida. No se han aplicado cambios de esta petición."}]);}
+    else{setAiError(error.message||"Falló la conexión con la IA.");setAiChat(items=>[...items,{role:"assistant",content:"No he podido completar la petición: "+(error.message||"error de conexión")}]);}
+   }finally{if(aiAbortRef.current===controller)aiAbortRef.current=null;setAiBusy(false);}
+  };
+  const stopAIMessage=()=>{aiAbortRef.current?.abort();};
  const normalizePath=raw=>{let path=String(raw||"").trim().replace(/\\/g,"/");if(!path.startsWith("/"))path="/"+path;path=path.replace(/\/+/g,"/");return path.length>1?path.replace(/\/$/,""):path};
  const pick=path=>{const file=files.find(item=>item.path===path);if(!file)return;setSelected(path);setCode(file.content)};
  useEffect(()=>{if(!siteId)return;let cancelled=false;(async()=>{setStatus("Cargando página…");try{const d=await api("site&site_id="+encodeURIComponent(siteId));if(cancelled)return;if(draft&&Array.isArray(draft.files)&&draft.files.length){setFiles(draft.files);setFolders(Array.isArray(draft.folders)?draft.folders:[]);setSelected(draft.selected||draft.files[0].path);setCode(draft.code ?? (draft.files.find(file=>file.path===(draft.selected||draft.files[0].path))?.content || ""));setSite({...({site_id:siteId,hostname:"",title:"Mi sitio",...(draft.site||{})}),site_id:siteId,hostname:d.site?.hostname||d.project?.hostname||draft.site?.hostname||"",title:d.site?.title||d.project?.title||draft.site?.title||"Mi sitio",status:d.site?.status||d.project?.status||draft.site?.status||"draft"});setBuild(draft.build||{root:d.project?.build_root||"/",output:d.project?.build_output||"/dist",command:d.project?.build_command||"npm run build"});setSourceRepo(Boolean(draft.sourceRepo));setRepoUrl(draft.repoUrl||"");setMigrateUrl(draft.migrateUrl||"");setStatus("Borrador local recuperado. Tus cambios sin publicar siguen aquí.")}else{const imported=d.files||[];setFiles(imported.length?imported:[{path:"/routes/mainpage/index.html",content:""}]);const first=imported[0]||{path:"/routes/mainpage/index.html",content:""};setSelected(first.path);setCode(first.content||"");setSite({site_id:siteId,hostname:d.site?.hostname||d.project?.hostname||"",title:d.site?.title||d.project?.title||"Mi sitio",status:d.site?.status||d.project?.status||"draft"});setBuild({root:d.project?.build_root||"/",output:d.project?.build_output||"/dist",command:d.project?.build_command||"npm run build"});setStatus("Página cargada.")}setLoaded(true)}catch(error){setStatus(error instanceof Error?error.message:"No se pudo cargar la página.");setLoaded(true)}})();return()=>{cancelled=true}},[siteId]);
