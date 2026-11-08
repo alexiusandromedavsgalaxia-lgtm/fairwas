@@ -88,6 +88,43 @@ export async function onRequest({request,env}){
   await ensureProjectSchema(env);
   await ensureSiteFilesEncoding(env);
   await ensureServerSchema(env);
+  await ensureAccountSchema(env);
+  if(action==="auth-status")return json({ok:true,account:accountJson(await getAccount(request,env))});
+  if(action==="register"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
+   const b=parsed.value,email=String(b.email||"").trim().toLowerCase(),displayName=String(b.display_name||"").trim(),password=String(b.password||"");
+   if(!email.includes("@")||!email.includes("."))return json({ok:false,error:"invalid_email"},400);
+   if(displayName.length<2||displayName.length>80)return json({ok:false,error:"invalid_display_name"},400);
+   if(password.length<10||password.length>200)return json({ok:false,error:"weak_password",detail:"La contraseña debe tener al menos 10 caracteres."},400);
+   if(await env.database.prepare("SELECT developer_id FROM cp_accounts WHERE email=? COLLATE NOCASE LIMIT 1").bind(email).first())return json({ok:false,error:"email_already_registered"},409);
+   let developerId=null;
+   const legacy=await env.database.prepare("SELECT developer_id FROM cp_developers WHERE id=1").first();
+   if(legacy){const legacyUser=await env.users.prepare("SELECT email FROM users WHERE developer_id=? LIMIT 1").bind(legacy.developer_id).first();if(String(legacyUser?.email||"").trim().toLowerCase()===email)developerId=legacy.developer_id;}
+   if(!developerId)developerId="dev-"+crypto.randomUUID().replace(/-/g,"").slice(0,20);
+   if(await env.database.prepare("SELECT developer_id FROM cp_accounts WHERE developer_id=? LIMIT 1").bind(developerId).first())return json({ok:false,error:"legacy_account_already_claimed"},409);
+   const credentials=await hashAccountPassword(password),stamp=now();
+   await env.database.prepare("INSERT INTO cp_accounts(developer_id,email,display_name,password_salt,password_hash,status,created_at,updated_at) VALUES(?,?,?,?,?,'active',?,?)").bind(developerId,email,displayName,credentials.salt,credentials.hash,stamp,stamp).run();
+   await env.database.prepare("INSERT INTO cp_account_profiles(developer_id,display_name,updated_at) VALUES(?,?,?) ON CONFLICT(developer_id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at").bind(developerId,displayName,stamp).run();
+   const session=await createAccountSession(env,developerId);
+   return json({ok:true,account:{developer_id:developerId,email,display_name:displayName,status:"active",created_at:stamp,updated_at:stamp},token:session.token,expires_at:session.expires_at},201);
+  }
+  if(action==="login"){
+   if(method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+   const parsed=await readJsonLimited(request);if(!parsed.ok)return json({ok:false,error:parsed.error},parsed.status);
+   const email=String(parsed.value.email||"").trim().toLowerCase(),password=String(parsed.value.password||"");
+   const row=await env.database.prepare("SELECT * FROM cp_accounts WHERE email=? COLLATE NOCASE AND status='active' LIMIT 1").bind(email).first();
+   if(!row||!await verifyAccountPassword(password,row.password_salt,row.password_hash))return json({ok:false,error:"invalid_credentials",detail:"El correo o la contraseña no son correctos."},401);
+   const session=await createAccountSession(env,row.developer_id);
+   return json({ok:true,account:accountJson(row),token:session.token,expires_at:session.expires_at});
+  }
+  if(action==="logout"){
+   const token=(request.headers.get("authorization")||"").replace(/^Bearer +/i,"");
+   if(token)await env.database.prepare("DELETE FROM cp_sessions WHERE token_hash=?").bind(await accountSessionHash(token)).run();
+   return json({ok:true});
+  }
+  const account=await getAccount(request,env);
+  if(!account)return json({ok:false,error:"authentication_required",detail:"Inicia sesión o crea una cuenta para continuar."},401);
   if(action==="profile"){
    if(method==="POST"){
     const parsedBody=await readJsonLimited(request);if(!parsedBody.ok)return json({ok:false,error:parsedBody.error},parsedBody.status);const b=parsedBody.value;
