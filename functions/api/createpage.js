@@ -156,7 +156,7 @@ export async function onRequest({request,env}){
    const tlds=[".com",".es",".net",".dev"];
    const usedNames=new Set();
    for(let i=0;i<3;i++){
-    let fakeHost="";
+    let fakeHost="",fakeTitle="";
     for(let attempt=0;attempt<40&&!fakeHost;attempt++){
      const a=nameA[Math.floor(Math.random()*nameA.length)];
      const b=nameB[Math.floor(Math.random()*nameB.length)];
@@ -166,10 +166,10 @@ export async function onRequest({request,env}){
      if(usedNames.has(candidate))continue;
      const published=await env.pages.prepare("SELECT site_id FROM sites WHERE hostname=? COLLATE NOCASE LIMIT 1").bind(candidate).first();
      const project=await env.database.prepare("SELECT site_id FROM cp_projects WHERE hostname=? COLLATE NOCASE LIMIT 1").bind(candidate).first();
-     if(!published&&!project){fakeHost=candidate;usedNames.add(candidate);}
+     if(!published&&!project){fakeHost=candidate;fakeTitle=a[0].toUpperCase()+a.slice(1)+" "+b[0].toUpperCase()+b.slice(1);usedNames.add(candidate);}
     }
     if(!fakeHost)return json({ok:false,error:"recovery_decoys_unavailable",detail:"No se han podido generar opciones falsas seguras. Inténtalo de nuevo."},503);
-    options.push({id:crypto.randomUUID(),label:"Proyecto web · "+fakeHost});
+    options.push({id:crypto.randomUUID(),label:fakeTitle+" · "+fakeHost});
    }
    for(let i=options.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[options[i],options[j]]=[options[j],options[i]]}
    await env.database.prepare("INSERT INTO cp_recovery_challenges(challenge_hash,developer_id,correct_ids,expires_at,created_at) VALUES(?,?,?,?,?)").bind(challengeHash,account?.developer_id||null,JSON.stringify(correct.map(x=>x.id)),expires,stamp).run();
