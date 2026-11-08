@@ -12,12 +12,14 @@ export async function onRequestPost({request,env}){
  if(length>MAX_BODY)return json({ok:false,error:"request_too_large"},413);
  let body;try{body=await request.json()}catch{return json({ok:false,error:"invalid_json"},400)}
  const prompt=String(body?.prompt||"").trim();
+ const currentHtml=String(body?.current_html||"");
  if(!prompt||prompt.length>12000)return json({ok:false,error:"invalid_prompt",detail:"Describe the page in 1 to 12,000 characters."},400);
+ if(currentHtml.length>80000)return json({ok:false,error:"current_page_too_large",detail:"The current page is too large to edit in one request."},413);
  const model=String(body?.model||"llama-3.3-70b-versatile").trim();
  const allowed=new Set(["llama-3.3-70b-versatile","llama-3.1-8b-instant","openai/gpt-oss-120b"]);
  if(!allowed.has(model))return json({ok:false,error:"unsupported_model"},400);
  try{
-  const upstream=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"authorization":"Bearer "+key,"content-type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:SYSTEM},{role:"user",content:prompt}],temperature:0.65,max_tokens:8000,response_format:{type:"json_object"}})});
+  const upstream=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"authorization":"Bearer "+key,"content-type":"application/json"},body:JSON.stringify({model,messages:[{role:"system",content:SYSTEM},{role:"user",content:(currentHtml?"CURRENT WEBSITE HTML TO EDIT:\\n"+currentHtml+"\\n\\nUSER REQUEST:\\n":"")+prompt}],temperature:0.65,max_tokens:8000,response_format:{type:"json_object"}})});
   const data=await upstream.json().catch(()=>({}));
   if(!upstream.ok)return json({ok:false,error:"groq_error",detail:String(data?.error?.message||"Groq returned HTTP "+upstream.status).slice(0,1000)},502);
   const raw=data?.choices?.[0]?.message?.content;
