@@ -1,5 +1,5 @@
 import { ensureAccountSchema, getAccount, accountJson, hashAccountPassword, createAccountSession, verifyAccountPassword, accountSessionHash } from "./_account.js";
-function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store"}})}
+function json(data,status=200){return Response.json(data,{status,headers:{"cache-control":"no-store","access-control-allow-origin":"*","access-control-allow-headers":"authorization,content-type","access-control-allow-methods":"GET,POST,OPTIONS"}})}
 const now=()=>new Date().toISOString();
 const MAX_PUBLISH_FILES=300;
 const MAX_PUBLISH_BYTES=15*1024*1024;
@@ -88,6 +88,10 @@ export async function onRequest({request,env}){
  const u=new URL(request.url);
  const action=u.searchParams.get("action")||"sites";
  const method=request.method;
+ // The editor can be opened through alternate Fairwas hostnames. Handle CORS
+ // preflight explicitly so browsers do not receive method_not_allowed before
+ // the real authenticated POST reaches the publish/update action.
+ if(method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-headers":"authorization,content-type","access-control-allow-methods":"GET,POST,OPTIONS","access-control-max-age":"86400"}});
  if(!env.database||!env.pages||!env.server||!env.users)return json({ok:false,error:"d1_binding_missing",detail:"CreatePage requiere pages, server, database y users."},500);
 
  try{
